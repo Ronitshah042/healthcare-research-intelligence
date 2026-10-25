@@ -170,10 +170,25 @@ The Unicode-digit test for `"²"` was converted from an expected failure into a
 normal regression test. The verification command ran 13 tests in 0.010 seconds
 with `OK`: all 13 passed and there were no expected failures.
 
+## Milestone 1 maintenance: validation-contract regression coverage
+
+**Status:** Complete
+
+This maintenance update keeps the metadata foundation narrow while reinforcing
+its documented error contract. If `urllib.parse.urlsplit` rejects a malformed
+source URL, the validator now translates that `ValueError` into
+`MetadataValidationError`, matching the behaviour for other invalid metadata.
+
+The test suite now also verifies malformed URL parsing, rejection of
+non-mapping input, and reassignment protection on the frozen `PaperMetadata`
+model. The duplicate `.gitignore` block was removed without changing any
+ignore patterns. The README now identifies the metadata foundation as complete
+and accurately states the capabilities that remain unimplemented.
+
 ## Current status
 
-Milestones 1 and 1.1, including its approved Unicode-validation follow-up, are
-complete. The metadata validator is verified with 13 passing tests using
+Milestones 1 and 1.1, including their approved maintenance follow-ups, are
+complete. The metadata validator is verified with 16 passing tests using
 `python3`, with no expected failures. The project has a narrow, local
 metadata-validation foundation only. It has no paper ingestion, search,
 retrieval, generation, evaluation, or user interface capability yet.

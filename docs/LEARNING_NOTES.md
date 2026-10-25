@@ -159,11 +159,21 @@ requires an `http` or `https` scheme and a non-empty network location (host).
 This does not contact the URL, confirm that it exists, verify a publisher, or
 fully validate every part of a URL. It is intentionally a basic local check.
 
+### Parser errors and the public validation contract
+
+Some malformed URLs cannot be structurally split at all. For example, a URL
+with an invalid bracketed host can make `urlsplit` raise `ValueError` before
+the scheme-and-host checks run. That is still invalid user-supplied metadata,
+so `_normalise_source_url` catches this parser error and raises
+`MetadataValidationError` instead. This gives callers one documented exception
+type for invalid metadata without hiding unexpected errors outside this narrow
+parsing operation.
+
 ## `unittest`
 
 `unittest` is built into Python. The project therefore needs no test package
-to run its current tests. After Milestone 1.1, the test class has 13 discovered
-test methods. It verifies:
+to run its current tests. After Milestone 1 maintenance, the test class has 16
+discovered test methods. It verifies:
 
 1. a valid metadata dictionary is cleaned and converted correctly;
 2. each required field is rejected when absent; and
@@ -176,6 +186,10 @@ test methods. It verifies:
    designed; and
 8. Unicode digits that cannot be converted to an integer raise
    `MetadataValidationError`.
+9. malformed URLs that make `urlsplit` fail still raise
+   `MetadataValidationError`;
+10. non-mapping metadata input is rejected with `MetadataValidationError`; and
+11. validated `PaperMetadata` fields cannot be reassigned.
 
 The successful local command was:
 

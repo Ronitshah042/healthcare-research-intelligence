@@ -113,7 +113,13 @@ def _normalise_source_url(value: object) -> str | None:
     if source_url is None:
         return None
 
-    parsed_url = urlsplit(source_url)
+    try:
+        parsed_url = urlsplit(source_url)
+    except ValueError as error:
+        raise MetadataValidationError(
+            "source_url must be an absolute HTTP or HTTPS URL when provided."
+        ) from error
+
     if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
         raise MetadataValidationError(
             "source_url must be an absolute HTTP or HTTPS URL when provided."

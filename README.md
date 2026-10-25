@@ -61,6 +61,10 @@ licences and terms will be used.
 
 ## Development Status
 
-**Status:** Initial setup
+**Status:** Milestone 1 complete — metadata normalisation and validation
 
-Features are planned and will be implemented and evaluated incrementally.
+The project currently provides a small, local foundation for validating and
+normalising research-paper metadata. It does not yet retrieve papers, call
+external research APIs, search evidence, generate answers, or provide a user
+interface. Those capabilities remain planned and will be implemented and
+evaluated incrementally.

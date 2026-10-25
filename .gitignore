@@ -26,31 +26,3 @@ htmlcov/
 
 # Logs
 *.log
-
-# Environment variables and API keys
-.env
-.env.*
-!.env.example
-
-# Python virtual environments
-.venv/
-venv/
-env/
-
-# Python cache files
-__pycache__/
-*.py[cod]
-*.pyo
-
-# Test and development files
-.pytest_cache/
-.coverage
-htmlcov/
-
-# IDE and operating system files
-.DS_Store
-.vscode/
-.idea/
-
-# Logs
-*.log

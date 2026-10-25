@@ -1,6 +1,7 @@
 """Tests for research-paper metadata normalisation."""
 
 import unittest
+from dataclasses import FrozenInstanceError
 from datetime import date
 
 from ingestion.metadata import MetadataValidationError, normalise_paper_metadata
@@ -47,6 +48,12 @@ class NormalisePaperMetadataTests(unittest.TestCase):
 
                 with self.assertRaises(MetadataValidationError):
                     normalise_paper_metadata(incomplete_metadata)
+
+    def test_rejects_non_mapping_metadata(self) -> None:
+        for metadata in (None, [], "metadata"):
+            with self.subTest(metadata=metadata):
+                with self.assertRaises(MetadataValidationError):
+                    normalise_paper_metadata(metadata)
 
     def test_rejects_invalid_publication_years(self) -> None:
         valid_metadata = self._valid_metadata()
@@ -153,6 +160,23 @@ class NormalisePaperMetadataTests(unittest.TestCase):
 
                 with self.assertRaises(MetadataValidationError):
                     normalise_paper_metadata(metadata)
+
+    def test_rejects_malformed_source_urls_with_metadata_validation_error(self) -> None:
+        malformed_urls = ["https://[::1", "https://example.org]"]
+
+        for source_url in malformed_urls:
+            with self.subTest(source_url=source_url):
+                metadata = self._valid_metadata()
+                metadata["source_url"] = source_url
+
+                with self.assertRaises(MetadataValidationError):
+                    normalise_paper_metadata(metadata)
+
+    def test_normalised_metadata_is_immutable(self) -> None:
+        metadata = normalise_paper_metadata(self._valid_metadata())
+
+        with self.assertRaises(FrozenInstanceError):
+            metadata.title = "Changed title"
 
     def test_accepts_publication_year_boundaries(self) -> None:
         valid_years = [1, date.today().year + 1]
