@@ -185,13 +185,51 @@ model. The duplicate `.gitignore` block was removed without changing any
 ignore patterns. The README now identifies the metadata foundation as complete
 and accurately states the capabilities that remain unimplemented.
 
+## Milestone 2A: PubMed citation search integration
+
+**Status:** Complete
+
+Milestone 2A adds a framework-neutral, standard-library PubMed client under
+`src/ingestion`. It uses ESearch with the NCBI history server and one batched
+EFetch request per page. The client supports title, title/abstract, author,
+DOI, and PMID searches; an inclusive publication-date filter; total counts;
+and pages of up to 20 results. A title search falls back to title/abstract only
+when the title-only search has no matches.
+
+Validated results reuse `PaperMetadata` and identify sources as `PMID:<id>`
+with an official PubMed record URL. PubMed-only fields are kept in a separate
+result model. Abstract text is intentionally ignored, and the milestone makes
+no full-text request or persistent cache. Citation parsing follows the approved
+primary-year rule: journal `PubDate/Year`, then the first four-digit year in
+`MedlineDate` only when `Year` is absent; electronic and history dates are not
+substitutes.
+
+The tests use mocked HTTP, clock, and sleeper dependencies only. They cover
+search fields, fallback rules, filters, paging, citation mapping, date
+precedence, missing abstracts, malformed records and XML, API failures,
+configuration, and rate limiting. `docs/PUBMED_INTEGRATION.md` records the
+production identification, attribution, disclaimer, and rights-review
+requirements before a public deployment.
+
+The configuration follow-up rejects non-finite timeout and request-rate values
+and permits only HTTPS URLs on the official NCBI E-utilities host. This keeps
+the local rate limiter meaningful and prevents configured identification data
+or an API key from being sent to an arbitrary endpoint.
+
+The review-fix pass makes the per-client rate limiter safe for shared-thread
+use without holding its lock during HTTP calls. It treats an EFetch document
+without citation records after a positive search as a response error, while
+retaining individual invalid-record skipping. It also defines the public query
+policy: title, title/abstract, and author methods accept plain text; DOI and
+PMID methods accept one validated identifier; advanced PubMed query syntax is
+out of scope for Milestone 2A.
+
 ## Current status
 
-Milestones 1 and 1.1, including their approved maintenance follow-ups, are
-complete. The metadata validator is verified with 16 passing tests using
-`python3`, with no expected failures. The project has a narrow, local
-metadata-validation foundation only. It has no paper ingestion, search,
-retrieval, generation, evaluation, or user interface capability yet.
+Milestones 1, 1.1, and 2A are complete. The project now has a validated PubMed
+citation-search capability and a metadata-validation foundation. It has no
+full-text ingestion, abstract display or persistence, evidence retrieval,
+generation, evaluation, or user interface capability yet.
 
 ## Next steps
 

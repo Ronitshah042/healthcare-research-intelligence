@@ -242,3 +242,93 @@ current trade-off, not proof that unknown fields are always safe to ignore.
 The validator catches `ValueError` from `int()` and converts it into
 `MetadataValidationError`. The `"²"` regression test verifies callers receive
 the project's consistent validation exception.
+
+## Milestone 2A: PubMed citation search
+
+### Why use ESearch followed by EFetch?
+
+ESearch answers two questions cheaply: how many PubMed records match and where
+NCBI stored that result set on its temporary history server. EFetch can then
+retrieve just the requested page from that set. This avoids fetching every
+matching citation merely to show one page.
+
+The client sends `usehistory=y` to ESearch, then supplies its `WebEnv` and
+`QueryKey` to EFetch with `retstart` and `retmax`. The project caps `retmax` at
+20 because the public result model promises no more than 20 records per page.
+
+### Why have a title fallback?
+
+A title-focused search uses PubMed's `[ti]` field. If it has no matches, the
+client makes one broader `[tiab]` search over title/abstract-related content.
+That keeps title searches precise when they work while still finding a citation
+whose important terms appear outside its title. Author, DOI, and PMID lookups
+do not fall back because changing their field would change the identity or
+author intent of the request.
+
+### Why is the returned year not always the same as a PubMed date filter?
+
+The returned `PaperMetadata.publication_year` is the journal citation's
+`PubDate/Year`. If that field is absent, the client takes the first four-digit
+year in `MedlineDate`; it never substitutes an electronic `ArticleDate` or a
+publication-history date. This makes the model's meaning predictable.
+
+PubMed's `[pdat]` search filter, however, uses PubMed's publication-date
+index. An online-first date and a later print citation can differ, so a record
+found by a year filter can legitimately have a different displayed citation
+year. The service reports this limitation instead of implying an exact match
+across every date associated with a publication.
+
+### Why keep abstracts out of the result model for now?
+
+PubMed XML may contain publisher-supplied abstract text, but availability is
+not a blanket reuse permission. Milestone 2A therefore always passes `None`
+for `PaperMetadata.abstract`, does not cache API data, and does not fetch full
+text. A later feature needs explicit scope approval and a rights review before
+it can display or persist abstracts.
+
+### Why inject the transport, clock, and sleeper?
+
+An injected transport lets tests return prepared XML or failures without using
+the network. Injected time functions verify the request limiter without making
+tests wait. These small seams make the production client deterministic to test
+while keeping its default implementation in the Python standard library.
+
+### Why reject `NaN`, infinity, and custom endpoint hosts?
+
+`NaN` is unusual because comparisons such as `NaN <= 0` are false. A simple
+positive-number check can therefore accidentally accept it, after which a rate
+limiter cannot calculate a meaningful interval. The configuration now requires
+finite positive timeout and request-rate values.
+
+Each E-utilities request includes a tool name and developer email, and an API
+key when configured. The base URL is consequently restricted to HTTPS on
+NCBI's official E-utilities host. Tests use an injected transport rather than
+a custom endpoint, so this safety rule does not make tests depend on the
+network.
+
+### Why lock only the rate-limit scheduler?
+
+The shared value that matters for rate limiting is the next reserved request
+time. Two threads that read and update it independently can reserve the same
+time slot. The client therefore holds a lock while it checks that value, waits,
+and reserves a new slot. It releases the lock before the HTTP request, so one
+slow response does not stop another already-scheduled request from starting.
+
+### Why reject query syntax instead of trying to escape everything?
+
+PubMed field tags, parentheses, quotes, and Boolean operators have useful
+meaning in an advanced query, but these focused methods promise a particular
+field. Correctly preserving every literal use of PubMed syntax would require a
+larger query-language design. For this milestone, title, title/abstract, and
+author inputs accept ordinary text with common punctuation and reject syntax
+that can change the search. DOI and PMID lookups instead accept one validated
+identifier. A future advanced-query feature can be designed separately.
+
+### Why reject an empty EFetch document after a positive search?
+
+ESearch and EFetch are linked through NCBI's history server. Once an in-range
+page has a positive ESearch count, an XML document with no citation elements is
+not a useful empty result: it could be an unexpected response shape or a stale
+history result. Raising a response error lets the caller distinguish that case
+from a genuine zero-result search. Individual `PubmedArticle` elements can
+still be malformed; those remain visible through `invalid_record_count`.

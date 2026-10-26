@@ -1,7 +1,7 @@
 # Technical Decisions
 
 This record distinguishes decisions already implemented from choices that
-remain open. It documents Milestone 1 only.
+remain open. It documents Milestones 1 and 2A.
 
 ## Confirmed decisions
 
@@ -86,6 +86,116 @@ with `PYTHONPATH=src python3 -m unittest discover -s tests -v`.
 
 **Reasoning:** This keeps the first milestone dependency-free. The environment
 did not provide a `python` command, so `python3` was required locally.
+
+### Keep PubMed configuration separate from the client
+
+**Decision:** `PubMedClientConfig` owns application identification, developer
+contact, optional API key, timeout, endpoint, and request-rate configuration.
+`PubMedClient` owns requests, parsing, and result mapping.
+
+**Reasoning:** NCBI identification and rate limits are operational settings,
+not citation-processing rules. This keeps secrets out of code and lets tests
+construct controlled configuration without relying on environment state.
+
+### Use ESearch history followed by paged EFetch
+
+**Decision:** Searches use ESearch with `usehistory=y`, then EFetch by
+`WebEnv`/`QueryKey` for one requested page of up to 20 records.
+
+**Reasoning:** ESearch supplies an accurate total count before records are
+retrieved. The history server makes page retrieval efficient and avoids a
+separate EFetch request for every citation.
+
+### Limit fallback to title searches
+
+**Decision:** `search_title` uses `[ti]`, then uses `[tiab]` exactly once only
+when the title query has zero results. Other search modes never fall back.
+
+**Reasoning:** This balances title precision and recall without unexpectedly
+broadening author or identifier lookups.
+
+### Keep PubMed-specific details outside `PaperMetadata`
+
+**Decision:** Each `PubMedSearchRecord` contains validated `PaperMetadata`
+plus PMID, DOI, journal, and raw citation-date data.
+
+**Reasoning:** `PaperMetadata` remains a reusable ingestion model while PubMed
+details remain explicit and do not shape future non-PubMed sources.
+
+### Define publication year as the primary journal-citation year
+
+**Decision:** Use `JournalIssue/PubDate/Year`; only if it is absent, extract
+the first ASCII four-digit year from `MedlineDate`. A present malformed year,
+or no usable primary citation date, invalidates that record. `ArticleDate` and
+publication-history dates are not substitutes.
+
+**Reasoning:** Online-first, print, and history dates can differ. The rule
+makes `PaperMetadata.publication_year` deterministic and keeps its validation
+at the existing metadata boundary. PubMed's `[pdat]` search index is related
+but not guaranteed to equal the displayed primary citation year.
+
+### Exclude abstracts and full text from Milestone 2A results
+
+**Decision:** The client sets `PaperMetadata.abstract` to `None`, does not
+persist API responses, and does not retrieve PMC or publisher full text.
+
+**Reasoning:** PubMed abstracts may be publisher- or author-copyrighted.
+Avoiding their display and storage until a rights review keeps this milestone
+within a conservative bibliographic-metadata scope.
+
+### Require NCBI identification and make attribution available
+
+**Decision:** A client requires a configured `tool` name and developer email,
+enforces a conservative local request rate, and returns attribution/disclaimer
+information with search pages.
+
+**Reasoning:** NCBI expects identified, rate-limited API use and visible
+disclaimer/copyright information in services using E-utilities. A future UI
+must render the supplied information and must not imply NCBI/NLM endorsement.
+
+### Keep identified E-utilities requests on the official secure host
+
+**Decision:** `base_url` must use HTTPS and the exact
+`eutils.ncbi.nlm.nih.gov` host. Timeout and request-rate values must also be
+finite positive numbers.
+
+**Reasoning:** Every request carries the application tool name and developer
+email, and may carry an API key. Restricting the configured destination prevents
+those values from being sent to an arbitrary or lookalike host. Rejecting `NaN`
+and infinity keeps the timeout and local rate limiter meaningful.
+
+### Synchronise rate-limit scheduling for shared clients
+
+**Decision:** A `PubMedClient` locks the complete rate-limit scheduling step:
+checking the next slot, sleeping when needed, and reserving the next slot. It
+does not hold that lock while performing HTTP transport.
+
+**Reasoning:** A shared client can be called by more than one thread. A lock
+prevents concurrent callers from reserving the same slot, while releasing it
+before I/O avoids serialising the response wait itself.
+
+### Treat missing EFetch citation records as a response failure
+
+**Decision:** After a positive ESearch count and an in-range page request, a
+well-formed EFetch response with no `PubmedArticle` elements is a
+`PubMedResponseError`. This includes an empty `PubmedArticleSet`.
+
+**Reasoning:** A successful empty page would contradict the history-backed
+search result and conceal an unexpected response shape. This does not change
+the handling of individual malformed articles, which are still skipped and
+counted.
+
+### Keep public search methods within their advertised query semantics
+
+**Decision:** Title, title/abstract, and author methods accept only plain text
+and reject PubMed field/grouping/phrase syntax and uppercase Boolean operators.
+DOI and PMID methods validate one identifier and do not accept query syntax.
+
+**Reasoning:** Escaping every valid PubMed query variation while retaining
+literal punctuation is brittle. A small explicit validation policy preserves
+common citation text and prevents a caller from silently broadening or
+redirecting a field-specific search. An advanced-query feature, if needed,
+requires separate scope approval.
 
 ## Confirmed trade-offs
 
