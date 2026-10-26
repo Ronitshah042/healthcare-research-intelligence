@@ -6,7 +6,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from enum import Enum
+import hashlib
 import logging
+import math
 import re
 import socket
 from threading import Lock
@@ -17,7 +19,7 @@ from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 
 from .metadata import MetadataValidationError, PaperMetadata, normalise_paper_metadata
-from .pubmed_config import PubMedClientConfig, PubMedConfigurationError
+from .pubmed_config import PubMedClientConfig
 
 
 LOGGER = logging.getLogger(__name__)
@@ -26,6 +28,7 @@ _PLAIN_TEXT_QUERY_FORBIDDEN_CHARACTERS = frozenset('[]()"')
 _BOOLEAN_OPERATOR_PATTERN = re.compile(r"\b(?:AND|OR|NOT)\b")
 _DOI_PATTERN = re.compile(r"10\.[0-9]{4,9}/[^\s\"]+", re.ASCII)
 _PMID_PATTERN = re.compile(r"[0-9]+", re.ASCII)
+_RETRYABLE_HTTP_STATUS_CODES = frozenset({408, 429, 500, 502, 503, 504})
 
 
 class PubMedError(Exception):
@@ -149,8 +152,35 @@ Clock = Callable[[], float]
 Sleeper = Callable[[float], None]
 
 
+class _RateLimitScheduler:
+    """Reserve rate-limited request slots for one process authentication scope."""
+
+    def __init__(self) -> None:
+        self.lock = Lock()
+        self.next_request_at: float | None = None
+
+    def reserve_slot(
+        self,
+        clock: Clock,
+        sleeper: Sleeper,
+        requests_per_second: float,
+    ) -> None:
+        with self.lock:
+            now = clock()
+            if self.next_request_at is not None and now < self.next_request_at:
+                sleeper(self.next_request_at - now)
+                now = clock()
+
+            interval = 1 / requests_per_second
+            scheduled_from = max(now, self.next_request_at or now)
+            self.next_request_at = scheduled_from + interval
+
+
 class PubMedClient:
     """Search PubMed citation metadata while observing configured request limits."""
+
+    _process_rate_limiters: dict[str, _RateLimitScheduler] = {}
+    _process_rate_limiters_lock = Lock()
 
     def __init__(
         self,
@@ -164,8 +194,26 @@ class PubMedClient:
         self._transport = transport or _default_transport
         self._clock = clock or time.monotonic
         self._sleeper = sleeper or time.sleep
-        self._next_request_at: float | None = None
-        self._rate_limit_lock = Lock()
+        self._rate_limiter = self._get_process_rate_limiter(config)
+        self._rate_limit_lock = self._rate_limiter.lock
+
+    @classmethod
+    def _get_process_rate_limiter(
+        cls, config: PubMedClientConfig
+    ) -> _RateLimitScheduler:
+        scope = _rate_limit_scope(config)
+        with cls._process_rate_limiters_lock:
+            limiter = cls._process_rate_limiters.get(scope)
+            if limiter is None:
+                limiter = _RateLimitScheduler()
+                cls._process_rate_limiters[scope] = limiter
+            return limiter
+
+    @classmethod
+    def _reset_process_rate_limiters_for_tests(cls) -> None:
+        """Clear process-shared limiter state for isolated deterministic tests."""
+        with cls._process_rate_limiters_lock:
+            cls._process_rate_limiters.clear()
 
     def search_title(
         self,
@@ -402,36 +450,86 @@ class PubMedClient:
             request_parameters["api_key"] = self._config.api_key
 
         url = f"{self._config.base_url}{endpoint}?{urlencode(request_parameters)}"
-        self._wait_for_request_slot()
-        try:
-            return self._transport(url, self._config.timeout_seconds)
-        except HTTPError as error:
-            raise PubMedHttpError(error.code) from error
-        except (TimeoutError, socket.timeout) as error:
-            raise PubMedTimeoutError("PubMed request timed out.") from error
-        except URLError as error:
-            if isinstance(error.reason, (TimeoutError, socket.timeout)):
+        retries_used = 0
+
+        while True:
+            self._wait_for_request_slot()
+            try:
+                return self._transport(url, self._config.timeout_seconds)
+            except HTTPError as error:
+                if self._should_retry(retries_used, error.code):
+                    self._wait_before_retry(retries_used, _retry_after_seconds(error))
+                    retries_used += 1
+                    continue
+                raise PubMedHttpError(error.code) from error
+            except (TimeoutError, socket.timeout) as error:
+                if self._should_retry(retries_used):
+                    self._wait_before_retry(retries_used)
+                    retries_used += 1
+                    continue
                 raise PubMedTimeoutError("PubMed request timed out.") from error
-            raise PubMedTransportError("Unable to reach the PubMed API.") from error
-        except OSError as error:
-            raise PubMedTransportError("Unable to reach the PubMed API.") from error
+            except URLError as error:
+                if self._should_retry(retries_used):
+                    self._wait_before_retry(retries_used)
+                    retries_used += 1
+                    continue
+                if isinstance(error.reason, (TimeoutError, socket.timeout)):
+                    raise PubMedTimeoutError("PubMed request timed out.") from error
+                raise PubMedTransportError("Unable to reach the PubMed API.") from error
+            except OSError as error:
+                if self._should_retry(retries_used):
+                    self._wait_before_retry(retries_used)
+                    retries_used += 1
+                    continue
+                raise PubMedTransportError("Unable to reach the PubMed API.") from error
 
     def _wait_for_request_slot(self) -> None:
-        with self._rate_limit_lock:
-            now = self._clock()
-            if self._next_request_at is not None and now < self._next_request_at:
-                self._sleeper(self._next_request_at - now)
-                now = self._clock()
+        self._rate_limiter.reserve_slot(
+            self._clock,
+            self._sleeper,
+            self._config.requests_per_second,
+        )
 
-            interval = 1 / self._config.requests_per_second
-            scheduled_from = max(now, self._next_request_at or now)
-            self._next_request_at = scheduled_from + interval
+    def _should_retry(self, retries_used: int, status_code: int | None = None) -> bool:
+        if retries_used >= self._config.max_retries:
+            return False
+        return status_code is None or status_code in _RETRYABLE_HTTP_STATUS_CODES
+
+    def _wait_before_retry(
+        self, retries_used: int, retry_after_seconds: float | None = None
+    ) -> None:
+        backoff_seconds = self._config.retry_backoff_seconds * (2 ** retries_used)
+        wait_seconds = max(backoff_seconds, retry_after_seconds or 0.0)
+        LOGGER.warning("Retrying a transient PubMed request failure.")
+        self._sleeper(wait_seconds)
 
 
 def _default_transport(url: str, timeout_seconds: float) -> bytes:
     request = Request(url, headers={"User-Agent": "healthcare-research-intelligence"})
     with urlopen(request, timeout=timeout_seconds) as response:
         return response.read()
+
+
+def _rate_limit_scope(config: PubMedClientConfig) -> str:
+    if config.api_key is None:
+        return "anonymous"
+    api_key_digest = hashlib.sha256(config.api_key.encode("utf-8")).hexdigest()
+    return f"api-key:{api_key_digest}"
+
+
+def _retry_after_seconds(error: HTTPError) -> float | None:
+    if error.headers is None:
+        return None
+    value = error.headers.get("Retry-After")
+    if value is None:
+        return None
+    try:
+        seconds = float(value)
+    except ValueError:
+        return None
+    if not math.isfinite(seconds) or seconds < 0:
+        return None
+    return seconds
 
 
 def _normalise_search_input(value: object, search_mode: SearchMode) -> str:
@@ -551,7 +649,7 @@ def _empty_page(search_mode: SearchMode, page: int, page_size: int) -> PubMedSea
 def _raise_for_api_error(root: ElementTree.Element) -> None:
     error = _element_text(root.find(".//ERROR"))
     if error:
-        raise PubMedResponseError(f"PubMed reported an API error: {error}")
+        raise PubMedResponseError("PubMed reported an API error.")
 
 
 def _map_pubmed_article(

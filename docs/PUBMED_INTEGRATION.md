@@ -3,9 +3,27 @@
 ## Scope
 
 Milestone 2A provides a framework-neutral Python client for searching PubMed
-citations through the official NCBI E-utilities API. It retrieves bibliographic
-metadata only. It does not retrieve PMC or publisher full text, display
-abstracts, cache abstracts, persist any API response, or make clinical claims.
+citations through the official NCBI E-utilities API. Milestone 2B hardens that
+client's process-local request coordination and transient-failure handling. The
+client retrieves bibliographic metadata only. It does not retrieve PMC or
+publisher full text, display abstracts, cache abstracts, persist any API
+response, or make clinical claims.
+
+## Milestone 2B acceptance criteria
+
+Milestone 2B is complete when all of the following are true:
+
+- Multiple client instances in one process share a thread-safe rate schedule
+  for the same authentication scope, without holding a lock during transport.
+- Transient failures have bounded, configured retries; every retry passes
+  through the rate limiter.
+- Well-formed NCBI XML error payloads raise `PubMedResponseError` without
+  including configured secrets in the exception message.
+- Mocked tests cover shared scheduling, retry policy, `Retry-After`,
+  non-retryable failures, and ESearch/EFetch XML errors.
+
+Excluded from 2B are cross-process/distributed rate limiting, live integration
+tests, persistent retry queues, circuit breakers, and full-text retrieval.
 
 ## Configuration
 
@@ -20,6 +38,8 @@ contact configured before it makes requests:
 | `PUBMED_NCBI_API_KEY` | Optional NCBI API key. Do not commit it. |
 | `PUBMED_TIMEOUT_SECONDS` | Optional positive request timeout in seconds. |
 | `PUBMED_REQUESTS_PER_SECOND` | Optional request rate at or below NCBI's limit. |
+| `PUBMED_MAX_RETRIES` | Optional non-negative number of retries; default `2`. |
+| `PUBMED_RETRY_BACKOFF_SECONDS` | Optional positive exponential-backoff base; default `0.5`. |
 | `PUBMED_EUTILITIES_BASE_URL` | Optional HTTPS URL on the official NCBI E-utilities host. |
 
 The default endpoint is `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/`.
@@ -28,12 +48,27 @@ This prevents the configured tool name, developer email, or API key from being
 sent to an endpoint outside the official NCBI E-utilities host. The endpoint
 override is therefore not suitable for local proxies or mock servers; tests
 inject a transport instead.
-Without an API key, the client limits its own requests to three per second; an
-API key allows a configured rate up to ten per second. The limiter is per
-client process, so a future multi-process deployment needs a shared limiter.
+Without an API key, clients share an anonymous process-local schedule capped at
+three requests per second. Clients that use the same API key share a separate
+process-local schedule capped at ten requests per second; the in-memory
+scheduler stores only a SHA-256 digest of the key. Different API keys use
+different schedules. A lower configured rate is honoured when that client
+reserves a slot. The scheduler lock protects slot reservation only, never the
+HTTP transport. A future multi-process deployment still needs a distributed
+limiter.
 Timeouts and configured request rates must be finite positive numbers; `NaN`
 and infinity are rejected.
-The client does not retry failures automatically in this milestone.
+
+## Retry policy
+
+The client makes at most three attempts by default: one initial request plus
+two retries. It waits `0.5`, then `1.0` seconds by default, doubling the base
+backoff for each retry. The following failures are retried: timeouts, URL and
+other transport errors, and HTTP 408, 429, 500, 502, 503, and 504 responses.
+For a numeric `Retry-After` response header, the client waits at least that
+many seconds. Invalid user input, configuration failures, malformed XML, NCBI
+XML error payloads, and other HTTP statuses are not retried. Each new attempt
+reserves a fresh process-shared rate-limit slot.
 
 NCBI requires E-utilities users to identify distributed software with `tool`
 and developer `email`, and its guidance sets the corresponding request-rate
@@ -115,7 +150,9 @@ other records in the EFetch batch are retained, and the result reports the
 skipped-record count. If a positive ESearch result leads to a well-formed
 EFetch document with no `PubmedArticle` elements, including an empty
 `PubmedArticleSet`, the client raises `PubMedResponseError` rather than
-misreporting it as a successful empty page.
+misreporting it as a successful empty page. NCBI XML error text is not copied
+into the exception message, because an upstream error can echo request values
+such as an API key.
 
 ## Content rights and presentation requirements
 
@@ -143,5 +180,6 @@ Tests inject a transport, clock, and sleeper. They use static XML responses and
 never make live PubMed requests. Coverage includes all search modes, fallback,
 year filters, pagination, XML mapping, missing abstracts, malformed records,
 timeouts, HTTP and transport errors, malformed XML, configuration, and rate
-limiting. The rate-limit scheduling step is locked for a shared client; the
-lock is released before the HTTP transport begins.
+limiting. Milestone 2B adds deterministic tests for shared multi-client,
+multi-thread scheduling; transient retries; `Retry-After`; permanent and XML
+failure exclusions; and safe ESearch/EFetch XML error translation.

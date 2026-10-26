@@ -25,6 +25,8 @@ class PubMedClientConfig:
     api_key: str | None = None
     timeout_seconds: float = 10.0
     requests_per_second: float | None = None
+    max_retries: int = 2
+    retry_backoff_seconds: float = 0.5
     base_url: str = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
 
     def __post_init__(self) -> None:
@@ -39,6 +41,12 @@ class PubMedClientConfig:
         api_key = _normalise_optional_text(self.api_key, "api_key")
         timeout_seconds = _normalise_positive_number(
             self.timeout_seconds, "timeout_seconds"
+        )
+        max_retries = _normalise_non_negative_integer(
+            self.max_retries, "max_retries"
+        )
+        retry_backoff_seconds = _normalise_positive_number(
+            self.retry_backoff_seconds, "retry_backoff_seconds"
         )
         base_url = _normalise_base_url(self.base_url)
 
@@ -59,6 +67,8 @@ class PubMedClientConfig:
         object.__setattr__(self, "api_key", api_key)
         object.__setattr__(self, "timeout_seconds", timeout_seconds)
         object.__setattr__(self, "requests_per_second", requests_per_second)
+        object.__setattr__(self, "max_retries", max_retries)
+        object.__setattr__(self, "retry_backoff_seconds", retry_backoff_seconds)
         object.__setattr__(self, "base_url", base_url)
 
     @classmethod
@@ -69,15 +79,19 @@ class PubMedClientConfig:
         values = environ if environment is None else environment
         timeout = values.get("PUBMED_TIMEOUT_SECONDS", "10")
         request_rate = values.get("PUBMED_REQUESTS_PER_SECOND")
+        max_retries = values.get("PUBMED_MAX_RETRIES", "2")
+        retry_backoff = values.get("PUBMED_RETRY_BACKOFF_SECONDS", "0.5")
 
         try:
             timeout_seconds = float(timeout)
             requests_per_second = (
                 float(request_rate) if request_rate is not None else None
             )
+            max_retry_count = int(max_retries)
+            retry_backoff_seconds = float(retry_backoff)
         except ValueError as error:
             raise PubMedConfigurationError(
-                "PubMed timeout and request-rate environment values must be numbers."
+                "PubMed timeout, request-rate, and retry environment values must be numbers."
             ) from error
 
         return cls(
@@ -86,6 +100,8 @@ class PubMedClientConfig:
             api_key=values.get("PUBMED_NCBI_API_KEY"),
             timeout_seconds=timeout_seconds,
             requests_per_second=requests_per_second,
+            max_retries=max_retry_count,
+            retry_backoff_seconds=retry_backoff_seconds,
             base_url=values.get(
                 "PUBMED_EUTILITIES_BASE_URL",
                 "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/",
@@ -117,6 +133,14 @@ def _normalise_positive_number(value: object, field_name: str) -> float:
     if not math.isfinite(number) or number <= 0:
         raise PubMedConfigurationError(f"{field_name} must be a positive number.")
     return number
+
+
+def _normalise_non_negative_integer(value: object, field_name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise PubMedConfigurationError(
+            f"{field_name} must be a non-negative whole number."
+        )
+    return value
 
 
 def _normalise_base_url(value: object) -> str:

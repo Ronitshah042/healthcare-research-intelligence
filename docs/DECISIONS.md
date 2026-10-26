@@ -164,15 +164,41 @@ email, and may carry an API key. Restricting the configured destination prevents
 those values from being sent to an arbitrary or lookalike host. Rejecting `NaN`
 and infinity keeps the timeout and local rate limiter meaningful.
 
-### Synchronise rate-limit scheduling for shared clients
+### Share rate-limit scheduling by process authentication scope
 
-**Decision:** A `PubMedClient` locks the complete rate-limit scheduling step:
-checking the next slot, sleeping when needed, and reserving the next slot. It
-does not hold that lock while performing HTTP transport.
+**Decision:** Milestone 2B uses one process-local scheduler for anonymous
+clients and one for each API-key digest. The scheduler locks the complete
+slot-reservation step: checking the next slot, sleeping when needed, and
+reserving the next slot. It does not hold that lock while performing HTTP
+transport.
 
-**Reasoning:** A shared client can be called by more than one thread. A lock
-prevents concurrent callers from reserving the same slot, while releasing it
-before I/O avoids serialising the response wait itself.
+**Reasoning:** The rate rule applies to requests, not to one Python object. A
+process-shared authentication scope prevents several client instances from
+each independently using the full allowance. Digesting API keys avoids keeping
+their raw values in the scheduler registry. Releasing the lock before I/O
+avoids serialising the response wait itself.
+
+### Retry only bounded transient PubMed failures
+
+**Decision:** The default is two retries with a 0.5-second exponential-backoff
+base. Timeouts, transport failures, and HTTP 408, 429, 500, 502, 503, and 504
+are eligible. Numeric `Retry-After` values set a minimum delay. Every retry
+uses the rate limiter again.
+
+**Reasoning:** This recovers from short-lived service or network problems
+without retrying malformed responses, invalid local input, configuration
+errors, or permanent HTTP failures. Bounded retries prevent unending requests
+and are deterministic to test through injected transport, clock, and sleeper
+dependencies.
+
+### Redact upstream XML error text from public exceptions
+
+**Decision:** NCBI XML `<ERROR>` payloads raise a generic
+`PubMedResponseError` without including server-provided text.
+
+**Reasoning:** Upstream services can echo query parameters. Returning their
+text could expose an API key or developer details in application logs or user
+messages.
 
 ### Treat missing EFetch citation records as a response failure
 
@@ -251,5 +277,4 @@ These items are not approved or implemented changes.
   configuration should be added.
 - Which additional metadata fields (journal, publication date, licence,
   language, source provider, full-text availability) belong in a later scope.
-- What Milestone 2 should cover. No Milestone 2 implementation is authorised by
-  this document.
+- Which integration-hardening capability should follow Milestone 2B.

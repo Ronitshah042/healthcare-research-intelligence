@@ -224,15 +224,48 @@ policy: title, title/abstract, and author methods accept plain text; DOI and
 PMID methods accept one validated identifier; advanced PubMed query syntax is
 out of scope for Milestone 2A.
 
+## Milestone 2B: PubMed integration hardening
+
+**Status:** Complete
+
+Milestone 2B keeps Milestone 2A's search and citation behavior intact while
+hardening operational behavior. Multiple anonymous clients now share one
+thread-safe, process-local three-requests-per-second schedule. Clients using
+the same API key share a separate ten-requests-per-second schedule identified
+by a key digest, not the raw key. Scheduling locks are released before HTTP
+transport begins.
+
+The client now makes two bounded retries by default, using a 0.5-second
+exponential-backoff base. It retries timeouts, transport failures, and HTTP
+408, 429, 500, 502, 503, and 504; numeric `Retry-After` values are respected.
+Each retry receives a fresh rate-limit reservation. Permanent HTTP failures,
+malformed XML, and NCBI XML errors are not retried. NCBI `<ERROR>` payloads
+produce a generic response error so echoed secrets are not exposed.
+
+Tests use only mocked transport, clock, sleeper, and thread coordination. They
+verify multi-client shared scheduling, retry bounding and backoff,
+`Retry-After`, permanent-failure exclusions, and ESearch/EFetch XML error
+payload handling. Cross-process limiting, live-service tests, persistent retry
+queues, and circuit breakers remain excluded.
+
+Verification completed with:
+
+```text
+PYTHONPATH=src python3 -m unittest discover -s tests -v
+Ran 56 tests
+OK
+```
+
+`git diff --check` completed without whitespace errors.
+
 ## Current status
 
-Milestones 1, 1.1, and 2A are complete. The project now has a validated PubMed
-citation-search capability and a metadata-validation foundation. It has no
-full-text ingestion, abstract display or persistence, evidence retrieval,
+Milestones 1, 1.1, 2A, and 2B are complete. The project now has a hardened
+PubMed citation-search capability and a metadata-validation foundation. It has
+no full-text ingestion, abstract display or persistence, evidence retrieval,
 generation, evaluation, or user interface capability yet.
 
 ## Next steps
 
 Before any new milestone, agree on its scope and acceptance criteria. A
-separate Milestone 2 should be approved before implementing any new ingestion
-capability.
+separate post-2B ingestion capability should be approved before implementation.

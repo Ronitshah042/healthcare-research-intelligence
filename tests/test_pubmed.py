@@ -97,6 +97,12 @@ def _parameters(url: str) -> dict[str, list[str]]:
 class PubMedClientTests(unittest.TestCase):
     """Verify request construction, responses, and local failure handling."""
 
+    def setUp(self) -> None:
+        PubMedClient._reset_process_rate_limiters_for_tests()
+
+    def tearDown(self) -> None:
+        PubMedClient._reset_process_rate_limiters_for_tests()
+
     @staticmethod
     def _config(**overrides: object) -> PubMedClientConfig:
         values: dict[str, object] = {
@@ -310,6 +316,21 @@ class PubMedClientTests(unittest.TestCase):
                 with self.assertRaises(PubMedResponseError):
                     self._client(transport).search_title_abstract("sleep")
 
+    def test_translates_ncbi_xml_error_payloads_without_exposing_api_keys(self) -> None:
+        cases = (
+            [_esearch_response(0).replace(b"</eSearchResult>", b"<ERROR>secret-key</ERROR></eSearchResult>")],
+            [_esearch_response(1), b"<PubmedArticleSet><ERROR>secret-key</ERROR></PubmedArticleSet>"],
+        )
+
+        for responses in cases:
+            with self.subTest(responses=responses):
+                transport = FakeTransport(responses)
+                with self.assertRaises(PubMedResponseError) as raised:
+                    self._client(transport, api_key="secret-key").search_author(
+                        "Lovelace A"
+                    )
+                self.assertNotIn("secret-key", str(raised.exception))
+
     def test_maps_pubmed_record_to_validated_metadata_without_abstract(self) -> None:
         transport = FakeTransport(
             [
@@ -429,7 +450,120 @@ class PubMedClientTests(unittest.TestCase):
             with self.subTest(error_type=error_type):
                 transport = FakeTransport([response])
                 with self.assertRaises(error_type):
-                    self._client(transport).search_title_abstract("sleep")
+                    self._client(transport, max_retries=0).search_title_abstract(
+                        "sleep"
+                    )
+
+    def test_retries_transient_timeout_and_reenters_rate_limiter(self) -> None:
+        current_time = [0.0]
+        sleep_calls: list[float] = []
+
+        def clock() -> float:
+            return current_time[0]
+
+        def sleeper(seconds: float) -> None:
+            sleep_calls.append(seconds)
+            current_time[0] += seconds
+
+        transport = FakeTransport([socket.timeout(), _esearch_response(0)])
+        client = PubMedClient(
+            self._config(max_retries=1, retry_backoff_seconds=0.25),
+            transport=transport,
+            clock=clock,
+            sleeper=sleeper,
+        )
+
+        result = client.search_author("Lovelace A")
+
+        self.assertEqual(result.total_count, 0)
+        self.assertEqual(len(transport.calls), 2)
+        self.assertAlmostEqual(sleep_calls[0], 0.25)
+        self.assertAlmostEqual(sleep_calls[1], 1 / 12)
+
+    def test_retries_temporary_network_and_retryable_http_failures(self) -> None:
+        failures: tuple[Exception, ...] = (
+            URLError("offline"),
+            HTTPError("https://example.org", 503, "Unavailable", None, BytesIO()),
+        )
+
+        for failure in failures:
+            with self.subTest(failure=failure):
+                transport = FakeTransport([failure, _esearch_response(0)])
+                sleep_calls: list[float] = []
+                result = PubMedClient(
+                    self._config(max_retries=1, retry_backoff_seconds=0.25),
+                    transport=transport,
+                    clock=lambda: 1.0,
+                    sleeper=sleep_calls.append,
+                ).search_author("Lovelace A")
+
+                self.assertEqual(result.total_count, 0)
+                self.assertEqual(len(transport.calls), 2)
+                self.assertIn(0.25, sleep_calls)
+
+    def test_stops_retrying_after_the_configured_limit(self) -> None:
+        transport = FakeTransport([socket.timeout(), socket.timeout()])
+        client = self._client(
+            transport,
+            max_retries=1,
+            retry_backoff_seconds=0.25,
+        )
+
+        with self.assertRaises(PubMedTimeoutError):
+            client.search_author("Lovelace A")
+
+        self.assertEqual(len(transport.calls), 2)
+
+    def test_honors_numeric_retry_after_for_http_429(self) -> None:
+        current_time = [0.0]
+        sleep_calls: list[float] = []
+
+        def sleeper(seconds: float) -> None:
+            sleep_calls.append(seconds)
+            current_time[0] += seconds
+
+        transport = FakeTransport(
+            [
+                HTTPError(
+                    "https://example.org",
+                    429,
+                    "Too many requests",
+                    {"Retry-After": "2"},
+                    BytesIO(),
+                ),
+                _esearch_response(0),
+            ]
+        )
+        client = PubMedClient(
+            self._config(max_retries=1, retry_backoff_seconds=0.25),
+            transport=transport,
+            clock=lambda: current_time[0],
+            sleeper=sleeper,
+        )
+
+        result = client.search_author("Lovelace A")
+
+        self.assertEqual(result.total_count, 0)
+        self.assertEqual(len(transport.calls), 2)
+        self.assertEqual(sleep_calls, [2.0])
+
+    def test_does_not_retry_permanent_http_or_malformed_xml_failures(self) -> None:
+        failures: tuple[Exception | bytes, ...] = (
+            HTTPError("https://example.org", 400, "Bad request", None, BytesIO()),
+            b"<eSearchResult>",
+        )
+
+        for failure in failures:
+            with self.subTest(failure=failure):
+                transport = FakeTransport([failure])
+                client = self._client(
+                    transport,
+                    max_retries=2,
+                    retry_backoff_seconds=0.25,
+                )
+                with self.assertRaises((PubMedHttpError, PubMedResponseError)):
+                    client.search_author("Lovelace A")
+                self.assertEqual(len(transport.calls), 1)
 
     def test_translates_malformed_efetch_xml(self) -> None:
         transport = FakeTransport([_esearch_response(1), b"<PubmedArticleSet>"])
@@ -463,6 +597,64 @@ class PubMedClientTests(unittest.TestCase):
 
         self.assertEqual(sleep_calls, [1.0])
 
+    def test_rate_limiter_is_shared_by_multiple_anonymous_clients(self) -> None:
+        sleep_calls: list[float] = []
+        first_client = PubMedClient(
+            self._config(),
+            transport=FakeTransport([_esearch_response(0)]),
+            clock=lambda: 0.0,
+            sleeper=sleep_calls.append,
+        )
+        second_client = PubMedClient(
+            self._config(),
+            transport=FakeTransport([_esearch_response(0)]),
+            clock=lambda: 0.0,
+            sleeper=sleep_calls.append,
+        )
+
+        first_client.search_author("Lovelace A")
+        second_client.search_author("Lovelace A")
+
+        self.assertIs(first_client._rate_limit_lock, second_client._rate_limit_lock)
+        self.assertEqual(sleep_calls, [1 / 3])
+
+    def test_rate_limiter_separates_anonymous_and_api_key_scopes(self) -> None:
+        anonymous_client = PubMedClient(
+            self._config(),
+            transport=FakeTransport([]),
+            clock=lambda: 0.0,
+            sleeper=lambda _: None,
+        )
+        key_client = PubMedClient(
+            self._config(api_key="key-a"),
+            transport=FakeTransport([]),
+            clock=lambda: 0.0,
+            sleeper=lambda _: None,
+        )
+
+        self.assertIsNot(anonymous_client._rate_limit_lock, key_client._rate_limit_lock)
+
+    def test_rate_limiter_is_shared_by_clients_with_the_same_api_key(self) -> None:
+        sleep_calls: list[float] = []
+        first_client = PubMedClient(
+            self._config(api_key="key-a"),
+            transport=FakeTransport([_esearch_response(0)]),
+            clock=lambda: 0.0,
+            sleeper=sleep_calls.append,
+        )
+        second_client = PubMedClient(
+            self._config(api_key="key-a"),
+            transport=FakeTransport([_esearch_response(0)]),
+            clock=lambda: 0.0,
+            sleeper=sleep_calls.append,
+        )
+
+        first_client.search_author("Lovelace A")
+        second_client.search_author("Lovelace A")
+
+        self.assertIs(first_client._rate_limit_lock, second_client._rate_limit_lock)
+        self.assertEqual(sleep_calls, [0.1])
+
     def test_rate_limiter_serialises_concurrent_slot_reservations(self) -> None:
         class BlockingSleeper:
             def __init__(self) -> None:
@@ -477,28 +669,34 @@ class PubMedClientTests(unittest.TestCase):
                     self.release_first_sleep.wait(timeout=1)
 
         sleeper = BlockingSleeper()
-        client = PubMedClient(
+        first_client = PubMedClient(
             self._config(requests_per_second=1),
             transport=FakeTransport([]),
             clock=lambda: 0.0,
             sleeper=sleeper,
         )
-        client._wait_for_request_slot()
+        second_client = PubMedClient(
+            self._config(requests_per_second=1),
+            transport=FakeTransport([]),
+            clock=lambda: 0.0,
+            sleeper=sleeper,
+        )
+        first_client._wait_for_request_slot()
 
-        first = Thread(target=client._wait_for_request_slot)
+        first = Thread(target=first_client._wait_for_request_slot)
         first.start()
         self.assertTrue(sleeper.first_sleep_started.wait(timeout=1))
 
-        lock_acquired = client._rate_limit_lock.acquire(blocking=False)
+        lock_acquired = second_client._rate_limit_lock.acquire(blocking=False)
         if lock_acquired:
-            client._rate_limit_lock.release()
+            second_client._rate_limit_lock.release()
         self.assertFalse(lock_acquired)
 
         second_started = Event()
 
         def reserve_second_slot() -> None:
             second_started.set()
-            client._wait_for_request_slot()
+            second_client._wait_for_request_slot()
 
         second = Thread(target=reserve_second_slot)
         second.start()
@@ -529,12 +727,16 @@ class PubMedClientConfigTests(unittest.TestCase):
                 "PUBMED_NCBI_EMAIL": "developer@example.org",
                 "PUBMED_NCBI_API_KEY": "secret-key",
                 "PUBMED_TIMEOUT_SECONDS": "8",
+                "PUBMED_MAX_RETRIES": "3",
+                "PUBMED_RETRY_BACKOFF_SECONDS": "1.5",
             }
         )
 
         self.assertEqual(config.api_key, "secret-key")
         self.assertEqual(config.timeout_seconds, 8.0)
         self.assertEqual(config.requests_per_second, 10.0)
+        self.assertEqual(config.max_retries, 3)
+        self.assertEqual(config.retry_backoff_seconds, 1.5)
 
     def test_rejects_non_finite_timeout_and_request_rate_values(self) -> None:
         for field_name in ("timeout_seconds", "requests_per_second"):
@@ -546,6 +748,23 @@ class PubMedClientConfigTests(unittest.TestCase):
                             email="developer@example.org",
                             **{field_name: value},
                         )
+
+    def test_rejects_invalid_retry_configuration(self) -> None:
+        invalid_values = (
+            ("max_retries", -1),
+            ("max_retries", 1.0),
+            ("retry_backoff_seconds", 0),
+            ("retry_backoff_seconds", float("nan")),
+        )
+
+        for field_name, value in invalid_values:
+            with self.subTest(field_name=field_name, value=value):
+                with self.assertRaises(PubMedConfigurationError):
+                    PubMedClientConfig(
+                        tool="healthcare_research_intelligence",
+                        email="developer@example.org",
+                        **{field_name: value},
+                    )
 
     def test_requires_the_official_secure_eutilities_host(self) -> None:
         untrusted_base_urls = (

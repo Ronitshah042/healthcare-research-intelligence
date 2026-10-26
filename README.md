@@ -61,14 +61,16 @@ licences and terms will be used.
 
 ## Development Status
 
-**Status:** Milestone 2A complete — PubMed citation search integration
+**Status:** Milestones 2A and 2B complete — PubMed citation search and
+integration hardening
 
 The project now provides validated PubMed citation search through NCBI
 E-utilities, including title, title/abstract, author, DOI, and PMID search,
-year filters, pagination, and links to original PubMed records. It remains a
-small research-support foundation: it does not retrieve full text, display or
-persist abstracts, provide clinical advice, generate answers, or provide a
-user interface.
+year filters, pagination, and links to original PubMed records. Milestone 2B
+adds process-shared rate scheduling, bounded transient-failure retries, and
+safe NCBI error handling. It remains a small research-support foundation: it
+does not retrieve full text, display or persist abstracts, provide clinical
+advice, generate answers, or provide a user interface.
 
 PubMed-derived results must visibly attribute NLM/NIH and link to the NCBI
 disclaimer. This independent project is not affiliated with or endorsed by
