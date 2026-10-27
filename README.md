@@ -72,6 +72,15 @@ safe NCBI error handling. It remains a small research-support foundation: it
 does not retrieve full text, display or persist abstracts, provide clinical
 advice, generate answers, or provide a user interface.
 
+A small ingestion search pipeline now accepts one typed search request, routes
+it to the matching PubMed client method, and returns a consistent
+metadata-only result. It standardises citation fields and removes identifier
+duplicates without guessing that unrelated partial records are the same paper.
+It reports whether PubMed returned an abstract without retaining its text. Its
+source total remains separate from the current page's valid, deduplicated
+record count. It is a local library component rather than a web API or user
+interface.
+
 PubMed-derived results must visibly attribute NLM/NIH and link to the NCBI
 disclaimer. This independent project is not affiliated with or endorsed by
 NCBI, NLM, NIH, or HHS. See [the PubMed integration guide](docs/PUBMED_INTEGRATION.md)

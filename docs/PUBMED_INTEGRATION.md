@@ -157,10 +157,18 @@ such as an API key.
 ## Content rights and presentation requirements
 
 The client always maps `PaperMetadata.abstract` to `None`, even when PubMed
-returns `AbstractText`. No full text is fetched. A future change to display,
-cache, or persist abstracts requires a separate rights review and explicit
-approval; NLM does not claim copyright in PubMed abstracts, but publishers or
-authors may hold rights.
+returns `AbstractText`. It separately records whether an `AbstractText`
+element was present, so downstream metadata can accurately report abstract
+availability without retaining its contents. No full text is fetched. A future
+change to display, cache, or persist abstracts requires a separate rights
+review and explicit approval; NLM does not claim copyright in PubMed
+abstracts, but publishers or authors may hold rights.
+
+When using the ingestion search pipeline, `SearchResult.total_count` is the
+full number of matches reported by PubMed, not the number returned on one
+page. `SearchResult.normalised_count` is the number of valid, deduplicated
+records returned for that current page. The values can differ because of
+pagination, invalid source records, and identifier-based deduplication.
 
 A future UI must make the following visible with PubMed-derived results:
 

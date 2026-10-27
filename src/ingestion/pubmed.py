@@ -124,6 +124,7 @@ class PubMedSearchRecord:
     doi: str | None
     journal_title: str | None
     citation_date: str | None
+    abstract_available: bool = False
 
 
 @dataclass(frozen=True)
@@ -687,6 +688,10 @@ def _map_pubmed_article(
             article.find("./MedlineCitation/Article/Journal/Title")
         ),
         citation_date=citation_date,
+        abstract_available=(
+            article.find("./MedlineCitation/Article/Abstract/AbstractText")
+            is not None
+        ),
     )
 
 

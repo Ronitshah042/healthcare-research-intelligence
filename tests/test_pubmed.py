@@ -348,6 +348,7 @@ class PubMedClientTests(unittest.TestCase):
             record.metadata.source_url, "https://pubmed.ncbi.nlm.nih.gov/12345/"
         )
         self.assertIsNone(record.metadata.abstract)
+        self.assertTrue(record.abstract_available)
         self.assertEqual(record.doi, "10.1234/example")
 
     def test_missing_abstract_does_not_invalidate_metadata(self) -> None:
@@ -359,6 +360,7 @@ class PubMedClientTests(unittest.TestCase):
 
         self.assertEqual(len(result.records), 1)
         self.assertIsNone(result.records[0].metadata.abstract)
+        self.assertFalse(result.records[0].abstract_available)
 
     def test_primary_journal_year_wins_over_electronic_and_history_dates(self) -> None:
         transport = FakeTransport(

@@ -223,6 +223,52 @@ common citation text and prevents a caller from silently broadening or
 redirecting a field-specific search. An advanced-query feature, if needed,
 requires separate scope approval.
 
+### Keep the search pipeline as a thin ingestion adapter
+
+**Decision:** `SearchPipeline` owns only request routing and a consistent
+metadata-only result shape. `PubMedClient` remains responsible for query
+validation, rate limiting, retries, HTTP transport, XML parsing, and citation
+mapping.
+
+**Reasoning:** This gives callers one stable entry point without duplicating
+source-specific integration rules. Future sources can be adapted to the same
+result shape without changing the PubMed client or adding retrieval features.
+
+### Standardise citations and deduplicate only on connected identifiers
+
+**Decision:** Pipeline results expose normalised PMID, DOI, title, authors,
+journal, publication year, and abstract-availability fields. Records merge
+when they share a PMID or DOI, including transitive links through a record that
+contains both. Missing fields become `None` or an empty author tuple. Invalid
+pipeline records are counted and skipped while valid records continue.
+
+**Reasoning:** PMID and DOI are reliable identifiers when present. A PMID-only
+record and a DOI-only record without a shared bridge cannot safely be declared
+the same paper, so both are retained. This prevents data loss from speculative
+title-based matching while still collapsing known duplicates.
+
+### Preserve abstract availability without retaining abstract text
+
+**Decision:** PubMed XML `AbstractText` presence is recorded as a boolean on a
+PubMed search record and carried to the pipeline result. The abstract text
+remains excluded from `PaperMetadata` and pipeline results.
+
+**Reasoning:** Availability is useful citation metadata, but it does not
+require displaying or storing publisher-supplied abstract content. Deriving the
+flag from the XML keeps it accurate even though later stages intentionally
+discard the text.
+
+### Distinguish the source total from current-page normalised records
+
+**Decision:** `SearchResult.total_count` remains PubMed's source-wide match
+count. `SearchResult.normalised_count` is the number of valid, unique records
+returned for the current page after pipeline validation and deduplication.
+
+**Reasoning:** Pagination means one response cannot contain every PubMed match,
+and invalid or duplicate records can reduce the records available to callers on
+that page. Keeping both counts avoids implying that a page's records represent
+the entire result set.
+
 ## Confirmed trade-offs
 
 ### Unknown keys are ignored

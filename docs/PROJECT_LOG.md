@@ -258,6 +258,22 @@ OK
 
 `git diff --check` completed without whitespace errors.
 
+## Search-pipeline integration increment
+
+**Status:** Complete
+
+The ingestion package now includes a small `SearchPipeline`. A typed
+`SearchRequest` selects title, title/abstract, author, DOI, or PMID routing on
+the existing PubMed client. The pipeline returns a consistent, metadata-only
+`SearchResult` while preserving totals, paging, fallback, invalid-record, and
+attribution information. Each result standardises PMID, DOI, title, authors,
+journal, publication year, and abstract availability. Identifier-connected
+duplicates are merged; invalid siblings are skipped and counted without
+discarding valid records. Abstract availability comes from PubMed XML while
+abstract text remains unretained. `total_count` remains the PubMed-wide source
+total; `normalised_count` identifies valid, unique records returned for the
+current page. Tests use a fake client and make no HTTP requests.
+
 ## Current status
 
 Milestones 1, 1.1, 2A, and 2B are complete. The project now has a hardened
