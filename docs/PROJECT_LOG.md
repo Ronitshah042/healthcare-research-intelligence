@@ -285,3 +285,124 @@ generation, evaluation, or user interface capability yet.
 
 Before any new milestone, agree on its scope and acceptance criteria. A
 separate post-2B ingestion capability should be approved before implementation.
+
+## SQLite paper storage increment
+
+**Status:** Complete
+
+Added `src/ingestion/storage.py` as a separate local persistence layer backed by
+Python's standard-library SQLite module. `PaperStore` creates its schema,
+upserts standardised citation records, looks them up by PMID or DOI, and lists
+records with pagination. Authors are stored as JSON text; abstract text is not
+stored. The database location is provided by the caller, so no database file is
+created in the repository by default.
+
+`tests/test_storage.py` covers database creation, save/read round trips,
+identifier lookup, updating an existing record, and invalid identifier cases.
+No third-party dependency or server is required.
+
+## Paper identity and local retrieval increment
+
+**Status:** Implemented; verification pending local Python availability
+
+The storage layer now trims and validates PMIDs and canonicalizes DOI case and
+common `doi:` / DOI URL prefixes before saving or looking up. It enriches an
+existing record when an incoming record supplies its missing identifier. If
+PMID and DOI resolve to different records, or an identifier contradicts the
+matched record, `PaperIdentityConflictError` is raised and the transaction is
+rolled back; records are not merged based on title similarity.
+
+`PaperStore.search(query, limit=100, offset=0)` searches title, author names,
+and journal text using a case-insensitive substring match with stable insertion
+ordering. Existing `get` and `list_papers` APIs remain available. Expanded tests
+cover identifier normalization, enrichment, identity conflicts, local search,
+and pagination.
+
+## Paper search enhancements
+
+### Separate fuzzy search strategy
+
+**Status:** Implemented; automated verification blocked by missing Python
+
+The default `PaperStore.search` strategy remains `keyword`, preserving the
+existing keyword matching and ranking behavior. Callers can explicitly pass
+`strategy="fuzzy"` to include approximate title matches. Fuzzy mode first
+collects the same exact keyword results as before, then considers other titles
+where every query keyword has a title token with a `difflib.SequenceMatcher`
+similarity of at least `0.85`, and each keyword must match a different title
+token. Fuzzy matching is title-only to limit false positives. Exact keyword
+results always precede approximate matches; fuzzy
+results sort by average token similarity and then insertion order. Existing
+year and abstract filters run before matching, and pagination is applied after
+the complete relevance ordering. Identifier conflict handling is untouched.
+
+Tests were added for title misspellings, partial-title queries, unrelated and
+empty results, exact-over-fuzzy ordering, deterministic ties, retained filters
+and pagination, invalid strategies, prevention of one title token satisfying
+multiple keywords, and unchanged default keyword behavior.
+The full suite was attempted with
+`$env:PYTHONPATH = "src"; py -3 -m unittest discover -s tests -v` and could not
+start because the environment reported `No installed Python found!`. No test
+result beyond that environment failure is available. Known limits: this is a
+simple character-level similarity measure, does not fuzzy-match authors or
+journals, and does not include abstracts or full text.
+
+### Existing keyword search filters and relevance
+
+**Status:** Implemented; automated verification blocked by missing Python
+
+`PaperStore.search` preserves the existing `search(query, *, limit=100,
+offset=0)` call shape and adds optional `year_from`, `year_to`, and
+`abstract_available` filters. The year bounds are inclusive; records without a
+publication year do not match a bounded year query. Invalid bounds, reversed
+ranges, and non-boolean abstract filters raise `ValueError`.
+
+The query is split on whitespace and every distinct keyword must occur in at
+least one of the title, authors, or journal fields. Relevance adds three points
+for a title match, two for an author match, and one for a journal match per
+keyword, counting only the highest-weight field for each keyword. Results sort
+by descending score, then original insertion order. Pagination is applied
+after matching and relevance ordering. This simple deterministic scoring
+avoids adding a search dependency or changing the stored schema.
+
+Tests were added for all-keyword matching, relevance ordering, inclusive year
+filters, abstract-availability filters, pagination after ranking, and invalid
+filter values. Verification was attempted with
+`$env:PYTHONPATH = "src"; py -3 -m unittest discover -s tests -v`, but the
+environment returned `No installed Python found!`; therefore, no tests could
+be executed in this environment. The suite must be run after installing a
+Python interpreter. Search is limited to metadata substring matching: it does
+not search abstracts or full text, stem words, or interpret quoted phrases.
+
+## Boolean local paper search
+
+**Status:** Complete
+
+`PaperStore.search(..., strategy="boolean")` is a separate local search mode;
+`keyword` remains the default and `fuzzy` behavior is unchanged. Boolean queries
+support case-insensitive `AND`, `OR`, and unary `NOT`, parentheses, and
+double-quoted phrases. Precedence is `NOT`, then `AND`, then `OR`. Operators
+must be explicit; implicit conjunction, empty phrases, malformed operators,
+and unbalanced parentheses raise `ValueError` rather than being guessed.
+
+Terms and phrases are case-insensitive substrings over title, serialized
+authors, and journal. Matching expressions rank using the existing field
+weights (title 3, authors 2, journal 1), then insertion order. Only satisfied
+branches contribute to relevance; negated terms contribute no score. Existing
+year/abstract filters are applied before matching, and pagination follows
+relevance ordering. The parser and evaluator are private, small helpers in
+`storage.py`; paper identity matching and conflict protections are unchanged.
+
+Tests were added for operators, precedence, grouping, negation, phrases,
+malformed queries, empty results, relevance and tie ordering, filters,
+pagination, and regression coverage for the existing keyword and fuzzy modes.
+Full-suite verification result:
+
+```text
+Ran 97 tests in 0.374 seconds
+OK
+```
+
+This local Boolean mode searches only stored citation metadata; it does not
+search abstracts/full text or provide field-specific syntax or escaped quotes
+inside phrases.

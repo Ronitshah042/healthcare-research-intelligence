@@ -24,6 +24,12 @@ from .pubmed import (
     SearchMode,
 )
 from .pubmed_config import PubMedClientConfig, PubMedConfigurationError
+from .storage import (
+    PaperIdentityConflictError,
+    PaperStorageError,
+    PaperStore,
+    StoredPaper,
+)
 
 __all__ = [
     "MetadataValidationError",
@@ -49,4 +55,8 @@ __all__ = [
     "PubMedTimeoutError",
     "PubMedTransportError",
     "SearchMode",
+    "PaperStorageError",
+    "PaperIdentityConflictError",
+    "PaperStore",
+    "StoredPaper",
 ]
