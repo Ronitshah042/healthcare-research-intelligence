@@ -424,6 +424,52 @@ class PubMedClientTests(unittest.TestCase):
         self.assertEqual(result.records, ())
         self.assertEqual(result.invalid_record_count, 1)
 
+    def test_maps_collective_authors_and_skips_records_without_pubdate(self) -> None:
+        group = _article_xml(pmid="1").replace(
+            "<AuthorList>",
+            "<AuthorList><Author><CollectiveName>WHO Study Group</CollectiveName></Author>",
+        )
+        undated = _article_xml(pmid="2").replace(
+            "<PubDate><Year>2024</Year></PubDate>", ""
+        )
+        transport = FakeTransport(
+            [_esearch_response(2), _efetch_response(group, undated)]
+        )
+
+        result = self._client(transport).search_author("Lovelace A")
+
+        self.assertEqual([record.pmid for record in result.records], ["1"])
+        self.assertEqual(
+            result.records[0].metadata.authors, ("WHO Study Group", "Ada Lovelace")
+        )
+        self.assertEqual(result.invalid_record_count, 1)
+
+    def test_rejects_unusable_esearch_counts_and_history(self) -> None:
+        for response in (
+            b"<eSearchResult><Count>many</Count></eSearchResult>",
+            b"<eSearchResult><Count>-1</Count></eSearchResult>",
+            b"<eSearchResult><Count>3</Count></eSearchResult>",
+        ):
+            with self.subTest(response=response):
+                with self.assertRaises(PubMedResponseError):
+                    self._client(FakeTransport([response])).search_author(
+                        "Lovelace A"
+                    )
+
+    def test_single_publication_year_uses_one_year_filter(self) -> None:
+        transport = FakeTransport([_esearch_response(0)])
+
+        self._client(transport).search_author("Lovelace A", publication_year=2024)
+
+        self.assertEqual(
+            _parameters(transport.calls[0][0])["term"][0],
+            "(Lovelace A)[au] AND 2024[pdat]",
+        )
+
+    def test_rejects_non_text_search_input(self) -> None:
+        with self.assertRaises(PubMedRequestValidationError):
+            self._client(FakeTransport([])).search_author(123)  # type: ignore[arg-type]
+
     def test_skips_invalid_citation_and_keeps_valid_siblings(self) -> None:
         transport = FakeTransport(
             [
@@ -565,6 +611,45 @@ class PubMedClientTests(unittest.TestCase):
         self.assertEqual(result.total_count, 0)
         self.assertEqual(len(transport.calls), 2)
         self.assertEqual(sleep_calls, [2.0])
+
+    def test_ignores_unusable_retry_after_values(self) -> None:
+        for value in ("soon", "-1", "nan"):
+            with self.subTest(value=value):
+                PubMedClient._reset_process_rate_limiters_for_tests()
+                sleep_calls: list[float] = []
+                transport = FakeTransport(
+                    [
+                        HTTPError(
+                            "https://example.org",
+                            429,
+                            "Too many requests",
+                            {"Retry-After": value},
+                            BytesIO(),
+                        ),
+                        _esearch_response(0),
+                    ]
+                )
+                PubMedClient(
+                    self._config(max_retries=1, retry_backoff_seconds=0.25),
+                    transport=transport,
+                    clock=lambda: 1.0,
+                    sleeper=sleep_calls.append,
+                ).search_author("Lovelace A")
+
+                self.assertEqual(sleep_calls[0], 0.25)
+
+    def test_exhausted_retries_report_timeouts_and_other_os_errors(self) -> None:
+        cases: tuple[tuple[Exception, type[Exception]], ...] = (
+            (URLError(socket.timeout()), PubMedTimeoutError),
+            (ConnectionResetError(), PubMedTransportError),
+        )
+
+        for failure, error_type in cases:
+            with self.subTest(failure=type(failure).__name__):
+                transport = FakeTransport([failure, failure])
+                with self.assertRaises(error_type):
+                    self._client(transport, max_retries=1).search_author("Lovelace A")
+                self.assertEqual(len(transport.calls), 2)
 
     def test_does_not_retry_permanent_http_or_malformed_xml_failures(self) -> None:
         failures: tuple[Exception | bytes, ...] = (
@@ -769,6 +854,30 @@ class PubMedClientConfigTests(unittest.TestCase):
                 )
                 self.assertIsNone(config.api_key)
                 self.assertEqual(config.requests_per_second, 3.0)
+
+    def test_rejects_invalid_tool_email_rate_and_environment_numbers(self) -> None:
+        for overrides in (
+            {"tool": "my tool"},
+            {"email": "not-an-email"},
+            {"requests_per_second": 4},
+        ):
+            with self.subTest(overrides=overrides):
+                with self.assertRaises(PubMedConfigurationError):
+                    PubMedClientConfig(
+                        **{
+                            "tool": "healthcare_research_intelligence",
+                            "email": "developer@example.org",
+                            **overrides,
+                        }
+                    )
+        with self.assertRaises(PubMedConfigurationError):
+            PubMedClientConfig.from_environment(
+                {
+                    "PUBMED_NCBI_TOOL": "healthcare_research_intelligence",
+                    "PUBMED_NCBI_EMAIL": "developer@example.org",
+                    "PUBMED_TIMEOUT_SECONDS": "ten",
+                }
+            )
 
     def test_rejects_non_finite_timeout_and_request_rate_values(self) -> None:
         for field_name in ("timeout_seconds", "requests_per_second"):

@@ -465,3 +465,39 @@ OK
 
 Against the previous source, the new tests produced 9 failures and 6 errors;
 the legacy-DOI test passes on both, as it guards unchanged behaviour.
+
+## Live check, coverage, and documentation review
+
+**Status:** Complete
+
+- **Live PubMed check:** title, title fallback, author with year filter, DOI,
+  and PMID searches ran against the real E-utilities API through
+  `SearchPipeline`, and the results were saved and searched in a temporary
+  `PaperStore`. All returned valid records with zero invalid or duplicate
+  counts; the fallback triggered as designed. The year-filtered author search
+  returned one record whose citation year (2021) differs from the `[pdat]`
+  filter year (2020), the documented difference between PubMed's date index
+  and `PubDate/Year`. Nothing from the live run was kept.
+- **Coverage:** measured with the standard-library `trace` module (no new
+  dependency): `metadata` 100%, `pipeline` 97%, `pubmed` 88%,
+  `pubmed_config` 86%, `storage` 85%. Many reported misses are continuation
+  lines of multi-line function signatures, which `trace` cannot attribute.
+  Tests were added for the real gaps: single-year `[pdat]` filters, negated
+  grouped Boolean expressions, collective author names, records without a
+  `PubDate`, unusable ESearch counts and history, exhausted timeout and OS-error
+  retries, unusable `Retry-After` values, non-text search input, invalid tool,
+  email, rate, and environment numbers, PMID conflicts on a matched DOI,
+  non-`StandardisedPaper` input, corrupt stored authors, and an unusable
+  database path. No defects were found in these paths.
+- **Docs:** `LEARNING_NOTES.md` described the old `.isdigit()` year check and
+  gave contradictory test counts (16 and 13); both are corrected, and a
+  beginner section on deduplication, SQLite storage, and local search was
+  added. `README.md` now covers the pipeline and `PaperStore`, lists
+  `unittest` instead of Pytest, and shows the test command.
+
+Full-suite verification on Python 3.15.2 and Python 3.9.6:
+
+```text
+Ran 118 tests
+OK
+```

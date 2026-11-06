@@ -1,4 +1,3 @@
-
 # Healthcare Research Intelligence Platform
 
 An AI-powered research assistant designed to retrieve, analyse, and
@@ -30,7 +29,7 @@ keeping generated answers grounded in retrieved research.
 - Large language models (LLMs)
 - FastAPI
 - Streamlit
-- Pytest
+- unittest (Python standard library)
 
 The final technology choices will be confirmed during implementation.
 
@@ -62,7 +61,7 @@ licences and terms will be used.
 ## Development Status
 
 **Status:** Milestones 2A and 2B complete — PubMed citation search and
-integration hardening
+integration hardening, plus a search pipeline and local citation storage
 
 The project now provides validated PubMed citation search through NCBI
 E-utilities, including title, title/abstract, author, DOI, and PMID search,
@@ -80,6 +79,19 @@ It reports whether PubMed returned an abstract without retaining its text. Its
 source total remains separate from the current page's valid, deduplicated
 record count. It is a local library component rather than a web API or user
 interface.
+
+`PaperStore` saves standardised citations in a local SQLite file whose path the
+caller chooses. It matches papers only by PMID or DOI, refuses to merge
+contradictory identifiers, and supports local keyword, fuzzy-title, and
+Boolean (`AND`/`OR`/`NOT`, parentheses, quoted phrases) search over titles,
+authors, and journals, with year and abstract-availability filters. It stores
+citation metadata only, never abstract text.
+
+Run the test suite with:
+
+```bash
+PYTHONPATH=src python3 -m unittest discover -s tests -v
+```
 
 PubMed-derived results must visibly attribute NLM/NIH and link to the NCBI
 disclaimer. This independent project is not affiliated with or endorsed by

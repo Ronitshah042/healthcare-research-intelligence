@@ -1,7 +1,8 @@
-# Learning Notes: Milestone 1 Metadata Foundation
+# Learning Notes
 
-These notes describe the code currently in `src/ingestion/metadata.py`. They
-are not a specification for future features.
+These notes explain the code currently in `src/ingestion`, starting with the
+Milestone 1 metadata foundation in `metadata.py`. They are not a specification
+for future features.
 
 ## Frozen dataclasses
 
@@ -119,7 +120,7 @@ lists and tuples are suitable; a generator is not accepted.
 
 ## Publication-year validation
 
-Years may be an integer or a digit-only string. The code excludes booleans
+Years may be an integer or a string of ASCII digits (`0`-`9`). The code excludes booleans
 first because Python treats `bool` as a subtype of `int`.
 
 ```python
@@ -131,19 +132,16 @@ future online publication dated next calendar year is permitted, while a value
 two years ahead is rejected. This rule changes automatically as the calendar
 year changes.
 
-### Resolved `.isdigit()` and `int()` edge case
+### Resolved Unicode digit edge cases
 
-The code checks a string
-with `.isdigit()` and then converts it using `int()`. Certain Unicode digit-like
-characters may satisfy `.isdigit()` yet not be parseable by `int()`. If that
-happens, Python may raise a normal `ValueError` instead of
-`MetadataValidationError`.
+Python's `.isdigit()` is true for many non-ASCII characters. Some, such as the
+superscript `"²"`, cannot be converted by `int()`, which used to raise a plain
+`ValueError`. Others, such as Arabic-Indic `"٢٠٢٤"` or full-width `"２０２４"`,
+convert successfully and were silently accepted as the year 2024.
 
-The approved follow-up catches `ValueError` from the conversion and raises
-`MetadataValidationError` instead. The superscript digit `"²"` is now covered
-by an ordinary passing regression test. The rule is otherwise unchanged:
-numeric strings must still satisfy `.isdigit()` before a conversion is
-attempted.
+The code now checks strings with `re.fullmatch(r"[0-9]+", ...)`, so only ASCII
+digits are accepted and every other digit-like string raises
+`MetadataValidationError`. Regression tests cover all three examples.
 
 ## Basic URL validation
 
@@ -172,20 +170,20 @@ parsing operation.
 ## `unittest`
 
 `unittest` is built into Python. The project therefore needs no test package
-to run its current tests. After Milestone 1 maintenance, the test class has 16
-discovered test methods. It verifies:
+to run its current tests. The metadata test class has 17 test methods. It
+verifies:
 
 1. a valid metadata dictionary is cleaned and converted correctly;
-2. each required field is rejected when absent; and
+2. each required field is rejected when absent;
 3. empty and whitespace-only required values are rejected;
 4. invalid author containers and entries are rejected;
 5. optional abstract and URL values become `None` when omitted, `None`, or
    blank, and reject invalid types;
 6. basic valid and invalid URL structures behave as designed;
 7. year boundaries, booleans, floats, and decimal-looking strings behave as
-   designed; and
-8. Unicode digits that cannot be converted to an integer raise
-   `MetadataValidationError`.
+   designed;
+8. non-ASCII digit strings raise `MetadataValidationError`, whether or not
+   `int()` could convert them;
 9. malformed URLs that make `urlsplit` fail still raise
    `MetadataValidationError`;
 10. non-mapping metadata input is rejected with `MetadataValidationError`; and
@@ -199,8 +197,7 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 
 `PYTHONPATH=src` lets Python find the package in the `src` directory for this
 minimal project setup. The Unicode case was initially an expected failure in
-Milestone 1.1; after the approved follow-up, the same 13-test suite has no
-expected failures.
+Milestone 1.1; it is now an ordinary passing regression test.
 
 ## Interview practice
 
@@ -239,9 +236,10 @@ current trade-off, not proof that unknown fields are always safe to ignore.
 
 ### How was the Unicode digit conversion issue handled?
 
-The validator catches `ValueError` from `int()` and converts it into
-`MetadataValidationError`. The `"²"` regression test verifies callers receive
-the project's consistent validation exception.
+The validator accepts only ASCII digits, checked with a regular expression
+before `int()` runs. That rejects digit-like characters `int()` cannot convert
+(`"²"`) and ones it can (`"٢٠٢٤"`), so callers always receive
+`MetadataValidationError` and no unexpected year slips through.
 
 ## Milestone 2A: PubMed citation search
 
@@ -332,3 +330,51 @@ not a useful empty result: it could be an unexpected response shape or a stale
 history result. Raising a response error lets the caller distinguish that case
 from a genuine zero-result search. Individual `PubmedArticle` elements can
 still be malformed; those remain visible through `invalid_record_count`.
+
+## Search pipeline and local storage
+
+### How does the pipeline remove duplicates?
+
+A PubMed page can contain the same paper twice, sometimes with only a PMID on
+one copy and only a DOI on the other. The pipeline groups records that share a
+PMID or a DOI using a small "union-find" structure: each record starts in its
+own group, and groups join when they share an identifier. Grouping is
+transitive, so A-shares-PMID-with-B and B-shares-DOI-with-C makes one group.
+
+Two groups never join if that would put two different PMIDs (or two different
+DOIs) in one group. An article and its erratum can share a DOI but have
+different PMIDs; merging them would silently drop one. Titles are never
+compared, because similar titles do not prove two records are the same paper.
+
+### Why SQLite for local storage?
+
+SQLite is a full database stored in a single file and built into Python's
+standard library, so it needs no server or extra package. `PaperStore` uses
+`?` placeholders for every value, which keeps user text from being read as SQL.
+`UNIQUE` columns stop two rows from claiming the same PMID or DOI, and
+`BEGIN IMMEDIATE` makes "look for a match, then insert or update" one step that
+another process cannot interrupt.
+
+### Why decode authors before searching?
+
+Authors are stored as a JSON list such as `["Ada Lovelace", "Anna M\u00fcller"]`.
+JSON escapes non-ASCII letters, so searching that raw text for `müller` fails,
+and punctuation such as `[` or `,` matches every row. Search therefore decodes
+the list and matches the real names.
+
+### How does Boolean search work?
+
+The query is first split into tokens (terms, quoted phrases, `AND`, `OR`,
+`NOT`, and parentheses), then parsed into a tree using precedence: `NOT` binds
+tightest, then `AND`, then `OR`, so `a OR b AND c` means `a OR (b AND c)`. A
+word only counts as an operator when a space, parenthesis, quote, or the end of
+the query follows it, so `not-for-profit` stays an ordinary term. `NOT (a AND
+b)` is evaluated with De Morgan's law as `NOT a OR NOT b`.
+
+### What does fuzzy search add?
+
+It accepts small spelling mistakes in titles. Each keyword is compared with
+each title word using `difflib.SequenceMatcher`, a standard-library similarity
+score from 0 to 1, and a match needs at least `0.85`. Each title word can match
+only one keyword, so one similar word cannot satisfy a whole query. Exact
+keyword matches always rank above fuzzy ones.

@@ -485,6 +485,51 @@ class PaperStoreTests(unittest.TestCase):
             ["2"],
         )
 
+    def test_boolean_strategy_negates_grouped_expressions(self) -> None:
+        for pmid, title in (
+            ("1", "Sleep and diet"), ("2", "Sleep only"),
+            ("3", "Diet only"), ("4", "Neither"),
+        ):
+            self.store.save(replace(self.paper, pmid=pmid, doi=None, title=title))
+        cases = {
+            "NOT (sleep AND diet)": ["2", "3", "4"],
+            "NOT (sleep OR diet)": ["4"],
+            "NOT NOT sleep": ["1", "2"],
+        }
+        for query, expected in cases.items():
+            with self.subTest(query=query):
+                self.assertEqual(
+                    [p.pmid for p in self.store.search(query, strategy="boolean")],
+                    expected,
+                )
+
+    def test_conflicting_new_pmid_for_matched_doi_is_rejected(self) -> None:
+        self.store.save(self.paper)
+        with self.assertRaises(PaperIdentityConflictError):
+            self.store.save(replace(self.paper, pmid="99999"))
+        self.assertEqual(self.store.get(doi="10.1234/example").pmid, "12345")
+
+    def test_rejects_non_standardised_paper_input(self) -> None:
+        with self.assertRaises(TypeError):
+            self.store.save({"pmid": "1"})  # type: ignore[arg-type]
+
+    def test_reports_corrupt_stored_authors_as_storage_errors(self) -> None:
+        with sqlite3.connect(Path(self.temp_dir.name) / "papers.sqlite3") as connection:
+            connection.execute(
+                """INSERT INTO papers (pmid, title, authors_json, abstract_available)
+                VALUES ('7', 'Broken', 'not json', 0)"""
+            )
+        with self.assertRaises(PaperStorageError):
+            self.store.get(pmid="7")
+        with self.assertRaises(PaperStorageError):
+            self.store.search("broken")
+
+    def test_reports_unusable_database_path_as_storage_error(self) -> None:
+        blocker = Path(self.temp_dir.name) / "not-a-directory"
+        blocker.write_text("")
+        with self.assertRaises(PaperStorageError):
+            PaperStore(blocker / "papers.sqlite3")
+
     def test_rejects_paper_without_persistent_identifier(self) -> None:
         paper = StandardisedPaper(
             pmid=None, doi=None, title="Example", authors=(), journal=None,
