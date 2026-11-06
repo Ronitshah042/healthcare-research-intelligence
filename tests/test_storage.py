@@ -1,5 +1,6 @@
 """Tests for local SQLite paper storage."""
 
+import sqlite3
 import tempfile
 import unittest
 from dataclasses import replace
@@ -51,6 +52,19 @@ class PaperStoreTests(unittest.TestCase):
         self.assertEqual(len(self.store.list_papers()), 1)
         self.assertEqual(result.doi, "10.1234/example")
         self.assertEqual(self.store.get(doi="http://dx.doi.org/10.1234/EXAMPLE"), result)
+
+    def test_finds_and_updates_legacy_unnormalised_doi_rows(self) -> None:
+        self.store.save(replace(self.paper, pmid="999", doi="10.1234/other"))
+        with sqlite3.connect(Path(self.temp_dir.name) / "papers.sqlite3") as connection:
+            connection.execute(
+                """INSERT INTO papers (doi, title, authors_json, abstract_available)
+                VALUES (' HTTPS://doi.org/10.1234/Legacy ', 'Old', '[]', 0)"""
+            )
+        self.assertEqual(self.store.get(doi="10.1234/legacy").title, "Old")
+        self.store.save(replace(self.paper, pmid=None, doi="10.1234/LEGACY", title="New"))
+        self.assertEqual(len(self.store.list_papers()), 2)
+        self.assertEqual(self.store.get(doi="10.1234/legacy").title, "New")
+        self.assertEqual(self.store.get(doi="10.1234/other").pmid, "999")
 
     def test_enriches_record_with_identifier_arriving_later(self) -> None:
         self.store.save(replace(self.paper, doi=None))
@@ -430,6 +444,45 @@ class PaperStoreTests(unittest.TestCase):
         self.assertEqual(
             self.store.search("cardiac outcomes"),
             self.store.search("cardiac outcomes", strategy="keyword"),
+        )
+
+    def test_search_matches_non_ascii_author_names(self) -> None:
+        self.store.save(replace(self.paper, authors=("Anna Müller", "李 伟")))
+        for strategy in ("keyword", "boolean"):
+            with self.subTest(strategy=strategy):
+                self.assertEqual(
+                    [p.pmid for p in self.store.search("müller", strategy=strategy)],
+                    ["12345"],
+                )
+                self.assertEqual(
+                    [p.pmid for p in self.store.search("李", strategy=strategy)],
+                    ["12345"],
+                )
+        self.assertEqual(self.store.search("u00fc"), ())
+
+    def test_search_does_not_match_author_json_punctuation(self) -> None:
+        self.store.save(self.paper)
+        for query in ("[", ",", '"', "]"):
+            with self.subTest(query=query):
+                self.assertEqual(self.store.search(query), ())
+        self.assertEqual(
+            self.store.search('"Lovelace Grace"', strategy="boolean"), ()
+        )
+
+    def test_boolean_strategy_treats_hyphenated_operator_prefix_as_term(self) -> None:
+        self.store.save(replace(self.paper, title="Not-for-profit hospitals"))
+        self.store.save(replace(
+            self.paper, pmid="2", doi="10.1234/other", title="Public hospitals"
+        ))
+        self.assertEqual(
+            [p.pmid for p in self.store.search("not-for-profit", strategy="boolean")],
+            ["12345"],
+        )
+        self.assertEqual(
+            [p.pmid for p in self.store.search(
+                "hospitals AND NOT(not-for-profit)", strategy="boolean"
+            )],
+            ["2"],
         )
 
     def test_rejects_paper_without_persistent_identifier(self) -> None:

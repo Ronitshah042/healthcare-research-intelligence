@@ -171,6 +171,9 @@ def _deduplicate_records(
     records: list[StandardisedPaper],
 ) -> list[StandardisedPaper]:
     parent = list(range(len(records)))
+    # Each group's identifiers, so records with contradictory IDs stay separate.
+    group_pmids = [record.pmid for record in records]
+    group_dois = [record.doi for record in records]
     identifiers: dict[str, int] = {}
 
     def find(index: int) -> int:
@@ -182,8 +185,15 @@ def _deduplicate_records(
     def union(first: int, second: int) -> None:
         first_root = find(first)
         second_root = find(second)
-        if first_root != second_root:
-            parent[second_root] = first_root
+        if (
+            first_root == second_root
+            or _contradicts(group_pmids[first_root], group_pmids[second_root])
+            or _contradicts(group_dois[first_root], group_dois[second_root])
+        ):
+            return
+        parent[second_root] = first_root
+        group_pmids[first_root] = group_pmids[first_root] or group_pmids[second_root]
+        group_dois[first_root] = group_dois[first_root] or group_dois[second_root]
 
     for index, record in enumerate(records):
         for identifier in _identifiers_for(record):
@@ -197,6 +207,10 @@ def _deduplicate_records(
     for index, record in enumerate(records):
         groups.setdefault(find(index), []).append(record)
     return [_merge_records(group) for group in groups.values()]
+
+
+def _contradicts(first: str | None, second: str | None) -> bool:
+    return first is not None and second is not None and first != second
 
 
 def _identifiers_for(record: StandardisedPaper) -> tuple[str, ...]:
@@ -241,8 +255,25 @@ def _normalise_pmid(value: object) -> str | None:
     return pmid
 
 
+_DOI_PREFIXES = (
+    "https://doi.org/", "http://doi.org/", "https://dx.doi.org/",
+    "http://dx.doi.org/", "doi:",
+)
+
+
+def _strip_doi_prefix(doi: str) -> str:
+    """Remove one leading DOI URL or ``doi:`` prefix, ignoring case."""
+    lowered = doi.casefold()
+    for prefix in _DOI_PREFIXES:
+        if lowered.startswith(prefix):
+            return doi[len(prefix):].strip()
+    return doi
+
+
 def _normalise_doi(value: object) -> str | None:
     doi = _normalise_optional_text(value)
+    if doi is not None:
+        doi = _strip_doi_prefix(doi)
     if doi is None or re.fullmatch(r"10\.[0-9]{4,9}/\S+", doi, re.ASCII) is None:
         return None
     return doi.lower()

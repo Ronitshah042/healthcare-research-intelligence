@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
+import re
 from urllib.parse import urlsplit
 
 
@@ -90,13 +91,8 @@ def _normalise_publication_year(value: object) -> int:
 
     if isinstance(value, int):
         year = value
-    elif isinstance(value, str) and value.strip().isdigit():
-        try:
-            year = int(value.strip())
-        except ValueError as error:
-            raise MetadataValidationError(
-                "publication_year must be a whole number."
-            ) from error
+    elif isinstance(value, str) and re.fullmatch(r"[0-9]+", value.strip()):
+        year = int(value.strip())
     else:
         raise MetadataValidationError("publication_year must be a whole number.")
 

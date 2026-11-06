@@ -11,6 +11,7 @@ import logging
 import math
 import re
 import socket
+import ssl
 from threading import Lock
 import time
 from urllib.error import HTTPError, URLError
@@ -24,7 +25,7 @@ from .pubmed_config import PubMedClientConfig
 
 LOGGER = logging.getLogger(__name__)
 PUBMED_RECORD_URL = "https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
-_PLAIN_TEXT_QUERY_FORBIDDEN_CHARACTERS = frozenset('[]()"')
+_PLAIN_TEXT_QUERY_FORBIDDEN_CHARACTERS = frozenset('[]()"*#')
 _BOOLEAN_OPERATOR_PATTERN = re.compile(r"\b(?:AND|OR|NOT)\b")
 _DOI_PATTERN = re.compile(r"10\.[0-9]{4,9}/[^\s\"]+", re.ASCII)
 _PMID_PATTERN = re.compile(r"[0-9]+", re.ASCII)
@@ -470,7 +471,9 @@ class PubMedClient:
                     continue
                 raise PubMedTimeoutError("PubMed request timed out.") from error
             except URLError as error:
-                if self._should_retry(retries_used):
+                if self._should_retry(retries_used) and not _is_certificate_error(
+                    error.reason
+                ):
                     self._wait_before_retry(retries_used)
                     retries_used += 1
                     continue
@@ -478,7 +481,9 @@ class PubMedClient:
                     raise PubMedTimeoutError("PubMed request timed out.") from error
                 raise PubMedTransportError("Unable to reach the PubMed API.") from error
             except OSError as error:
-                if self._should_retry(retries_used):
+                if self._should_retry(retries_used) and not _is_certificate_error(
+                    error
+                ):
                     self._wait_before_retry(retries_used)
                     retries_used += 1
                     continue
@@ -509,6 +514,11 @@ def _default_transport(url: str, timeout_seconds: float) -> bytes:
     request = Request(url, headers={"User-Agent": "healthcare-research-intelligence"})
     with urlopen(request, timeout=timeout_seconds) as response:
         return response.read()
+
+
+def _is_certificate_error(error: object) -> bool:
+    # A failed certificate check will fail the same way on every retry.
+    return isinstance(error, ssl.SSLCertVerificationError)
 
 
 def _rate_limit_scope(config: PubMedClientConfig) -> str:

@@ -192,6 +192,39 @@ class SearchPipelineTests(unittest.TestCase):
         self.assertEqual(result.records[0].doi, "10.1234/example")
         self.assertEqual(result.records[0].journal, "Example Journal")
 
+    def test_strips_doi_url_and_doi_prefixes_before_deduplicating(self) -> None:
+        records = (
+            self._record(pmid="", doi="https://doi.org/10.1234/EXAMPLE"),
+            self._record(pmid="", doi="doi:10.1234/example"),
+        )
+        client = FakePubMedClient(self._page(records=records))
+        pipeline = SearchPipeline(client)  # type: ignore[arg-type]
+
+        result = pipeline.search(
+            SearchRequest(query="example", search_mode=SearchMode.TITLE)
+        )
+
+        self.assertEqual(len(result.records), 1)
+        self.assertEqual(result.records[0].doi, "10.1234/example")
+        self.assertEqual(result.duplicate_record_count, 1)
+
+    def test_does_not_merge_records_with_different_pmids_sharing_a_doi(self) -> None:
+        records = (
+            self._record(pmid="123", doi="10.1234/example"),
+            self._record(pmid="456", doi="10.1234/example", title="Erratum"),
+            self._record(pmid="456", doi=None, journal_title="Erratum journal"),
+        )
+        client = FakePubMedClient(self._page(records=records))
+        pipeline = SearchPipeline(client)  # type: ignore[arg-type]
+
+        result = pipeline.search(
+            SearchRequest(query="example", search_mode=SearchMode.TITLE)
+        )
+
+        self.assertEqual([record.pmid for record in result.records], ["123", "456"])
+        self.assertEqual(result.duplicate_record_count, 1)
+        self.assertEqual(result.records[1].title, "Erratum")
+
     def test_keeps_unlinked_partial_identifiers_separate(self) -> None:
         client = FakePubMedClient(
             self._page(

@@ -211,6 +211,15 @@ class NormalisePaperMetadataTests(unittest.TestCase):
         with self.assertRaises(MetadataValidationError):
             normalise_paper_metadata(metadata)
 
+    def test_rejects_non_ascii_digit_years_that_int_would_accept(self) -> None:
+        for publication_year in ("٢٠٢٤", "２０２４"):
+            with self.subTest(publication_year=publication_year):
+                metadata = self._valid_metadata()
+                metadata["publication_year"] = publication_year
+
+                with self.assertRaises(MetadataValidationError):
+                    normalise_paper_metadata(metadata)
+
 
 if __name__ == "__main__":
     unittest.main()

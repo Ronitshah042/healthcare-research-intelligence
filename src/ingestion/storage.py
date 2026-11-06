@@ -10,11 +10,11 @@ from pathlib import Path
 import re
 import sqlite3
 
-from .pipeline import StandardisedPaper
+from .pipeline import StandardisedPaper, _strip_doi_prefix
 
 
 _BOOLEAN_TOKEN_PATTERN = re.compile(
-    r'\s*(?:(?P<operator>AND|OR|NOT)\b|(?P<parenthesis>[()])|'
+    r'\s*(?:(?P<operator>AND|OR|NOT)(?=[\s()"]|$)|(?P<parenthesis>[()])|'
     r'"(?P<phrase>[^"]*)"|(?P<term>[^\s()"]+))',
     re.IGNORECASE,
 )
@@ -268,14 +268,15 @@ class PaperStore:
                 ).fetchall()
                 ranked: list[tuple[int, float, sqlite3.Row]] = []
                 for row in rows:
+                    fields = _search_fields(row)
                     if boolean_expression is not None:
                         matched, score = _boolean_match_score(
-                            boolean_expression, row
+                            boolean_expression, fields
                         )
                         if matched:
                             ranked.append((0, float(score), row))
                         continue
-                    score = _keyword_relevance(row, keywords)
+                    score = _keyword_relevance(fields, keywords)
                     if score is not None:
                         ranked.append((0, float(score), row))
                     elif strategy == "fuzzy":
@@ -322,10 +323,15 @@ class PaperStore:
             if row is not None:
                 matches[row["id"]] = row
         if doi is not None:
-            # Compare normalized forms too, so older mixed-case/prefixed values
-            # already in a local database remain discoverable.
+            # Exact matches use the UNIQUE index; the other clauses also return
+            # older mixed-case/prefixed/padded values so they remain discoverable.
+            # shortcut: legacy DOIs differing only by non-ASCII case are missed;
+            # normalise stored DOIs in place if such data ever appears.
             for row in connection.execute(
-                "SELECT * FROM papers WHERE doi IS NOT NULL"
+                """SELECT * FROM papers WHERE doi = ? OR doi NOT GLOB '10.*'
+                    OR doi GLOB '*[A-Z]*'
+                    OR doi <> rtrim(doi, char(9, 10, 11, 12, 13, 32))""",
+                (doi,),
             ).fetchall():
                 try:
                     stored_doi = _normalize_doi(row["doi"])
@@ -389,13 +395,7 @@ def _normalize_pmid(value: str) -> str:
 
 
 def _normalize_doi(value: str) -> str:
-    normalized = value.strip()
-    lowered = normalized.casefold()
-    for prefix in ("https://doi.org/", "http://doi.org/", "https://dx.doi.org/",
-                   "http://dx.doi.org/", "doi:"):
-        if lowered.startswith(prefix):
-            normalized = normalized[len(prefix):].strip()
-            break
+    normalized = _strip_doi_prefix(value.strip())
     if _DOI_PATTERN.fullmatch(normalized) is None:
         raise ValueError("DOI must be a valid DOI identifier.")
     return normalized.casefold()
@@ -434,11 +434,32 @@ def _validate_search_filters(
         raise ValueError("abstract_available must be True, False, or None.")
 
 
-def _keyword_relevance(row: sqlite3.Row, keywords: tuple[str, ...]) -> int | None:
+def _search_fields(row: sqlite3.Row) -> tuple[str, str, str]:
+    """Return casefolded title, author names, and journal for matching.
+
+    Authors are decoded from JSON so searches match names, not JSON escapes
+    or punctuation; newlines stop phrases from spanning two authors.
+    """
+    try:
+        authors = json.loads(row["authors_json"])
+    except (TypeError, json.JSONDecodeError) as error:
+        raise PaperStorageError("Stored paper authors are invalid.") from error
+    if not isinstance(authors, list) or any(
+        not isinstance(author, str) for author in authors
+    ):
+        raise PaperStorageError("Stored paper authors are invalid.")
+    return (
+        row["title"].casefold(),
+        "\n".join(authors).casefold(),
+        (row["journal"] or "").casefold(),
+    )
+
+
+def _keyword_relevance(
+    fields: tuple[str, str, str], keywords: tuple[str, ...]
+) -> int | None:
     """Score a record, or return None when any keyword is missing."""
-    title = row["title"].casefold()
-    authors = row["authors_json"].casefold()
-    journal = (row["journal"] or "").casefold()
+    title, authors, journal = fields
     score = 0
     for keyword in keywords:
         if keyword in title:
@@ -477,30 +498,29 @@ def _parse_boolean_query(query: str) -> tuple[object, ...]:
 
 
 def _boolean_match_score(
-    expression: tuple[object, ...], row: sqlite3.Row, negated: bool = False
+    expression: tuple[object, ...],
+    fields: tuple[str, str, str],
+    negated: bool = False,
 ) -> tuple[bool, int]:
     """Evaluate the AST and score only terms in satisfied expression branches."""
     operator = expression[0]
     if operator == "term":
         term = expression[1]
-        fields = (
-            (row["title"], 3),
-            (row["authors_json"], 2),
-            (row["journal"] or "", 1),
-        )
-        weights = [weight for value, weight in fields if term in value.casefold()]
+        weights = [
+            weight for value, weight in zip(fields, (3, 2, 1)) if term in value
+        ]
         matched = bool(weights)
         if negated:
             return not matched, 0
         return matched, max(weights, default=0)
     if operator == "not":
-        return _boolean_match_score(expression[1], row, not negated)
+        return _boolean_match_score(expression[1], fields, not negated)
 
     effective_operator = operator
     if negated:
         effective_operator = "or" if operator == "and" else "and"
-    left_matched, left_score = _boolean_match_score(expression[1], row, negated)
-    right_matched, right_score = _boolean_match_score(expression[2], row, negated)
+    left_matched, left_score = _boolean_match_score(expression[1], fields, negated)
+    right_matched, right_score = _boolean_match_score(expression[2], fields, negated)
     if effective_operator == "and":
         return (
             left_matched and right_matched,

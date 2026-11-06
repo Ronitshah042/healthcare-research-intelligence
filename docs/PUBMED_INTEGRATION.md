@@ -35,12 +35,12 @@ contact configured before it makes requests:
 | --- | --- |
 | `PUBMED_NCBI_TOOL` | Registered, no-whitespace application identifier. |
 | `PUBMED_NCBI_EMAIL` | Developer contact email; never an end-user address. |
-| `PUBMED_NCBI_API_KEY` | Optional NCBI API key. Do not commit it. |
+| `PUBMED_NCBI_API_KEY` | Optional NCBI API key; a blank value means no key. Do not commit it. |
 | `PUBMED_TIMEOUT_SECONDS` | Optional positive request timeout in seconds. |
 | `PUBMED_REQUESTS_PER_SECOND` | Optional request rate at or below NCBI's limit. |
 | `PUBMED_MAX_RETRIES` | Optional non-negative number of retries; default `2`. |
 | `PUBMED_RETRY_BACKOFF_SECONDS` | Optional positive exponential-backoff base; default `0.5`. |
-| `PUBMED_EUTILITIES_BASE_URL` | Optional HTTPS URL on the official NCBI E-utilities host. |
+| `PUBMED_EUTILITIES_BASE_URL` | Optional HTTPS URL on the official NCBI E-utilities host, with no port, user info, query, or fragment. |
 
 The default endpoint is `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/`.
 The client rejects `http` URLs and any other host, including lookalike hosts.
@@ -67,7 +67,8 @@ backoff for each retry. The following failures are retried: timeouts, URL and
 other transport errors, and HTTP 408, 429, 500, 502, 503, and 504 responses.
 For a numeric `Retry-After` response header, the client waits at least that
 many seconds. Invalid user input, configuration failures, malformed XML, NCBI
-XML error payloads, and other HTTP statuses are not retried. Each new attempt
+XML error payloads, TLS certificate verification failures, and other HTTP
+statuses are not retried. Each new attempt
 reserves a fresh process-shared rate-limit slot.
 
 NCBI requires E-utilities users to identify distributed software with `tool`
@@ -96,7 +97,8 @@ changed.
 
 Title, title/abstract, and author methods accept plain-text terms, not general
 PubMed query expressions. They normalise ordinary whitespace but reject square
-brackets, parentheses, double quotes, and standalone uppercase `AND`, `OR`, or
+brackets, parentheses, double quotes, `*` truncation, `#` history references,
+and standalone uppercase `AND`, `OR`, or
 `NOT` operators. This prevents caller input from changing the intended field.
 Common literal punctuation such as hyphens, apostrophes, commas, colons, and
 slashes remains accepted. `lookup_doi` accepts a trimmed DOI beginning with

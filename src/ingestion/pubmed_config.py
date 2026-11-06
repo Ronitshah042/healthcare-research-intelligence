@@ -97,7 +97,8 @@ class PubMedClientConfig:
         return cls(
             tool=values.get("PUBMED_NCBI_TOOL", ""),
             email=values.get("PUBMED_NCBI_EMAIL", ""),
-            api_key=values.get("PUBMED_NCBI_API_KEY"),
+            # A blank variable (common in .env templates) means no API key.
+            api_key=values.get("PUBMED_NCBI_API_KEY", "").strip() or None,
             timeout_seconds=timeout_seconds,
             requests_per_second=requests_per_second,
             max_retries=max_retry_count,
@@ -155,7 +156,12 @@ def _normalise_base_url(value: object) -> str:
             "base_url must be a valid HTTPS E-utilities URL."
         ) from error
 
-    if parsed.scheme != "https" or parsed.hostname != _EUTILITIES_HOST:
+    if (
+        parsed.scheme != "https"
+        or parsed.netloc.lower() != _EUTILITIES_HOST
+        or parsed.query
+        or parsed.fragment
+    ):
         raise PubMedConfigurationError(
             "base_url must use HTTPS on the official NCBI E-utilities host."
         )

@@ -308,6 +308,51 @@ names.
 **Cost:** Repeated or unusual whitespace in a source identifier is replaced by
 single spaces. Non-whitespace identifier characters are otherwise preserved.
 
+### Boolean operators need a following separator
+
+**Decision:** In local Boolean search, `AND`, `OR`, and `NOT` are operators
+only when followed by whitespace, a parenthesis, a quote, or the end of the
+query.
+
+**Benefit:** Hyphenated words such as `not-for-profit` are searched as terms.
+
+**Cost:** A query like `NOT-sleep` is a single term, not a negation; use
+`NOT sleep` or `NOT(sleep)`.
+
+### A blank API key environment variable means no key
+
+**Decision:** `from_environment` treats a blank or whitespace-only
+`PUBMED_NCBI_API_KEY` as unset, using the anonymous rate limit.
+
+**Benefit:** `.env` templates with an empty key line work without editing.
+
+**Cost:** A key accidentally left blank is not reported; the client silently
+uses the lower anonymous rate. Passing `api_key=""` directly is still rejected.
+
+### Contradictory identifiers are never merged in the pipeline
+
+**Decision:** Pipeline deduplication joins records that share a PMID or DOI
+only when the joined group would not hold two different PMIDs or two
+different DOIs.
+
+**Benefit:** Two PubMed records sharing a DOI (for example an article and its
+erratum) both stay visible instead of one PMID being silently dropped.
+
+**Cost:** Such records reach storage as separate papers, where
+`PaperStore.save` raises `PaperIdentityConflictError` for the second one.
+
+### Legacy DOI lookups are filtered by SQLite
+
+**Decision:** DOI matching asks SQLite for the exact normalised DOI plus only
+rows that look un-normalised (no `10.` start, ASCII uppercase, or trailing
+whitespace), instead of reading every row into Python.
+
+**Benefit:** Saves and lookups stay fast as the database grows.
+
+**Cost:** A legacy DOI whose only difference is non-ASCII uppercase is not
+matched. `save` has always stored normalised DOIs, so this needs data written
+by other tools.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.

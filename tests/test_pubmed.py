@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from io import BytesIO
 import socket
+import ssl
 from threading import Event, Thread
 import unittest
 from urllib.error import HTTPError, URLError
@@ -239,6 +240,8 @@ class PubMedClientTests(unittest.TestCase):
             "blood [pressure]",
             "heart failure[ti]",
             "heart OR lung",
+            "cardio*",
+            "#1",
         )
 
         for search in searches:
@@ -481,6 +484,20 @@ class PubMedClientTests(unittest.TestCase):
         self.assertEqual(len(transport.calls), 2)
         self.assertAlmostEqual(sleep_calls[0], 0.25)
         self.assertAlmostEqual(sleep_calls[1], 1 / 12)
+
+    def test_does_not_retry_certificate_verification_failures(self) -> None:
+        certificate_error = ssl.SSLCertVerificationError("certificate verify failed")
+        for failure in (URLError(certificate_error), certificate_error):
+            with self.subTest(failure=type(failure).__name__):
+                transport = FakeTransport([failure, _esearch_response(0)])
+                with self.assertRaises(PubMedTransportError):
+                    PubMedClient(
+                        self._config(max_retries=2),
+                        transport=transport,
+                        clock=lambda: 1.0,
+                        sleeper=lambda seconds: None,
+                    ).search_author("Lovelace A")
+                self.assertEqual(len(transport.calls), 1)
 
     def test_retries_temporary_network_and_retryable_http_failures(self) -> None:
         failures: tuple[Exception, ...] = (
@@ -740,6 +757,19 @@ class PubMedClientConfigTests(unittest.TestCase):
         self.assertEqual(config.max_retries, 3)
         self.assertEqual(config.retry_backoff_seconds, 1.5)
 
+    def test_blank_api_key_environment_value_means_no_api_key(self) -> None:
+        for value in ("", "   "):
+            with self.subTest(value=value):
+                config = PubMedClientConfig.from_environment(
+                    {
+                        "PUBMED_NCBI_TOOL": "healthcare_research_intelligence",
+                        "PUBMED_NCBI_EMAIL": "developer@example.org",
+                        "PUBMED_NCBI_API_KEY": value,
+                    }
+                )
+                self.assertIsNone(config.api_key)
+                self.assertEqual(config.requests_per_second, 3.0)
+
     def test_rejects_non_finite_timeout_and_request_rate_values(self) -> None:
         for field_name in ("timeout_seconds", "requests_per_second"):
             for value in (float("nan"), float("inf"), float("-inf")):
@@ -774,6 +804,10 @@ class PubMedClientConfigTests(unittest.TestCase):
             "https://example.org/entrez/eutils/",
             "https://eutils.ncbi.nlm.nih.gov.example.org/entrez/eutils/",
             "https://eutils.ncbi.nlm.nih.gov@example.org/entrez/eutils/",
+            "https://user@eutils.ncbi.nlm.nih.gov/entrez/eutils/",
+            "https://eutils.ncbi.nlm.nih.gov:8443/entrez/eutils/",
+            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/?db=pmc",
+            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/#fragment",
         )
 
         for base_url in untrusted_base_urls:

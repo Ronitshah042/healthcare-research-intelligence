@@ -406,3 +406,62 @@ OK
 This local Boolean mode searches only stored citation metadata; it does not
 search abstracts/full text or provide field-specific syntax or escaped quotes
 inside phrases.
+
+## Local search and identifier fixes
+
+**Status:** Complete
+
+A review found five defects, each now fixed with a regression test:
+
+- Keyword and Boolean search matched the raw `authors_json` text, so names
+  with accents or non-Latin letters (stored as `ü`-style escapes) could
+  not be found, while JSON punctuation such as `[`, `,`, or `"` matched every
+  paper. Search now decodes the stored author list and matches names only.
+  Existing databases need no migration.
+- Boolean search read a leading `not-`, `and-`, or `or-` as an operator, so
+  `not-for-profit` became `NOT -for-profit`. Operators now count only when
+  followed by whitespace, a parenthesis, a quote, or the end of the query.
+- `PubMedClientConfig.from_environment` rejected a blank
+  `PUBMED_NCBI_API_KEY`; a blank or whitespace-only value now means no key.
+  The constructor still rejects an empty `api_key` passed directly.
+- The pipeline treated DOIs with a `doi:` or `https://doi.org/` prefix as
+  invalid. It now strips the same prefixes as `PaperStore`, sharing one helper.
+
+Full-suite verification on Python 3.15.2 and Python 3.9.6:
+
+```text
+Ran 102 tests
+OK
+```
+
+The new tests were also run against the previous source and failed (9
+failures, 2 errors), confirming they detect the original defects.
+
+## Hardening fixes
+
+**Status:** Complete
+
+A second review pass fixed six smaller weaknesses, each with a regression
+test:
+
+- `PaperStore` DOI matching no longer reads every stored row; SQLite returns
+  the exact match plus only rows that look un-normalised.
+- PubMed plain-text searches also reject `*` truncation and `#` history
+  references.
+- `base_url` must be exactly the E-utilities host, with no port, user info,
+  query, or fragment.
+- TLS certificate verification failures are no longer retried.
+- String publication years must use ASCII digits; `٢٠٢٤` and full-width
+  digits are rejected.
+- Pipeline deduplication keeps records with different PMIDs (or DOIs)
+  separate even when they share the other identifier.
+
+Full-suite verification on Python 3.15.2 and Python 3.9.6:
+
+```text
+Ran 106 tests
+OK
+```
+
+Against the previous source, the new tests produced 9 failures and 6 errors;
+the legacy-DOI test passes on both, as it guards unchanged behaviour.
