@@ -32,5 +32,15 @@ data/raw/*
 data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+# The default local database (data/hri.sqlite3) and SQLite side files
+data/hri.sqlite3
 *.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
 *.db
+
+# Packaging output
+*.egg-info/
+build/
+dist/

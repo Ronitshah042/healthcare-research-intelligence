@@ -30,8 +30,8 @@ The suite fails with `No module named 'ingestion'` if `PYTHONPATH=src` is missin
 "Retrying a transient PubMed request failure." in test output is expected logging.
 
 ## Current state
-Only `src/ingestion` contains code. `src/retrieval`, `src/generation`, and
-`src/evaluation` are empty placeholders. See `docs/PROJECT_LOG.md` for history.
+`src/ingestion` holds the data layers and `src/hri` the application layer.
+`src/retrieval`, `src/generation`, and `src/evaluation` are empty placeholders. See `docs/PROJECT_LOG.md` for history.
 
 Dependency direction, lowest layer first:
 
@@ -42,7 +42,18 @@ Dependency direction, lowest layer first:
 | `pubmed_config.py` | `PubMedClientConfig` and environment variables |
 | `pubmed.py` | `PubMedClient`: query validation, rate limits, retries, XML mapping |
 | `pipeline.py` | `SearchPipeline`: thin routing, `StandardisedPaper`, deduplication |
-| `storage.py` | `PaperStore`: SQLite persistence and local search |
+| `schema.py` | Versioned SQLite layout and upgrades (`PRAGMA user_version`) |
+| `storage.py` | `PaperStore`: SQLite persistence, local search, and statistics |
+| `saved_lists.py` | `SavedListStore`: named lists of stored papers |
+
+`src/hri` sits on top and must stay free of business logic in the CLI:
+
+| Module | Responsibility |
+|---|---|
+| `config.py` | Database path from `--db`, `HRI_DB_PATH`, or the default |
+| `export.py` | CSV and plain-citation rendering |
+| `services.py` | UI-agnostic functions returning dataclasses; see `docs/SERVICE_API.md` |
+| `cli.py` | `hri` argparse commands; imports only `services` |
 
 Public names are exported from `src/ingestion/__init__.py`; add new ones there.
 
@@ -67,6 +78,15 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
 - PubMed plain-text methods reject query syntax. Advanced queries need approval.
 - `total_count` is PubMed's overall count; `normalised_count` is the current page.
 
+**Application layer**
+- `cli.py` calls only `hri.services`. A future UI or API must do the same.
+- Service functions return typed objects and never print. Changing a signature,
+  result field, or error means updating `docs/SERVICE_API.md` in the same change.
+- No UI code or UI design in this repository.
+- `requirements.txt` and `pyproject.toml` must list the same dependencies.
+- Changing the database layout means a new step in `schema.py` and a higher
+  `SCHEMA_VERSION`, with a test that upgrades the previous layout.
+
 **Paper identity**
 - Match papers only on PMID or DOI, never on title similarity.
 - `PaperStore.save` raises `PaperIdentityConflictError` on contradictory IDs.
@@ -82,8 +102,9 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
   `from __future__ import annotations`, and no `dataclass(slots=True)`.
 - Use frozen dataclasses for records and specific exception classes for errors.
 - Use British spelling in new names (`normalise`); `storage.py` is an older exception.
-- Local data paths are supplied by the caller. Never write databases or downloads
-  into the repository by default.
+- Library code takes local data paths from the caller. The one approved default
+  is the `hri` application database, `data/hri.sqlite3` (overridden by
+  `HRI_DB_PATH` or `--db`), which Git ignores. Never commit databases or downloads.
 
 ## Tests
 - Use `unittest`. Tests must never call live services or sleep for real time.
