@@ -1,0 +1,5 @@
+# This project currently has no third-party dependencies: it uses only the
+# Python standard library (Python 3.9 or newer). Nothing needs installing.
+#
+# Any future dependency must be approved first and pinned to an exact version
+# here, for example: package-name==1.2.3

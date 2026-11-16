@@ -26,3 +26,11 @@ htmlcov/
 
 # Logs
 *.log
+
+# Local data: keep the folders, never the downloaded or generated contents
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+*.sqlite3
+*.db

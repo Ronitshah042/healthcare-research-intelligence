@@ -48,6 +48,26 @@ data/
 docs/
 ```
 
+## Setup
+
+Requirements: Python 3.9 or newer. There is nothing to install; the project
+uses only the standard library (see `requirements.txt`).
+
+```bash
+git clone https://github.com/Ronitshah042/healthcare-research-intelligence.git
+cd healthcare-research-intelligence
+
+# Run the full test suite (no network access or configuration needed)
+PYTHONPATH=src python3 -m unittest discover -s tests -v
+```
+
+`PYTHONPATH=src` is required so Python can find the `ingestion` package. Use
+`python3`; a plain `python` command may not exist on your system.
+
+Live PubMed requests need environment variables. Copy `.env.example` to `.env`,
+fill in your values, and load it with `set -a; source .env; set +a`. The tests
+never call live services.
+
 ## Responsible Use
 
 This project is intended for scientific literature research and educational
@@ -86,12 +106,6 @@ contradictory identifiers, and supports local keyword, fuzzy-title, and
 Boolean (`AND`/`OR`/`NOT`, parentheses, quoted phrases) search over titles,
 authors, and journals, with year and abstract-availability filters. It stores
 citation metadata only, never abstract text.
-
-Run the test suite with:
-
-```bash
-PYTHONPATH=src python3 -m unittest discover -s tests -v
-```
 
 PubMed-derived results must visibly attribute NLM/NIH and link to the NCBI
 disclaimer. This independent project is not affiliated with or endorsed by
