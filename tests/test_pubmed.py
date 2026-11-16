@@ -319,6 +319,27 @@ class PubMedClientTests(unittest.TestCase):
                 with self.assertRaises(PubMedResponseError):
                     self._client(transport).search_title_abstract("sleep")
 
+    def test_counts_book_records_as_skipped_instead_of_dropping_them(self) -> None:
+        book = (
+            "<PubmedBookArticle><BookDocument><PMID>99</PMID>"
+            "<ArticleTitle>Chapter</ArticleTitle></BookDocument></PubmedBookArticle>"
+        )
+        mixed = FakeTransport(
+            [_esearch_response(2), _efetch_response(_article_xml(pmid="1"), book)]
+        )
+        only_books = FakeTransport(
+            [_esearch_response(2), _efetch_response(book, book)]
+        )
+
+        mixed_result = self._client(mixed).search_title_abstract("sleep")
+        book_result = self._client(only_books).search_title_abstract("sleep")
+
+        self.assertEqual([record.pmid for record in mixed_result.records], ["1"])
+        self.assertEqual(mixed_result.invalid_record_count, 1)
+        self.assertEqual(book_result.records, ())
+        self.assertEqual(book_result.invalid_record_count, 2)
+        self.assertEqual(book_result.total_count, 2)
+
     def test_translates_ncbi_xml_error_payloads_without_exposing_api_keys(self) -> None:
         cases = (
             [_esearch_response(0).replace(b"</eSearchResult>", b"<ERROR>secret-key</ERROR></eSearchResult>")],

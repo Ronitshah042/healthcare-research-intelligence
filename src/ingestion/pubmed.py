@@ -417,13 +417,18 @@ class PubMedClient:
         _raise_for_api_error(root)
 
         articles = root.findall(".//PubmedArticle")
-        if not articles:
+        # Books and book chapters use a different layout that is not mapped;
+        # count them so a page never silently returns fewer records.
+        book_count = len(root.findall(".//PubmedBookArticle"))
+        if not articles and not book_count:
             raise PubMedResponseError(
                 "PubMed EFetch response has no citation records for a non-empty search."
             )
+        if book_count:
+            LOGGER.warning("Skipping unsupported PubMed book records.")
 
         records: list[PubMedSearchRecord] = []
-        invalid_record_count = 0
+        invalid_record_count = book_count
         for article in articles:
             record = _map_pubmed_article(article)
             if record is None:
