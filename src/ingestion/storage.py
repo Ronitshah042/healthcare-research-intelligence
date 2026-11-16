@@ -12,6 +12,7 @@ import sqlite3
 
 from .identifiers import strip_doi_prefix, strip_pmid_leading_zeros
 from .pipeline import StandardisedPaper
+from .pubmed import PUBMED_ATTRIBUTION, PUBMED_SOURCE_NAME, PubMedAttribution
 
 
 _BOOLEAN_TOKEN_PATTERN = re.compile(
@@ -42,6 +43,17 @@ class StoredPaper:
     abstract_available: bool
     source_identifier: str | None
     source_url: str | None
+    source_name: str | None = None
+
+    @property
+    def attribution(self) -> PubMedAttribution | None:
+        """Attribution a presentation layer must display, or ``None``.
+
+        PubMed-derived citations always return ``PUBMED_ATTRIBUTION``.
+        """
+        if self.source_name == PUBMED_SOURCE_NAME:
+            return PUBMED_ATTRIBUTION
+        return None
 
 
 @dataclass(frozen=True)
@@ -126,9 +138,21 @@ class PaperStore:
                         abstract_available INTEGER NOT NULL,
                         source_identifier TEXT,
                         source_url TEXT,
+                        source_name TEXT,
                         CHECK (pmid IS NOT NULL OR doi IS NOT NULL)
                     )"""
                 )
+                columns = {
+                    row["name"]
+                    for row in connection.execute("PRAGMA table_info(papers)")
+                }
+                if "source_name" not in columns:
+                    # Databases from before sources were recorded only ever
+                    # held PubMed citations, so mark their rows as PubMed.
+                    connection.execute("ALTER TABLE papers ADD COLUMN source_name TEXT")
+                    connection.execute(
+                        "UPDATE papers SET source_name = ?", (PUBMED_SOURCE_NAME,)
+                    )
         except (OSError, sqlite3.Error) as error:
             raise PaperStorageError("Could not initialise paper database.") from error
 
@@ -158,7 +182,9 @@ class PaperStore:
                             pmid = COALESCE(pmid, ?), doi = COALESCE(doi, ?),
                             title = ?, authors_json = ?, journal = ?,
                             publication_year = ?, abstract_available = ?,
-                            source_identifier = ?, source_url = ? WHERE id = ?""",
+                            source_identifier = ?, source_url = ?,
+                            source_name = COALESCE(?, source_name)
+                            WHERE id = ?""",
                         (*self._values(normalized), existing["id"]),
                     )
                 else:
@@ -166,8 +192,8 @@ class PaperStore:
                         """INSERT INTO papers (
                             pmid, doi, title, authors_json, journal,
                             publication_year, abstract_available,
-                            source_identifier, source_url
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                            source_identifier, source_url, source_name
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                         self._values(normalized),
                     )
                 row = self._matching_rows(
@@ -309,7 +335,7 @@ class PaperStore:
         return (
             paper.pmid, paper.doi, paper.title, json.dumps(paper.authors),
             paper.journal, paper.publication_year, int(paper.abstract_available),
-            paper.source_identifier, paper.source_url,
+            paper.source_identifier, paper.source_url, paper.source_name,
         )
 
     @staticmethod
@@ -376,6 +402,7 @@ class PaperStore:
             publication_year=row["publication_year"],
             abstract_available=bool(row["abstract_available"]),
             source_identifier=row["source_identifier"], source_url=row["source_url"],
+            source_name=row["source_name"],
         )
 
 

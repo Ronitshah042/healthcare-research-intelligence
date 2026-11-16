@@ -10,6 +10,7 @@ from .pipeline import (
 )
 from .pubmed import (
     PUBMED_ATTRIBUTION,
+    PUBMED_SOURCE_NAME,
     PublicationYearFilter,
     PubMedAttribution,
     PubMedClient,
@@ -41,6 +42,7 @@ __all__ = [
     "SearchResult",
     "StandardisedPaper",
     "PUBMED_ATTRIBUTION",
+    "PUBMED_SOURCE_NAME",
     "PublicationYearFilter",
     "PubMedAttribution",
     "PubMedClient",

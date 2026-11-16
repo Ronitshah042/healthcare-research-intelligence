@@ -196,6 +196,7 @@ class SearchPipelineTests(unittest.TestCase):
         self.assertEqual(result.records[0].pmid, "123")
         self.assertEqual(result.records[0].doi, "10.1234/example")
         self.assertEqual(result.records[0].journal, "Example Journal")
+        self.assertEqual(result.records[0].source_name, "PubMed")
 
     def test_strips_doi_url_and_doi_prefixes_before_deduplicating(self) -> None:
         records = (
@@ -293,6 +294,8 @@ class SearchPipelineTests(unittest.TestCase):
 
                 self.assertIs(result.attribution, PUBMED_ATTRIBUTION)
                 self.assertEqual(result.source_name, "PubMed")
+                for record in result.records:
+                    self.assertEqual(record.source_name, "PubMed")
 
     def test_rejects_an_unsupported_search_mode(self) -> None:
         with self.assertRaises(SearchRequestValidationError):

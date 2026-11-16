@@ -10,6 +10,7 @@ from .identifiers import strip_doi_prefix, strip_pmid_leading_zeros
 from .metadata import PaperMetadata
 from .pubmed import (
     PUBMED_ATTRIBUTION,
+    PUBMED_SOURCE_NAME,
     PubMedAttribution,
     PubMedClient,
     PubMedSearchPage,
@@ -52,6 +53,8 @@ class StandardisedPaper:
     abstract_available: bool
     source_identifier: str | None
     source_url: str | None
+    # Where the citation came from; ``None`` when a caller built it by hand.
+    source_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -69,7 +72,7 @@ class SearchResult:
     fallback_used: bool
     invalid_record_count: int
     duplicate_record_count: int
-    source_name: str = "PubMed"
+    source_name: str = PUBMED_SOURCE_NAME
     attribution: PubMedAttribution = PUBMED_ATTRIBUTION
 
 
@@ -165,6 +168,7 @@ def _standardise_record(record: object) -> StandardisedPaper | None:
         abstract_available=bool(getattr(record, "abstract_available", False)),
         source_identifier=_normalise_optional_text(metadata.source_identifier),
         source_url=_normalise_optional_text(metadata.source_url),
+        source_name=PUBMED_SOURCE_NAME,
     )
 
 
@@ -239,6 +243,7 @@ def _merge_records(records: list[StandardisedPaper]) -> StandardisedPaper:
             record.source_identifier for record in records
         ),
         source_url=_first_present(record.source_url for record in records),
+        source_name=_first_present(record.source_name for record in records),
     )
 
 

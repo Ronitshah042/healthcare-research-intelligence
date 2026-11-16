@@ -7,6 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from ingestion.pipeline import StandardisedPaper
+from ingestion.pubmed import PUBMED_ATTRIBUTION
 from ingestion.storage import (
     PaperIdentityConflictError,
     PaperStorageError,
@@ -556,6 +557,55 @@ class PaperStoreTests(unittest.TestCase):
             [p.pmid for p in self.store.search("example", strategy="fuzzy")],
             ["12345"],
         )
+
+    def test_stored_pubmed_papers_carry_attribution_on_every_read(self) -> None:
+        saved = self.store.save(replace(self.paper, source_name="PubMed"))
+        reads = {
+            "save": saved,
+            "get": self.store.get(pmid="12345"),
+            "list": self.store.list_papers()[0],
+            "keyword": self.store.search("example")[0],
+            "fuzzy": self.store.search("exampel", strategy="fuzzy")[0],
+            "boolean": self.store.search("example AND study", strategy="boolean")[0],
+        }
+        for name, paper in reads.items():
+            with self.subTest(read=name):
+                self.assertEqual(paper.source_name, "PubMed")
+                self.assertIs(paper.attribution, PUBMED_ATTRIBUTION)
+
+    def test_paper_without_a_source_has_no_attribution(self) -> None:
+        saved = self.store.save(self.paper)
+        self.assertIsNone(saved.source_name)
+        self.assertIsNone(saved.attribution)
+
+    def test_update_without_a_source_keeps_the_recorded_source(self) -> None:
+        self.store.save(replace(self.paper, source_name="PubMed"))
+        updated = self.store.save(replace(self.paper, title="Updated"))
+        self.assertEqual(updated.title, "Updated")
+        self.assertIs(updated.attribution, PUBMED_ATTRIBUTION)
+
+    def test_upgrades_older_database_and_marks_rows_as_pubmed(self) -> None:
+        path = Path(self.temp_dir.name) / "old.sqlite3"
+        with sqlite3.connect(path) as connection:
+            connection.execute(
+                """CREATE TABLE papers (
+                    id INTEGER PRIMARY KEY, pmid TEXT UNIQUE, doi TEXT UNIQUE,
+                    title TEXT NOT NULL, authors_json TEXT NOT NULL, journal TEXT,
+                    publication_year INTEGER, abstract_available INTEGER NOT NULL,
+                    source_identifier TEXT, source_url TEXT,
+                    CHECK (pmid IS NOT NULL OR doi IS NOT NULL)
+                )"""
+            )
+            connection.execute(
+                """INSERT INTO papers (pmid, title, authors_json, abstract_available)
+                VALUES ('42', 'Older paper', '["Ada Lovelace"]', 1)"""
+            )
+        for _ in range(2):  # opening twice must not fail or change anything
+            old = PaperStore(path).get(pmid="42")
+            self.assertEqual(old.title, "Older paper")
+            self.assertIs(old.attribution, PUBMED_ATTRIBUTION)
+        new = PaperStore(path).save(replace(self.paper, source_name=None))
+        self.assertIsNone(new.attribution)
 
     def test_rejects_paper_without_persistent_identifier(self) -> None:
         paper = StandardisedPaper(

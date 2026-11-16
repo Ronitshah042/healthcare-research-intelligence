@@ -26,6 +26,8 @@ from .pubmed_config import PubMedClientConfig
 
 LOGGER = logging.getLogger(__name__)
 PUBMED_RECORD_URL = "https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
+# Short source label recorded with each citation; it decides attribution later.
+PUBMED_SOURCE_NAME = "PubMed"
 _PLAIN_TEXT_QUERY_FORBIDDEN_CHARACTERS = frozenset('[]()"*#')
 _BOOLEAN_OPERATOR_PATTERN = re.compile(r"\b(?:AND|OR|NOT)\b")
 _DOI_PATTERN = re.compile(r"10\.[0-9]{4,9}/[^\s\"]+", re.ASCII)
