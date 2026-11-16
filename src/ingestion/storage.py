@@ -12,7 +12,13 @@ import sqlite3
 
 from .identifiers import strip_doi_prefix, strip_pmid_leading_zeros
 from .pipeline import StandardisedPaper
-from .pubmed import PUBMED_ATTRIBUTION, PUBMED_SOURCE_NAME, PubMedAttribution
+from .pubmed import (
+    PUBMED_ATTRIBUTION,
+    PUBMED_RECORD_URL,
+    PUBMED_SOURCE_NAME,
+    PubMedAttribution,
+)
+from .schema import SchemaVersionError, ensure_schema
 
 
 _BOOLEAN_TOKEN_PATTERN = re.compile(
@@ -54,6 +60,26 @@ class StoredPaper:
         if self.source_name == PUBMED_SOURCE_NAME:
             return PUBMED_ATTRIBUTION
         return None
+
+    @property
+    def pubmed_url(self) -> str | None:
+        """Link to the PubMed page of a PubMed-derived citation with a PMID."""
+        if self.source_name == PUBMED_SOURCE_NAME and self.pmid:
+            return PUBMED_RECORD_URL.format(pmid=self.pmid)
+        return None
+
+
+@dataclass(frozen=True)
+class PaperStoreStats:
+    """Counts describing the papers held in the local database."""
+
+    total_papers: int
+    # (publication year, paper count), oldest first; ``None`` is an unknown year.
+    papers_by_year: tuple[tuple[int | None, int], ...]
+    with_doi: int
+    without_doi: int
+    abstract_available: int
+    abstract_unavailable: int
 
 
 @dataclass(frozen=True)
@@ -126,33 +152,9 @@ class PaperStore:
         try:
             self._database_path.parent.mkdir(parents=True, exist_ok=True)
             with closing(self._connect()) as connection, connection:
-                connection.execute(
-                    """CREATE TABLE IF NOT EXISTS papers (
-                        id INTEGER PRIMARY KEY,
-                        pmid TEXT UNIQUE,
-                        doi TEXT UNIQUE,
-                        title TEXT NOT NULL,
-                        authors_json TEXT NOT NULL,
-                        journal TEXT,
-                        publication_year INTEGER,
-                        abstract_available INTEGER NOT NULL,
-                        source_identifier TEXT,
-                        source_url TEXT,
-                        source_name TEXT,
-                        CHECK (pmid IS NOT NULL OR doi IS NOT NULL)
-                    )"""
-                )
-                columns = {
-                    row["name"]
-                    for row in connection.execute("PRAGMA table_info(papers)")
-                }
-                if "source_name" not in columns:
-                    # Databases from before sources were recorded only ever
-                    # held PubMed citations, so mark their rows as PubMed.
-                    connection.execute("ALTER TABLE papers ADD COLUMN source_name TEXT")
-                    connection.execute(
-                        "UPDATE papers SET source_name = ?", (PUBMED_SOURCE_NAME,)
-                    )
+                ensure_schema(connection)
+        except SchemaVersionError as error:
+            raise PaperStorageError(str(error)) from error
         except (OSError, sqlite3.Error) as error:
             raise PaperStorageError("Could not initialise paper database.") from error
 
@@ -255,13 +257,32 @@ class PaperStore:
         abstract_available: bool | None = None,
         strategy: str = "keyword",
     ) -> tuple[StoredPaper, ...]:
-        """Search papers by all keywords, with optional citation filters.
+        """Return one page of ``search_with_total`` results without the total."""
+        return self.search_with_total(
+            query, limit=limit, offset=offset, year_from=year_from,
+            year_to=year_to, abstract_available=abstract_available,
+            strategy=strategy,
+        )[0]
+
+    def search_with_total(
+        self,
+        query: str,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        year_from: int | None = None,
+        year_to: int | None = None,
+        abstract_available: bool | None = None,
+        strategy: str = "keyword",
+    ) -> tuple[tuple[StoredPaper, ...], int]:
+        """Search papers and also return how many papers match in total.
 
         Every whitespace-separated keyword must occur in the title, authors,
         or journal. Results rank title matches above author matches and journal
         matches, then retain insertion order for ties. Year bounds are inclusive.
         The ``fuzzy`` strategy also includes approximate title matches above
-        the configured similarity threshold.
+        the configured similarity threshold. The total ignores ``limit`` and
+        ``offset``, so callers can work out how many pages exist.
         """
         if not isinstance(query, str) or not query.strip():
             raise ValueError("query must be non-empty text.")
@@ -314,11 +335,35 @@ class PaperStore:
                     key=lambda item: (item[0], -item[1], item[2]["id"])
                 )
                 page = ranked[offset : offset + limit]
-                return tuple(self._to_paper(row) for _, _, row in page)
+                return tuple(self._to_paper(row) for _, _, row in page), len(ranked)
         except PaperStorageError:
             raise
         except sqlite3.Error as error:
             raise PaperStorageError("Could not search paper citations.") from error
+
+    def stats(self) -> PaperStoreStats:
+        """Count stored papers overall, by year, by DOI, and by abstract flag."""
+        try:
+            with closing(self._connect()) as connection, connection:
+                total, with_doi, with_abstract = connection.execute(
+                    """SELECT COUNT(*), COUNT(doi),
+                        COALESCE(SUM(abstract_available), 0) FROM papers"""
+                ).fetchone()
+                by_year = connection.execute(
+                    """SELECT publication_year, COUNT(*) FROM papers
+                        GROUP BY publication_year
+                        ORDER BY publication_year IS NULL, publication_year"""
+                ).fetchall()
+        except sqlite3.Error as error:
+            raise PaperStorageError("Could not count paper citations.") from error
+        return PaperStoreStats(
+            total_papers=total,
+            papers_by_year=tuple((year, count) for year, count in by_year),
+            with_doi=with_doi,
+            without_doi=total - with_doi,
+            abstract_available=with_abstract,
+            abstract_unavailable=total - with_abstract,
+        )
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self._database_path, timeout=10.0)

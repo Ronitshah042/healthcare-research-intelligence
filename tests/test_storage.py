@@ -607,6 +607,55 @@ class PaperStoreTests(unittest.TestCase):
         new = PaperStore(path).save(replace(self.paper, source_name=None))
         self.assertIsNone(new.attribution)
 
+    def test_search_with_total_counts_all_matches_beyond_the_page(self) -> None:
+        for number in range(5):
+            self.store.save(replace(
+                self.paper, pmid=str(number + 1), doi=None, title=f"Sleep {number}"
+            ))
+        self.store.save(replace(self.paper, pmid="99", doi=None, title="Other"))
+
+        papers, total = self.store.search_with_total("sleep", limit=2, offset=2)
+
+        self.assertEqual([paper.pmid for paper in papers], ["3", "4"])
+        self.assertEqual(total, 5)
+        self.assertEqual(self.store.search_with_total("nothing"), ((), 0))
+
+    def test_stats_counts_papers_by_year_doi_and_abstract(self) -> None:
+        empty = self.store.stats()
+        self.assertEqual(
+            (empty.total_papers, empty.papers_by_year, empty.with_doi,
+             empty.without_doi, empty.abstract_available, empty.abstract_unavailable),
+            (0, (), 0, 0, 0, 0),
+        )
+        self.store.save(self.paper)
+        self.store.save(replace(
+            self.paper, pmid="2", doi=None, publication_year=2020,
+            abstract_available=False,
+        ))
+        self.store.save(replace(
+            self.paper, pmid="3", doi=None, publication_year=None,
+        ))
+        self.store.save(replace(self.paper, pmid="4", doi="10.1234/four"))
+
+        stats = self.store.stats()
+
+        self.assertEqual(stats.total_papers, 4)
+        self.assertEqual(stats.papers_by_year, ((2020, 1), (2024, 2), (None, 1)))
+        self.assertEqual((stats.with_doi, stats.without_doi), (2, 2))
+        self.assertEqual(
+            (stats.abstract_available, stats.abstract_unavailable), (3, 1)
+        )
+
+    def test_pubmed_url_is_derived_for_pubmed_papers_with_a_pmid(self) -> None:
+        pubmed = self.store.save(replace(
+            self.paper, source_name="PubMed", source_url=None
+        ))
+        self.assertEqual(pubmed.pubmed_url, "https://pubmed.ncbi.nlm.nih.gov/12345/")
+        other = self.store.save(replace(
+            self.paper, pmid="2", doi="10.1234/two", source_name=None
+        ))
+        self.assertIsNone(other.pubmed_url)
+
     def test_rejects_paper_without_persistent_identifier(self) -> None:
         paper = StandardisedPaper(
             pmid=None, doi=None, title="Example", authors=(), journal=None,

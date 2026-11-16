@@ -29,6 +29,7 @@ from .storage import (
     PaperIdentityConflictError,
     PaperStorageError,
     PaperStore,
+    PaperStoreStats,
     StoredPaper,
 )
 
@@ -60,5 +61,6 @@ __all__ = [
     "PaperStorageError",
     "PaperIdentityConflictError",
     "PaperStore",
+    "PaperStoreStats",
     "StoredPaper",
 ]
