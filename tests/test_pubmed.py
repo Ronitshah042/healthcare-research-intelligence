@@ -12,6 +12,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from ingestion.metadata import PaperMetadata
 from ingestion.pubmed import (
+    PUBMED_ATTRIBUTION,
     PubMedClient,
     PubMedHttpError,
     PubMedRequestValidationError,
@@ -121,6 +122,33 @@ class PubMedClientTests(unittest.TestCase):
             transport=transport,
             clock=lambda: 0.0,
             sleeper=lambda _: None,
+        )
+
+    def test_every_search_page_carries_pubmed_attribution(self) -> None:
+        pages = {
+            "records": self._client(
+                FakeTransport([_esearch_response(1), _efetch_response(_article_xml())])
+            ).search_title_abstract("sleep"),
+            "no matches": self._client(
+                FakeTransport([_esearch_response(0)])
+            ).search_author("Lovelace A"),
+            "blank query": self._client(FakeTransport([])).search_title("  "),
+            "page out of range": self._client(
+                FakeTransport([_esearch_response(1)])
+            ).lookup_pmid("12345", page=2),
+        }
+
+        for name, page in pages.items():
+            with self.subTest(page=name):
+                self.assertIs(page.attribution, PUBMED_ATTRIBUTION)
+
+    def test_pubmed_attribution_names_the_source_and_disclaims_affiliation(self) -> None:
+        self.assertIn("PubMed", PUBMED_ATTRIBUTION.source_name)
+        self.assertIn("National Library of Medicine", PUBMED_ATTRIBUTION.source_name)
+        self.assertTrue(PUBMED_ATTRIBUTION.source_url.startswith("https://"))
+        self.assertTrue(PUBMED_ATTRIBUTION.disclaimer_url.startswith("https://"))
+        self.assertIn(
+            "not affiliated", PUBMED_ATTRIBUTION.independent_service_notice
         )
 
     def test_search_modes_build_documented_field_queries(self) -> None:

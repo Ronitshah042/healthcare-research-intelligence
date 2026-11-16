@@ -11,7 +11,12 @@ from ingestion.pipeline import (
     SearchRequest,
     SearchRequestValidationError,
 )
-from ingestion.pubmed import PubMedSearchPage, PubMedSearchRecord, SearchMode
+from ingestion.pubmed import (
+    PUBMED_ATTRIBUTION,
+    PubMedSearchPage,
+    PubMedSearchRecord,
+    SearchMode,
+)
 
 
 @dataclass
@@ -275,6 +280,19 @@ class SearchPipelineTests(unittest.TestCase):
         self.assertEqual(len(result.records), 1)
         self.assertEqual(result.normalised_count, 1)
         self.assertEqual(result.invalid_record_count, 2)
+
+    def test_result_carries_pubmed_attribution_even_when_empty(self) -> None:
+        for records in (None, ()):
+            with self.subTest(records=records):
+                client = FakePubMedClient(self._page(records=records))
+                pipeline = SearchPipeline(client)  # type: ignore[arg-type]
+
+                result = pipeline.search(
+                    SearchRequest(query="example", search_mode=SearchMode.TITLE)
+                )
+
+                self.assertIs(result.attribution, PUBMED_ATTRIBUTION)
+                self.assertEqual(result.source_name, "PubMed")
 
     def test_rejects_an_unsupported_search_mode(self) -> None:
         with self.assertRaises(SearchRequestValidationError):
