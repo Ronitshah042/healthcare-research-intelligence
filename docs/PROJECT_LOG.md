@@ -501,3 +501,35 @@ Full-suite verification on Python 3.15.2 and Python 3.9.6:
 Ran 118 tests
 OK
 ```
+
+## Phase 0: repository audit
+
+**Status:** Complete
+
+The repository was audited against the expected functionality without adding
+features. The full findings are in `docs/AUDIT.md`.
+
+Verified test count, using
+`PYTHONPATH=src python3 -m unittest discover -s tests -v`:
+
+```text
+Python 3.15.2:               Ran 118 tests, OK
+Python 3.9.6:                Ran 118 tests, OK
+Python 3.15.2, fresh clone:  Ran 118 tests, OK
+```
+
+Summary:
+
+- Every expected feature is implemented. All are tested except attribution:
+  `PUBMED_ATTRIBUTION` is attached to live search results but no test asserts
+  it, and results read back from `PaperStore` do not carry it at all.
+- Four bugs were found and reproduced but not fixed. The most serious is that
+  PubMed book records (`<PubmedBookArticle>`) are dropped without being
+  counted, and a page containing only books raises an error.
+- Small setup gaps were fixed: `requirements.txt` (no third-party
+  dependencies), `.env.example`, `.gitkeep` files for the folders the README
+  lists, ignore rules for local data and SQLite files, and a README Setup
+  section. No source or test file changed.
+
+Next steps: decide which proposals in `docs/AUDIT.md` section 5 to approve.
+Recommended first: P1 (book records), P2 and P3 (attribution).
