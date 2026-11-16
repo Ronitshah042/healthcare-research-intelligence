@@ -497,7 +497,7 @@ class PubMedClientTests(unittest.TestCase):
                 _esearch_response(2),
                 _efetch_response(
                     _article_xml(pmid="1", title="Valid citation")
-                    + _article_xml(pmid="2", include_author=False)
+                    + _article_xml(pmid="2", title="")
                 ),
             ]
         )
@@ -506,6 +506,20 @@ class PubMedClientTests(unittest.TestCase):
 
         self.assertEqual([record.pmid for record in result.records], ["1"])
         self.assertEqual(result.invalid_record_count, 1)
+
+    def test_returns_citations_without_listed_authors(self) -> None:
+        transport = FakeTransport(
+            [
+                _esearch_response(1),
+                _efetch_response(_article_xml(pmid="7", include_author=False)),
+            ]
+        )
+
+        result = self._client(transport).search_title_abstract("sleep")
+
+        self.assertEqual([record.pmid for record in result.records], ["7"])
+        self.assertEqual(result.records[0].metadata.authors, ())
+        self.assertEqual(result.invalid_record_count, 0)
 
     def test_translates_timeout_http_transport_and_malformed_xml_failures(self) -> None:
         cases: list[tuple[Exception | bytes, type[Exception]]] = [

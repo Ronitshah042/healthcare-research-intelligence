@@ -530,6 +530,15 @@ class PaperStoreTests(unittest.TestCase):
         with self.assertRaises(PaperStorageError):
             PaperStore(blocker / "papers.sqlite3")
 
+    def test_saves_and_searches_paper_without_authors(self) -> None:
+        saved = self.store.save(replace(self.paper, authors=()))
+        self.assertEqual(saved.authors, ())
+        self.assertEqual([p.pmid for p in self.store.search("example")], ["12345"])
+        self.assertEqual(
+            [p.pmid for p in self.store.search("example", strategy="fuzzy")],
+            ["12345"],
+        )
+
     def test_rejects_paper_without_persistent_identifier(self) -> None:
         paper = StandardisedPaper(
             pmid=None, doi=None, title="Example", authors=(), journal=None,

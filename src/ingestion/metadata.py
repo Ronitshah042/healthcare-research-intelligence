@@ -29,6 +29,7 @@ def normalise_paper_metadata(metadata: Mapping[str, object]) -> PaperMetadata:
     """Return validated paper metadata with consistently formatted text.
 
     Required fields are title, authors, publication_year, and source_identifier.
+    The author sequence may be empty, because some citations list no authors.
     Publication years may range from 1 through the next calendar year.
     """
     if not isinstance(metadata, Mapping):
@@ -77,12 +78,9 @@ def _normalise_authors(value: object) -> tuple[str, ...]:
     if isinstance(value, str) or not isinstance(value, Sequence):
         raise MetadataValidationError("authors is required and must be a sequence of text.")
 
-    authors = tuple(
+    return tuple(
         _normalise_required_text(author, "authors entry") for author in value
     )
-    if not authors:
-        raise MetadataValidationError("authors must contain at least one author.")
-    return authors
 
 
 def _normalise_publication_year(value: object) -> int:

@@ -79,7 +79,7 @@ class NormalisePaperMetadataTests(unittest.TestCase):
                     with self.assertRaises(MetadataValidationError):
                         normalise_paper_metadata(metadata)
 
-        for invalid_authors in ([], [""], [" \t\n "]):
+        for invalid_authors in ([""], [" \t\n "]):
             with self.subTest(authors=invalid_authors):
                 metadata = self._valid_metadata()
                 metadata["authors"] = invalid_authors
@@ -97,6 +97,14 @@ class NormalisePaperMetadataTests(unittest.TestCase):
 
                 with self.assertRaises(MetadataValidationError):
                     normalise_paper_metadata(metadata)
+
+    def test_accepts_citations_without_listed_authors(self) -> None:
+        for authors in ([], ()):
+            with self.subTest(authors=authors):
+                metadata = self._valid_metadata()
+                metadata["authors"] = authors
+
+                self.assertEqual(normalise_paper_metadata(metadata).authors, ())
 
     def test_optional_fields_are_none_when_omitted_or_none(self) -> None:
         omitted = normalise_paper_metadata(self._valid_metadata())
