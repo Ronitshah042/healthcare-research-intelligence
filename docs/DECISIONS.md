@@ -427,6 +427,123 @@ required attribution.
 **Cost:** `source_name` behaves differently from the other fields, and a
 source cannot be cleared through `save`.
 
+## Phase 1: command line and service layer
+
+### argparse, not typer
+
+**Decision:** The `hri` command line uses `argparse` from the standard library.
+
+**Reasoning:** typer would be the project's first third-party dependency, and
+the commands are simple enough not to need it.
+
+**Cost:** More code per command, and plainer help output.
+
+### A service layer that returns objects, with a thin CLI on top
+
+**Decision:** `hri/services.py` holds every operation as a plain function that
+returns a frozen dataclass and never prints. `hri/cli.py` only parses
+arguments, calls those functions, and formats text; a test checks that it
+imports nothing else from the project.
+
+**Benefit:** The future UI and API call exactly what the CLI calls, so
+behaviour cannot drift between them, and the functions are testable without
+capturing output.
+
+**Cost:** Two layers to change for a new command. Each call opens its own
+database connection, which is simple and thread-safe but slower than sharing
+one.
+
+### One error type for bad input
+
+**Decision:** Lower layers raise several `ValueError` subclasses for bad
+arguments. The service layer reports all of them as `InvalidRequestError`.
+
+**Benefit:** A UI catches one error for "ask the user to fix their input".
+
+**Cost:** The original error type is only available as the chained cause.
+`PubMedConfigurationError` is deliberately left separate, because missing
+settings are not something the end user typed.
+
+### Default database under `data/`, overridable
+
+**Decision:** The database path is `--db`, else `HRI_DB_PATH`, else
+`data/hri.sqlite3` relative to the current folder. This replaces the earlier
+rule that nothing writes a database inside the repository by default.
+
+**Benefit:** `hri` works with no configuration, and the file is easy to find.
+
+**Cost:** The data lives inside the working copy, protected only by
+`.gitignore`, and the default depends on which folder the command runs from.
+
+### `pyproject.toml` and `requirements.txt` both exist
+
+**Decision:** `pyproject.toml` defines the installable package and the `hri`
+console script, and declares Python 3.9 as the minimum. `requirements.txt` is
+kept for hosts that install from it. A test fails if their dependency lists
+differ or a requirement is not pinned.
+
+**Cost:** Two files to edit for each dependency. Building the package needs
+setuptools at install time, which pip downloads; it is not a runtime
+dependency.
+
+### Ingest reads a bounded number of PubMed positions
+
+**Decision:** `ingest` pages through results 20 at a time and reads at most
+`max_records` positions (capped at 1000), then stops, even if some of those
+records were invalid.
+
+**Benefit:** The number of requests is known before starting, which keeps the
+load on NCBI predictable.
+
+**Cost:** `--max 200` can save fewer than 200 papers when PubMed returns books
+or unusable records. Each page repeats the search request, so 200 records cost
+about 20 requests.
+
+### Identifier conflicts during ingest are counted, not fatal
+
+**Decision:** When a fetched record's PMID and DOI point at two different
+stored papers, `ingest` skips it, counts it in `conflicts`, and continues.
+
+**Benefit:** One contradictory record does not abort a long ingest.
+
+**Cost:** The skipped record is only visible as a number; which record it was
+is not reported.
+
+### Saved lists reference papers; they do not copy them
+
+**Decision:** `saved_list_items` stores the database id of a paper. List names
+are unique ignoring case, a paper appears at most once per list, and order is
+the order added.
+
+**Benefit:** A list always shows a paper's current metadata and attribution.
+
+**Cost:** Lists cannot hold papers that are not stored. There is no delete or
+rename yet, and lists record no dates.
+
+### Versioned schema upgrades
+
+**Decision:** `schema.py` records the layout version in SQLite's
+`PRAGMA user_version` and applies upgrade steps in order. A database with a
+higher version than the code knows is refused.
+
+**Benefit:** Older databases upgrade in place without losing rows, and old
+code cannot silently damage a newer database.
+
+**Cost:** Every layout change needs a new numbered step and an upgrade test.
+
+### Export formats
+
+**Decision:** Export offers CSV and a plain numbered citation layout. CSV
+cells that begin with `=`, `+`, `-`, or `@` are prefixed with `'`. The
+citation text ends with the PubMed attribution; the CSV carries a source
+column and link, with the attribution returned beside it.
+
+**Benefit:** CSV opens safely in spreadsheet programs, and the citation text
+is self-contained.
+
+**Cost:** The citation layout is not a formal style (Vancouver, APA), and a
+CSV saved to disk does not itself contain the attribution text.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.

@@ -149,7 +149,7 @@ No source or test file was changed. The suite still reports 118 tests, OK.
 | P4 | Decide whether authorless records are valid; if so, allow an empty author tuple. Changes the `PaperMetadata` contract. | B2 | Medium |
 | P5 | Move DOI/PMID normalisation into one shared module used by the client, pipeline, and storage; accept DOI prefixes in `lookup_doi`; strip leading zeros from PMIDs. | B3, B4, duplication | Medium |
 | P6 | Add tests for the low-risk untested validation paths listed in section 2. | Coverage | Small |
-| P7 | Add `pyproject.toml` with a declared minimum Python version so the package installs and tests run without `PYTHONPATH`. | Packaging | Small |
+| P7 | **Done 2026-11-16** (Phase 1). Add `pyproject.toml` with a declared minimum Python version so the package installs and tests run without `PYTHONPATH`. | Packaging | Small |
 | P8 | Add a CI workflow running the suite on Python 3.9 and the latest version. | No CI | Small |
 | P9 | Choose and add a licence. | No licence | Decision |
 | P10 | Replace in-memory ranking with SQLite FTS5 when the stored set grows. | Search scale | Large; not needed yet |

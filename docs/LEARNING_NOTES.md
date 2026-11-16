@@ -428,3 +428,77 @@ up to date is left alone.
 A property is computed each time it is read. Because `attribution` is worked
 out from `source_name`, the two can never disagree, which they could if both
 were stored separately.
+
+## Phase 1: command line and service layer
+
+### What is a service layer, and why not put the logic in the CLI?
+
+A program usually has more than one "front door": a command line today, a web
+page or API tomorrow. If the logic for "search papers" lives inside the code
+that prints search results, the next front door has to copy it, and the copies
+drift apart.
+
+A service layer is the set of functions behind all the doors. Each one takes
+ordinary arguments and returns an object describing the result:
+
+```python
+results = services.search_papers("sleep", page=2)
+results.total_count      # a number
+results.papers[0].title  # text
+```
+
+The command line then has only three jobs: read what the user typed, call one
+service function, and print the result. Returning objects instead of printed
+text is what makes the function reusable, because a web page wants a table, a
+test wants to compare numbers, and neither wants to pick apart a printed
+string.
+
+### What does `argparse` do?
+
+`argparse` is the standard-library tool for reading command-line arguments. You
+declare what the program accepts, for example an option `--max` that must be a
+whole number, and it turns `["--max", "200"]` into `args.max_records == 200`,
+prints help for `--help`, and stops with an error and exit code 2 when the
+input does not fit. "Subcommands" such as `hri ingest` and `hri search` are
+separate small parsers attached to the main one.
+
+### What is an exit code?
+
+Every command-line program returns a number when it ends. `0` means success;
+anything else means failure. Scripts use it to decide whether to continue.
+`hri` returns `2` when the command was written wrongly (bad option, malformed
+query) and `1` when the command was fine but could not be completed (paper not
+found, PubMed unreachable).
+
+### What is a console script?
+
+`pyproject.toml` contains the line `hri = "hri.cli:main"`. When the project is
+installed with `pip install -e .`, pip creates a small `hri` program that
+imports `hri.cli` and calls `main()`. The `-e` ("editable") flag makes the
+installed command use the source files in place, so code changes take effect
+without reinstalling.
+
+### What does paging need from the database?
+
+To show "page 2 of 7", a UI needs two things: the 20 rows for this page and
+the total number of matches. `search_with_total` returns both. The page is
+`matches[offset : offset + limit]` with `offset = (page - 1) * page_size`, and
+the number of pages is the total divided by the page size, rounded up.
+
+### Why can a spreadsheet file be dangerous?
+
+If a CSV cell begins with `=`, spreadsheet programs treat it as a formula and
+run it. A paper title is outside our control, so a title such as
+`=HYPERLINK(...)` could do something the user did not intend when they open an
+export. The export puts a `'` in front of such cells, which tells the
+spreadsheet "this is text".
+
+### How do tests exercise the CLI without a network or a terminal?
+
+`main()` accepts the argument list as a parameter, so a test calls
+`cli.main(["search", "sleep"])` directly. Output is captured by temporarily
+replacing standard output with an in-memory text buffer
+(`contextlib.redirect_stdout`). For `ingest`, the test replaces the function
+that builds the real PubMed client with one returning a fake client
+(`unittest.mock.patch`), so the whole path from command line to database runs
+without contacting PubMed.

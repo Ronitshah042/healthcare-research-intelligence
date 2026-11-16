@@ -587,3 +587,50 @@ OK
 
 Next steps: audit proposals P4 to P11 remain open (P4 and P5 were largely
 addressed by the audit bug fixes).
+
+## Phase 1: command line and service layer
+
+**Status:** Complete
+
+The pipeline is usable end to end from the command line through a UI-agnostic
+service layer.
+
+- **Service layer (`src/hri/services.py`):** `ingest`, `search_papers`,
+  `get_paper`, `get_stats`, `create_list`, `add_to_list`, `remove_from_list`,
+  `get_lists`, `get_list`, and `export_list`. Each returns a typed result and
+  never prints. The contract is `docs/SERVICE_API.md`; a test fails if a public
+  name is missing from it.
+- **CLI (`src/hri/cli.py`):** `hri ingest`, `search`, `show`, `stats`, and
+  `lists create|add|remove|show|list|export`, built with argparse and calling
+  only the service layer.
+- **Storage:** `schema.py` versions the database layout and upgrades older
+  databases in place; saved-list tables are version 2. `PaperStore` gained
+  `search_with_total` and `stats`, and `StoredPaper` gained `pubmed_url`.
+  `saved_lists.py` holds the saved-list operations.
+- **Export (`src/hri/export.py`):** CSV with formula-safe cells, and plain
+  numbered citations ending with the PubMed attribution.
+- **Configuration:** database path from `--db`, then `HRI_DB_PATH`, then
+  `data/hri.sqlite3`, which Git ignores.
+- **Packaging:** `pyproject.toml` with the `hri` console script (Python 3.9+),
+  kept consistent with `requirements.txt` by a test. Verified by installing
+  into a fresh virtual environment and running `hri` and the suite there.
+- **Attribution:** every result that includes a PubMed-derived paper carries
+  `PUBMED_ATTRIBUTION`, and every such paper has a PubMed link.
+
+No test contacts PubMed; ingest tests use a fake client and temporary
+databases. `hri ingest` was **not** run against live PubMed in this phase.
+
+Full-suite verification on Python 3.15.2 and Python 3.9.6:
+
+```text
+Ran 194 tests
+OK
+```
+
+Tests per file: `test_pubmed.py` 55, `test_storage.py` 54, `test_services.py`
+26, `test_metadata.py` 18, `test_cli.py` 13, `test_pipeline.py` 10,
+`test_saved_lists.py` 9, `test_schema.py` 4, `test_packaging.py` 3,
+`test_identifiers.py` 2.
+
+Next steps: a manual live run of `hri ingest`; then the next phase. Open
+audit proposals: P6, P8, P9, P10, P11.

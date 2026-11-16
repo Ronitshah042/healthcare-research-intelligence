@@ -37,7 +37,8 @@ The final technology choices will be confirmed during implementation.
 
 ```text
 src/
-├── ingestion/
+├── ingestion/    PubMed client, pipeline, SQLite storage, saved lists
+├── hri/          service layer, export, and the hri command line
 ├── retrieval/
 ├── generation/
 └── evaluation/
@@ -50,23 +51,69 @@ docs/
 
 ## Setup
 
-Requirements: Python 3.9 or newer. There is nothing to install; the project
-uses only the standard library (see `requirements.txt`).
+Requirements: Python 3.9 or newer. The project has no third-party runtime
+dependencies (`requirements.txt` and `pyproject.toml` both list none).
 
 ```bash
 git clone https://github.com/Ronitshah042/healthcare-research-intelligence.git
 cd healthcare-research-intelligence
 
+# Optional but recommended: install the `hri` command into a virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+
 # Run the full test suite (no network access or configuration needed)
 PYTHONPATH=src python3 -m unittest discover -s tests -v
 ```
 
-`PYTHONPATH=src` is required so Python can find the `ingestion` package. Use
-`python3`; a plain `python` command may not exist on your system.
+Without the install step, replace `hri` with `PYTHONPATH=src python3 -m hri`
+in the commands below. Use `python3`; a plain `python` command may not exist
+on your system.
 
-Live PubMed requests need environment variables. Copy `.env.example` to `.env`,
-fill in your values, and load it with `set -a; source .env; set +a`. The tests
+Live PubMed requests (`hri ingest`) need environment variables. Copy
+`.env.example` to `.env`, fill in your values, and load it with
+`set -a; source .env; set +a`. Everything else works offline, and the tests
 never call live services.
+
+## Command-line usage
+
+```bash
+# Fetch up to 200 PubMed citations and save them locally
+hri ingest --query "type 2 diabetes" --mode title_abstract --max 200 --year-from 2018
+
+# Search what is stored: keyword (default), fuzzy, or boolean
+hri search "metformin AND cardiovascular" --type boolean --year-from 2020 --page 1
+hri search "diabetis" --type fuzzy
+
+# One paper's stored metadata, by PMID or DOI
+hri show 33301246
+
+# Totals, papers per year, DOI and abstract counts
+hri stats
+
+# Saved lists
+hri lists create "To read"
+hri lists add "To read" 33301246
+hri lists show "To read"
+hri lists list
+hri lists remove "To read" 33301246
+hri lists export "To read" --format csv --output to-read.csv
+hri lists export "To read" --format citations
+```
+
+`hri ingest` reports how many records PubMed matched and how many were
+fetched, saved, duplicated, skipped as invalid, or skipped for conflicting
+identifiers. Modes are `title`, `title_abstract`, `author`, `doi`, and `pmid`;
+`--max` goes up to 1000. Run `hri --help` or `hri <command> --help` for every
+option.
+
+The database is `data/hri.sqlite3` in the current folder (ignored by Git).
+Set `HRI_DB_PATH` or pass `--db PATH` to use another file; `--db` wins.
+
+The command line is a thin layer over `hri.services`, a set of plain Python
+functions that return typed results. A UI or web API should call those same
+functions; [docs/SERVICE_API.md](docs/SERVICE_API.md) is their contract.
 
 ## Responsible Use
 
@@ -80,8 +127,9 @@ licences and terms will be used.
 
 ## Development Status
 
-**Status:** Milestones 2A and 2B complete — PubMed citation search and
-integration hardening, plus a search pipeline and local citation storage
+**Status:** Phase 1 complete — PubMed ingestion, local search, saved lists,
+and export are usable end to end from the `hri` command line through a
+UI-agnostic service layer. There is no user interface or web API yet.
 
 The project now provides validated PubMed citation search through NCBI
 E-utilities, including title, title/abstract, author, DOI, and PMID search,
