@@ -116,7 +116,9 @@ After validation, the result stores authors as a tuple:
 
 Tuples cannot be altered in place. Together with the frozen dataclass, this
 makes the validated author list stable. The code requires a `Sequence`, so
-lists and tuples are suitable; a generator is not accepted.
+lists and tuples are suitable; a generator is not accepted. The sequence may be
+empty, because some real citations (editorials, news items, older records)
+list no authors; each entry that is present must still be non-empty text.
 
 ## Publication-year validation
 
@@ -378,3 +380,22 @@ each title word using `difflib.SequenceMatcher`, a standard-library similarity
 score from 0 to 1, and a match needs at least `0.85`. Each title word can match
 only one keyword, so one similar word cannot satisfy a whole query. Exact
 keyword matches always rank above fuzzy ones.
+
+### Why do identifiers need one shared clean-up module?
+
+The same paper can be written `10.1234/x`, `doi:10.1234/x`, or
+`https://doi.org/10.1234/x`, and a PMID can be typed `123` or `0123`. If the
+search client, the pipeline, and the database each decide separately which
+spellings are equal, one layer will treat two spellings as one paper while
+another treats them as two. `identifiers.py` holds those rules once, so every
+layer gives the same answer. Each layer still does its own validation, because
+they react differently to bad input: the client raises an error, the pipeline
+drops the identifier, and the store refuses to save.
+
+### Why count book records instead of returning or ignoring them?
+
+PubMed also indexes books, and EFetch returns them in a different XML shape
+(`PubmedBookArticle`) with no journal or journal date. Silently ignoring them
+made a page look complete when it was not. Counting them in
+`invalid_record_count` keeps the numbers honest: the caller can see that
+PubMed matched something this project does not yet represent.

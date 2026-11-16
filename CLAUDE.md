@@ -37,6 +37,7 @@ Dependency direction, lowest layer first:
 
 | Module | Responsibility |
 |---|---|
+| `identifiers.py` | Shared DOI-prefix and PMID leading-zero clean-up; imports nothing from the project |
 | `metadata.py` | `PaperMetadata` and validation; imports nothing from the project |
 | `pubmed_config.py` | `PubMedClientConfig` and environment variables |
 | `pubmed.py` | `PubMedClient`: query validation, rate limits, retries, XML mapping |

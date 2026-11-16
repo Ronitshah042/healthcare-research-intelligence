@@ -103,8 +103,9 @@ and standalone uppercase `AND`, `OR`, or
 Common literal punctuation such as hyphens, apostrophes, commas, colons, and
 slashes remains accepted. `lookup_doi` accepts a trimmed DOI beginning with
 `10.` followed by a four-to-nine-digit registrant code and `/`, with no
-whitespace; it is sent as a quoted `[aid]` value. `lookup_pmid` accepts trimmed
-ASCII digits only. The client deliberately does not provide an advanced-query
+whitespace; a leading `doi:` or DOI URL prefix is removed first, and the DOI is
+sent as a quoted `[aid]` value. `lookup_pmid` accepts trimmed ASCII digits
+only and ignores leading zeros. The client deliberately does not provide an advanced-query
 method in this milestone.
 
 The optional `publication_year` and `publication_year_end` create an inclusive
@@ -136,6 +137,14 @@ is:
    and counted in `invalid_record_count`.
 5. The extracted value is passed through `normalise_paper_metadata`, so the
    existing year validation remains authoritative.
+
+Two record shapes are handled specially:
+
+- **Books and book chapters** arrive as `PubmedBookArticle` and are not mapped.
+  Each one is counted in `invalid_record_count`, so a page can hold fewer
+  records than requested; a page of only books is an empty page, not an error.
+- **Citations without listed authors** are valid and have an empty author
+  tuple.
 
 The `[pdat]` filter uses PubMed's publication-date index, while the returned
 model uses the journal citation rule above. Online-first and print dates can

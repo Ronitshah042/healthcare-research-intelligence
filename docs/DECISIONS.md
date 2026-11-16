@@ -353,6 +353,40 @@ whitespace), instead of reading every row into Python.
 matched. `save` has always stored normalised DOIs, so this needs data written
 by other tools.
 
+### Book records are counted, not returned
+
+**Decision:** `PubmedBookArticle` records are not mapped to `PaperMetadata`.
+Each is added to `invalid_record_count`, and a page containing only books is
+returned as an empty page.
+
+**Benefit:** Small change; counts stay honest and a books-only page no longer
+raises an error.
+
+**Cost:** Books and chapters (for example StatPearls) cannot be found through
+this client, and "invalid" is an imprecise label for "unsupported".
+
+### Citations may have no authors
+
+**Decision:** `PaperMetadata.authors` may be an empty tuple. The field is still
+required and must be a sequence of non-empty text.
+
+**Benefit:** Real PubMed records without an author list are returned and can
+be stored.
+
+**Cost:** Code that displays or cites a paper can no longer assume a first
+author exists.
+
+### One module owns identifier spellings
+
+**Decision:** `identifiers.py` defines DOI-prefix removal and PMID
+leading-zero removal, used by the client, pipeline, and storage. Each layer
+keeps its own validation and error type.
+
+**Benefit:** All layers agree on which spellings are the same paper.
+
+**Cost:** The DOI format pattern itself is still defined separately in each
+layer; `PaperStore` scans zero-padded legacy PMIDs with a `GLOB '0*'` clause.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.

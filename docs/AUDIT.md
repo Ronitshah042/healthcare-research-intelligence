@@ -82,7 +82,7 @@ is slightly higher):
 
 ### Bugs found
 
-None were fixed; all are listed as proposals in section 5.
+None were fixed during the audit. **All four were fixed afterwards**, on 2026-11-16, each with regression tests; see `PROJECT_LOG.md` ("Audit bug fixes"). The table records the behaviour at the audited commit.
 
 | ID | Severity | Bug | Reproduced |
 | --- | --- | --- | --- |

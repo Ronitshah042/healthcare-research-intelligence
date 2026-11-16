@@ -533,3 +533,30 @@ Summary:
 
 Next steps: decide which proposals in `docs/AUDIT.md` section 5 to approve.
 Recommended first: P1 (book records), P2 and P3 (attribution).
+
+## Audit bug fixes
+
+**Status:** Complete
+
+The four bugs from `docs/AUDIT.md` were fixed, one commit per logical change:
+
+- **B1:** PubMed book records are counted in `invalid_record_count` instead
+  of being dropped, and a books-only page returns an empty page.
+- **B2:** citations without listed authors are valid; `PaperMetadata.authors`
+  may be empty.
+- **B3 and B4:** a new `ingestion/identifiers.py` holds the shared DOI-prefix
+  and PMID leading-zero rules. `lookup_doi` accepts `doi:` and DOI URL
+  prefixes, and `0123` and `123` are the same paper in lookups,
+  deduplication, and storage, including older zero-padded stored rows.
+
+Two existing tests were updated because they asserted the old B2 behaviour.
+
+Full-suite verification on Python 3.15.2 and Python 3.9.6:
+
+```text
+Ran 129 tests
+OK
+```
+
+Next steps: audit proposals P2 and P3 (attribution tests and attribution on
+stored results) remain open, along with P6 to P11.
