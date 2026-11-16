@@ -99,6 +99,20 @@ class ServiceTestCase(unittest.TestCase):
         return result, client
 
 
+class ContractDocumentTests(unittest.TestCase):
+    def test_every_public_service_name_is_documented(self) -> None:
+        document = (
+            Path(__file__).resolve().parent.parent / "docs" / "SERVICE_API.md"
+        ).read_text()
+        for name in services.__all__:
+            with self.subTest(name=name):
+                self.assertIn(f"`{name}", document)
+        for name in services.__all__:
+            if name[0].islower():  # functions each need their own section
+                with self.subTest(section=name):
+                    self.assertIn(f"### `{name}`", document)
+
+
 class ConfigTests(unittest.TestCase):
     def test_explicit_path_wins_then_environment_then_default(self) -> None:
         environment = {"HRI_DB_PATH": "/tmp/from-env.sqlite3"}
