@@ -98,6 +98,57 @@ class SavedListStoreTests(unittest.TestCase):
         self.assertEqual(self.lists.papers("A"), ())
         self.assertEqual([p.pmid for p in self.lists.papers("B")], ["1"])
 
+    def test_renames_a_list_and_keeps_its_papers(self) -> None:
+        self.lists.create("Reading")
+        self.lists.create("Methods")
+        self.lists.add("Reading", pmid="1")
+
+        renamed = self.lists.rename("reading", "  To   read ")
+
+        self.assertEqual(renamed, SavedList("To read", 1))
+        self.assertEqual([p.pmid for p in self.lists.papers("To read")], ["1"])
+        self.assertEqual(
+            [saved.name for saved in self.lists.lists()], ["To read", "Methods"]
+        )
+        with self.assertRaises(SavedListNotFoundError):
+            self.lists.papers("Reading")
+
+    def test_rename_can_change_only_the_letter_case(self) -> None:
+        self.lists.create("reading")
+
+        self.assertEqual(self.lists.rename("reading", "Reading").name, "Reading")
+        self.assertEqual([saved.name for saved in self.lists.lists()], ["Reading"])
+
+    def test_rename_rejects_taken_missing_and_invalid_names(self) -> None:
+        self.lists.create("Reading")
+        self.lists.create("Methods")
+        with self.assertRaises(SavedListExistsError):
+            self.lists.rename("Reading", "methods")
+        with self.assertRaises(SavedListNotFoundError):
+            self.lists.rename("Missing", "Other")
+        with self.assertRaises(ValueError):
+            self.lists.rename("Reading", "   ")
+        self.assertEqual(
+            [saved.name for saved in self.lists.lists()], ["Reading", "Methods"]
+        )
+
+    def test_deletes_a_list_but_not_its_papers_or_other_lists(self) -> None:
+        self.lists.create("Reading")
+        self.lists.create("Methods")
+        self.lists.add("Reading", pmid="1")
+        self.lists.add("Reading", pmid="2")
+        self.lists.add("Methods", pmid="1")
+
+        deleted = self.lists.delete("READING")
+
+        self.assertEqual(deleted, SavedList("Reading", 2))
+        self.assertEqual(self.lists.lists(), (SavedList("Methods", 1),))
+        self.assertIsNotNone(self.papers.get(pmid="2"))
+        with self.assertRaises(SavedListNotFoundError):
+            self.lists.delete("Reading")
+        self.lists.create("Reading")
+        self.assertEqual(self.lists.papers("Reading"), ())
+
     def test_unknown_list_or_paper_raises_specific_errors(self) -> None:
         self.lists.create("Reading")
         for action in (

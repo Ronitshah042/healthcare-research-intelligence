@@ -81,6 +81,8 @@ __all__ = [
     "get_paper",
     "get_stats",
     "create_list",
+    "rename_list",
+    "delete_list",
     "add_to_list",
     "remove_from_list",
     "get_lists",
@@ -307,6 +309,20 @@ def create_list(name: str, *, database_path: str | Path | None = None) -> SavedL
     """Create an empty saved list."""
     with _as_invalid_request():
         return _lists(database_path).create(name)
+
+
+def rename_list(
+    name: str, new_name: str, *, database_path: str | Path | None = None
+) -> SavedList:
+    """Rename a saved list, keeping its papers."""
+    with _as_invalid_request():
+        return _lists(database_path).rename(name, new_name)
+
+
+def delete_list(name: str, *, database_path: str | Path | None = None) -> SavedList:
+    """Delete a saved list and return it as it was; its papers stay stored."""
+    with _as_invalid_request():
+        return _lists(database_path).delete(name)
 
 
 def add_to_list(

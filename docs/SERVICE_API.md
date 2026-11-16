@@ -34,11 +34,13 @@ from hri import services
 | [`get_paper`](#get_paper) | One stored paper by PMID or DOI | `StoredPaper` |
 | [`get_stats`](#get_stats) | Counts of stored papers | `PaperStoreStats` |
 | [`create_list`](#create_list) | Create an empty saved list | `SavedList` |
+| [`rename_list`](#rename_list) | Rename a saved list | `SavedList` |
+| [`delete_list`](#delete_list) | Delete a saved list (not its papers) | `SavedList` |
 | [`add_to_list`](#add_to_list) | Add a stored paper to a list | `ListChange` |
 | [`remove_from_list`](#remove_from_list) | Remove a paper from a list | `ListChange` |
 | [`get_lists`](#get_lists) | All saved lists | `tuple[SavedList, ...]` |
 | [`get_list`](#get_list) | One list with its papers | `ListContents` |
-| [`export_list`](#export_list) | A list as CSV or citation text | `ListExport` |
+| [`export_list`](#export_list) | A list as CSV, Vancouver citations, or plain text | `ListExport` |
 
 ## Errors
 
@@ -48,8 +50,8 @@ All are importable from `hri.services`.
 | --- | --- | --- |
 | `InvalidRequestError` | An argument is unusable: blank query, unknown mode or strategy, bad page or year, malformed Boolean query, malformed PMID/DOI, bad list name, unknown export format. Subclass of `ValueError`. The message is safe to show to a user. | every function that takes arguments |
 | `PaperNotFoundError` | No stored paper has that PMID or DOI. | `get_paper`, `add_to_list` |
-| `SavedListNotFoundError` | No saved list has that name. | `add_to_list`, `remove_from_list`, `get_list`, `export_list` |
-| `SavedListExistsError` | A list with that name already exists (names ignore case). | `create_list` |
+| `SavedListNotFoundError` | No saved list has that name. | `rename_list`, `delete_list`, `add_to_list`, `remove_from_list`, `get_list`, `export_list` |
+| `SavedListExistsError` | A list with that name already exists (names ignore case). | `create_list`, `rename_list` |
 | `PaperStorageError` | The database could not be read or written, or was created by a newer version of this project. | every function |
 | `PubMedConfigurationError` | `PUBMED_NCBI_TOOL` or `PUBMED_NCBI_EMAIL` is missing or invalid. Subclass of `ValueError`, but **not** of `InvalidRequestError`. | `ingest` |
 | `PubMedError` | PubMed could not be reached or returned something unusable. Subclasses: `PubMedTimeoutError`, `PubMedTransportError`, `PubMedHttpError` (has `.status_code`), `PubMedResponseError`. Messages never contain the API key, request URL, or NCBI error text. | `ingest` |
@@ -87,8 +89,19 @@ One citation from the local database. Returned inside most results.
 | `source_identifier` | `str \| None` | For example `PMID:12345`. |
 | `source_url` | `str \| None` | URL recorded at ingest. |
 | `source_name` | `str \| None` | `"PubMed"` for everything `ingest` saves. |
+| `citation` | `CitationDetails \| None` | Extra fields for formal citations; see below. `None` for papers saved before these were recorded. |
 | `attribution` (property) | `PubMedAttribution \| None` | Set when `source_name` is `"PubMed"`. |
 | `pubmed_url` (property) | `str \| None` | `https://pubmed.ncbi.nlm.nih.gov/<pmid>/` for PubMed papers with a PMID. Use this for the "view on PubMed" link. |
+
+### `CitationDetails`
+
+Bibliographic fields used by the Vancouver export. Any of them may be missing.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `authors` | `tuple[str, ...]` | NLM form, such as `Polack FP`; group names unchanged. Same order as `StoredPaper.authors`. |
+| `journal_abbreviation` | `str \| None` | NLM abbreviation, such as `N Engl J Med`. |
+| `volume`, `issue`, `pages` | `str \| None` | As PubMed gives them, for example `383`, `27`, `2603-2615`. |
 
 ### Attribution
 
@@ -121,7 +134,7 @@ Use these to build menus and validate input instead of repeating the values.
 | --- | --- |
 | `SearchMode` | Enum of ingest modes: `TITLE`, `TITLE_ABSTRACT`, `AUTHOR`, `DOI`, `PMID`; each `.value` is the lower-case text form. |
 | `SEARCH_STRATEGIES` | `("keyword", "fuzzy", "boolean")` |
-| `EXPORT_FORMATS` | `("csv", "citations")` |
+| `EXPORT_FORMATS` | `("csv", "citations", "plain")` |
 | `DEFAULT_PAGE_SIZE`, `MAX_PAGE_SIZE` | `20`, `100` |
 | `DEFAULT_INGEST_RECORDS`, `MAX_INGEST_RECORDS` | `100`, `1000` |
 
@@ -232,6 +245,32 @@ case.
 
 Errors: `InvalidRequestError`, `SavedListExistsError`, `PaperStorageError`.
 
+### `rename_list`
+
+```python
+rename_list(name, new_name, *, database_path=None) -> SavedList
+```
+
+Renames a list and keeps its papers and position. `new_name` follows the
+`create_list` rules and must not belong to another list. Changing only the
+letter case of a name is allowed. Returns the list under its new name.
+
+Errors: `InvalidRequestError`, `SavedListNotFoundError`,
+`SavedListExistsError`, `PaperStorageError`.
+
+### `delete_list`
+
+```python
+delete_list(name, *, database_path=None) -> SavedList
+```
+
+Deletes the list permanently. The papers stay in the database and in other
+lists. Returns the list as it was just before deletion (its name and paper
+count), so a UI can confirm what was removed. There is no undo; ask the user to
+confirm before calling it.
+
+Errors: `InvalidRequestError`, `SavedListNotFoundError`, `PaperStorageError`.
+
 ### `add_to_list`
 
 ```python
@@ -300,28 +339,39 @@ download it.
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `list_name` | `str` | |
-| `export_format` | `str` | `"csv"` or `"citations"` (`services.EXPORT_FORMATS`). |
+| `export_format` | `str` | One of `services.EXPORT_FORMATS`: `"csv"`, `"citations"`, or `"plain"`. |
 | `content` | `str` | The document, UTF-8 text with `\n` line endings. |
 | `paper_count` | `int` | |
 | `attribution` | `PubMedAttribution \| None` | |
 
 - **`csv`:** a header row, then one row per paper. Columns: `pmid`, `doi`,
-  `title`, `authors` (joined with `; `), `journal`, `publication_year`,
-  `abstract_available` (`yes`/`no`), `source`, `url`. A cell that starts with
-  `=`, `+`, `-`, or `@` is prefixed with `'` so spreadsheet programs do not run
-  it as a formula. The attribution is **not** inside the CSV, so display
-  `ListExport.attribution` wherever the file is offered. An empty list gives
-  the header row only.
-- **`citations`:** one numbered line per paper in the form
-  `Authors. Title. Journal. Year. PMID: n. doi:x. link`, omitting missing
-  parts, followed by a blank line and the attribution text. This is a readable
-  layout, not a formal style such as Vancouver or APA. An empty list gives an
-  empty string.
+  `title`, `authors` (full names joined with `; `), `journal`,
+  `publication_year`, `volume`, `issue`, `pages`, `abstract_available`
+  (`yes`/`no`), `source`, `url`. A cell that starts with `=`, `+`, `-`, or `@`
+  is prefixed with `'` so spreadsheet programs do not run it as a formula. The
+  attribution is **not** inside the CSV, so display `ListExport.attribution`
+  wherever the file is offered. An empty list gives the header row only.
+- **`citations`:** Vancouver (NLM) style, one numbered line per paper,
+  followed by a blank line and the attribution text:
+
+  ```text
+  1. Polack FP, Thomas SJ, Kitchin N, Absalon J, Gurtman A, Lockhart S, et al. Safety and Efficacy of the BNT162b2 mRNA Covid-19 Vaccine. N Engl J Med. 2020;383(27):2603-2615. doi: 10.1056/nejmoa2034577. PMID: 33301246.
+  ```
+
+  The first six authors are listed, then `et al`. Parts that are not stored
+  are left out. It differs from a PubMed-generated citation in three ways: the
+  date is the year only, DOIs are lower case, and a paper saved before
+  citation details were recorded uses full author names and the full journal
+  title. Books are not stored, so only journal articles are covered.
+- **`plain`:** a simple readable layout, not a formal style:
+  `Authors. Title. Journal. Year. PMID: n. doi:x. link`, numbered, followed by
+  the attribution text.
+- An empty list gives an empty string for `citations` and `plain`.
 
 Errors: `InvalidRequestError` (unknown format or bad name),
 `SavedListNotFoundError`, `PaperStorageError`.
 
 ## Not provided yet
 
-Deleting papers or lists, renaming lists, paging inside a list, progress
-reporting during `ingest`, and abstract text.
+Deleting papers, paging inside a list, progress reporting during `ingest`,
+other citation styles such as APA, and abstract text.

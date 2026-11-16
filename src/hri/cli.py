@@ -107,6 +107,15 @@ def build_parser() -> argparse.ArgumentParser:
     create = list_commands.add_parser("create", parents=[database])
     create.add_argument("name")
     create.set_defaults(handler=_lists_create)
+    rename = list_commands.add_parser("rename", parents=[database])
+    rename.add_argument("name")
+    rename.add_argument("new_name")
+    rename.set_defaults(handler=_lists_rename)
+    delete = list_commands.add_parser(
+        "delete", parents=[database], help="delete a list; its papers stay stored"
+    )
+    delete.add_argument("name")
+    delete.set_defaults(handler=_lists_delete)
     for command, handler in (("add", _lists_add), ("remove", _lists_remove)):
         change = list_commands.add_parser(command, parents=[database])
         change.add_argument("name")
@@ -222,6 +231,17 @@ def _stats(args: argparse.Namespace) -> None:
 def _lists_create(args: argparse.Namespace) -> None:
     saved = services.create_list(args.name, database_path=_db(args))
     print(f'Created list "{saved.name}".')
+
+
+def _lists_rename(args: argparse.Namespace) -> None:
+    saved = services.rename_list(args.name, args.new_name, database_path=_db(args))
+    print(f'Renamed list to "{saved.name}" ({saved.paper_count} papers).')
+
+
+def _lists_delete(args: argparse.Namespace) -> None:
+    saved = services.delete_list(args.name, database_path=_db(args))
+    print(f'Deleted list "{saved.name}" ({saved.paper_count} papers).')
+    print("The papers themselves are still stored.")
 
 
 def _lists_add(args: argparse.Namespace) -> None:

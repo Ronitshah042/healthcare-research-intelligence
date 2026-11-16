@@ -67,6 +67,42 @@ class SavedListStore:
             raise PaperStorageError("Could not create saved list.") from error
         return SavedList(name=list_name, paper_count=0)
 
+    def rename(self, name: str, new_name: str) -> SavedList:
+        """Rename a list, keeping its papers; the new name must be unused."""
+        new_list_name = _normalise_list_name(new_name)
+        try:
+            with closing(self._papers._connect()) as connection, connection:
+                list_id, _ = _find_list(connection, name)
+                connection.execute(
+                    "UPDATE saved_lists SET name = ? WHERE id = ?",
+                    (new_list_name, list_id),
+                )
+                return SavedList(new_list_name, _count_papers(connection, list_id))
+        except PaperStorageError:
+            raise
+        except sqlite3.IntegrityError as error:
+            raise SavedListExistsError(
+                f"A saved list named '{new_list_name}' already exists."
+            ) from error
+        except sqlite3.Error as error:
+            raise PaperStorageError("Could not rename saved list.") from error
+
+    def delete(self, name: str) -> SavedList:
+        """Delete a list and return what it was; its papers stay stored."""
+        try:
+            with closing(self._papers._connect()) as connection, connection:
+                list_id, list_name = _find_list(connection, name)
+                deleted = SavedList(list_name, _count_papers(connection, list_id))
+                connection.execute(
+                    "DELETE FROM saved_list_items WHERE list_id = ?", (list_id,)
+                )
+                connection.execute("DELETE FROM saved_lists WHERE id = ?", (list_id,))
+                return deleted
+        except PaperStorageError:
+            raise
+        except sqlite3.Error as error:
+            raise PaperStorageError("Could not delete saved list.") from error
+
     def lists(self) -> tuple[SavedList, ...]:
         """Return every saved list in creation order."""
         try:
@@ -162,6 +198,12 @@ def _find_list(connection: sqlite3.Connection, name: object) -> tuple[int, str]:
     if row is None:
         raise SavedListNotFoundError(f"No saved list is named '{list_name}'.")
     return row[0], row[1]
+
+
+def _count_papers(connection: sqlite3.Connection, list_id: int) -> int:
+    return connection.execute(
+        "SELECT COUNT(*) FROM saved_list_items WHERE list_id = ?", (list_id,)
+    ).fetchone()[0]
 
 
 def _find_paper_id(

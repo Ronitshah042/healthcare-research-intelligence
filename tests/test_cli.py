@@ -208,6 +208,29 @@ class EndToEndTests(CliTestCase):
         self.assertIn("The list now has 1 papers.", out)
         self.assertIn("did not contain", self.run_cli("lists", "remove", "Reading", "2")[1])
 
+    def test_rename_and_delete_list_commands(self) -> None:
+        self.ingest([_record("1")])
+        self.run_cli("lists", "create", "Reading")
+        self.run_cli("lists", "add", "Reading", "1")
+
+        code, out, _ = self.run_cli("lists", "rename", "Reading", "To read")
+        self.assertEqual(code, 0)
+        self.assertIn('Renamed list to "To read" (1 papers).', out)
+        self.assertIn("To read (1 papers)", self.run_cli("lists", "list")[1])
+
+        code, out, _ = self.run_cli("lists", "delete", "To read")
+        self.assertEqual(code, 0)
+        self.assertIn('Deleted list "To read" (1 papers).', out)
+        self.assertIn("still stored", out)
+        self.assertIn("No saved lists.", self.run_cli("lists", "list")[1])
+        self.assertEqual(self.run_cli("show", "1")[0], 0)
+
+        code, _, err = self.run_cli("lists", "delete", "To read")
+        self.assertEqual(code, 1)
+        self.assertIn("No saved list", err)
+        with self.assertRaises(SystemExit), redirect_stderr(StringIO()):
+            cli.main(["lists", "rename", "OnlyOneName"])
+
     def test_exports_to_the_screen_and_to_a_file(self) -> None:
         self.ingest([_record("1", title="Sleep and memory")])
         self.run_cli("lists", "create", "Reading")

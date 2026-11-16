@@ -374,6 +374,38 @@ class SavedListServiceTests(ServiceTestCase):
         self.assertEqual((removed.changed, removed.saved_list.paper_count), (True, 1))
         self.assertEqual((missing.changed, missing.paper), (False, None))
 
+    def test_rename_and_delete_lists(self) -> None:
+        services.create_list("Reading", database_path=self.db)
+        services.create_list("Methods", database_path=self.db)
+        services.add_to_list("Reading", "1", database_path=self.db)
+
+        renamed = services.rename_list("reading", "To read", database_path=self.db)
+        deleted = services.delete_list("To read", database_path=self.db)
+
+        self.assertEqual((renamed.name, renamed.paper_count), ("To read", 1))
+        self.assertEqual((deleted.name, deleted.paper_count), ("To read", 1))
+        self.assertEqual(
+            [saved.name for saved in services.get_lists(database_path=self.db)],
+            ["Methods"],
+        )
+        self.assertEqual(services.get_paper("1", database_path=self.db).pmid, "1")
+
+    def test_rename_and_delete_errors_are_specific(self) -> None:
+        services.create_list("Reading", database_path=self.db)
+        services.create_list("Methods", database_path=self.db)
+        with self.assertRaises(services.SavedListExistsError):
+            services.rename_list("Reading", "Methods", database_path=self.db)
+        with self.assertRaises(services.SavedListNotFoundError):
+            services.rename_list("Missing", "Other", database_path=self.db)
+        with self.assertRaises(services.SavedListNotFoundError):
+            services.delete_list("Missing", database_path=self.db)
+        for action in (
+            lambda: services.rename_list("Reading", " ", database_path=self.db),
+            lambda: services.delete_list("", database_path=self.db),
+        ):
+            with self.assertRaises(services.InvalidRequestError):
+                action()
+
     def test_list_errors_are_specific(self) -> None:
         services.create_list("Reading", database_path=self.db)
         with self.assertRaises(services.SavedListExistsError):
