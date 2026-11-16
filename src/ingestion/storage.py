@@ -29,6 +29,10 @@ _BOOLEAN_TOKEN_PATTERN = re.compile(
 )
 
 
+# How long a connection waits for another writer before giving up.
+BUSY_TIMEOUT_SECONDS = 10.0
+
+
 class PaperStorageError(RuntimeError):
     """Raised when paper data cannot be saved or read."""
 
@@ -154,6 +158,9 @@ class PaperStore:
         try:
             self._database_path.parent.mkdir(parents=True, exist_ok=True)
             with closing(self._connect()) as connection, connection:
+                # Write-ahead logging lets readers continue during a write.
+                # The setting is stored in the database file itself.
+                connection.execute("PRAGMA journal_mode = WAL")
                 ensure_schema(connection)
         except SchemaVersionError as error:
             raise PaperStorageError(str(error)) from error
@@ -370,7 +377,11 @@ class PaperStore:
         )
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self._database_path, timeout=10.0)
+        # ``timeout`` is SQLite's busy timeout: a second writer waits this
+        # long for the first to finish instead of failing at once.
+        connection = sqlite3.connect(
+            self._database_path, timeout=BUSY_TIMEOUT_SECONDS
+        )
         connection.row_factory = sqlite3.Row
         connection.create_function(
             "casefold", 1,

@@ -2,6 +2,7 @@
 
 import sqlite3
 import tempfile
+import threading
 import unittest
 from dataclasses import replace
 from pathlib import Path
@@ -675,6 +676,46 @@ class PaperStoreTests(unittest.TestCase):
             connection.execute("UPDATE papers SET citation_json = 'not json'")
         with self.assertRaises(PaperStorageError):
             self.store.get(pmid="12345")
+
+    def test_database_uses_wal_mode_and_a_busy_timeout(self) -> None:
+        path = Path(self.temp_dir.name) / "papers.sqlite3"
+        with sqlite3.connect(path) as connection:
+            mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
+        connection = self.store._connect()
+        try:
+            timeout_ms = connection.execute("PRAGMA busy_timeout").fetchone()[0]
+        finally:
+            connection.close()
+
+        self.assertEqual(mode, "wal")
+        self.assertEqual(timeout_ms, 10_000)
+        PaperStore(path)  # reopening an existing WAL database still works
+        self.assertEqual(self.store.list_papers(), ())
+
+    def test_concurrent_writers_all_succeed(self) -> None:
+        path = Path(self.temp_dir.name) / "papers.sqlite3"
+        errors: list[Exception] = []
+        start = threading.Barrier(8)
+
+        def write(worker: int) -> None:
+            try:
+                store = PaperStore(path)  # each writer has its own store
+                start.wait()
+                for number in range(10):
+                    store.save(replace(
+                        self.paper, pmid=str(worker * 100 + number + 1), doi=None
+                    ))
+            except Exception as error:  # collected and asserted below
+                errors.append(error)
+
+        threads = [threading.Thread(target=write, args=(n,)) for n in range(8)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        self.assertEqual(errors, [])
+        self.assertEqual(self.store.stats().total_papers, 80)
 
     def test_rejects_paper_without_persistent_identifier(self) -> None:
         paper = StandardisedPaper(
