@@ -39,7 +39,12 @@ from ingestion.saved_lists import (
 )
 
 from .config import resolve_database_path
-from .export import EXPORT_FORMATS, papers_to_citations, papers_to_csv
+from .export import (
+    EXPORT_FORMATS,
+    papers_to_citations,
+    papers_to_csv,
+    papers_to_plain,
+)
 
 
 SEARCH_STRATEGIES = ("keyword", "fuzzy", "boolean")
@@ -351,13 +356,17 @@ def export_list(
     *,
     database_path: str | Path | None = None,
 ) -> ListExport:
-    """Render a saved list as ``csv`` or ``citations`` text."""
+    """Render a saved list as ``csv``, ``citations`` (Vancouver), or ``plain``."""
     if export_format not in EXPORT_FORMATS:
         raise InvalidRequestError(
             "export_format must be one of: " + ", ".join(EXPORT_FORMATS) + "."
         )
     contents = get_list(name, database_path=database_path)
-    render = papers_to_csv if export_format == "csv" else papers_to_citations
+    render = {
+        "csv": papers_to_csv,
+        "citations": papers_to_citations,
+        "plain": papers_to_plain,
+    }[export_format]
     return ListExport(
         list_name=contents.saved_list.name,
         export_format=export_format,

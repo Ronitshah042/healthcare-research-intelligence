@@ -219,7 +219,11 @@ class EndToEndTests(CliTestCase):
 
         _, out, _ = self.run_cli("lists", "export", "Reading", "--format", "citations")
         self.assertTrue(out.startswith("1. Ada Lovelace, Grace Hopper. Sleep and memory."))
+        self.assertIn("PMID: 1.", out)
         self.assertIn(PUBMED_ATTRIBUTION.source_name, out)
+
+        _, out, _ = self.run_cli("lists", "export", "Reading", "--format", "plain")
+        self.assertIn("https://pubmed.ncbi.nlm.nih.gov/1/", out.splitlines()[0])
 
         target = Path(self.temp_dir.name) / "reading.csv"
         code, out, _ = self.run_cli(

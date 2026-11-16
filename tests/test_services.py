@@ -407,16 +407,25 @@ class SavedListServiceTests(ServiceTestCase):
         self.assertEqual(rows[1], {
             "pmid": "2", "doi": "10.1234/two", "title": "Sleep in adults.",
             "authors": "Ada Lovelace; Grace Hopper", "journal": "Example Journal",
-            "publication_year": "2022", "abstract_available": "yes",
+            "publication_year": "2022", "volume": "", "issue": "", "pages": "",
+            "abstract_available": "yes",
             "source": "PubMed", "url": "https://pubmed.ncbi.nlm.nih.gov/2/",
         })
 
-    def test_exports_citations_followed_by_attribution(self) -> None:
+    def test_exports_vancouver_and_plain_citations_with_attribution(self) -> None:
         services.create_list("Reading", database_path=self.db)
         services.add_to_list("Reading", "2", database_path=self.db)
 
-        export = services.export_list("Reading", "citations", database_path=self.db)
+        vancouver = services.export_list("Reading", "citations", database_path=self.db)
+        export = services.export_list("Reading", "plain", database_path=self.db)
 
+        self.assertEqual(
+            vancouver.content.splitlines()[0],
+            "1. Ada Lovelace, Grace Hopper. Sleep in adults. Example Journal. 2022. "
+            "doi: 10.1234/two. PMID: 2.",
+        )
+        self.assertIn(PUBMED_ATTRIBUTION.source_name, vancouver.content.splitlines())
+        self.assertEqual(export.export_format, "plain")
         lines = export.content.splitlines()
         self.assertEqual(
             lines[0],
@@ -431,10 +440,12 @@ class SavedListServiceTests(ServiceTestCase):
         services.create_list("Empty", database_path=self.db)
 
         csv_export = services.export_list("Empty", "csv", database_path=self.db)
-        text_export = services.export_list("Empty", "citations", database_path=self.db)
-
         self.assertEqual(len(csv_export.content.splitlines()), 1)
-        self.assertEqual((text_export.content, text_export.attribution), ("", None))
+        for export_format in ("citations", "plain"):
+            text_export = services.export_list(
+                "Empty", export_format, database_path=self.db
+            )
+            self.assertEqual((text_export.content, text_export.attribution), ("", None))
 
 
 if __name__ == "__main__":

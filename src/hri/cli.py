@@ -120,7 +120,11 @@ def build_parser() -> argparse.ArgumentParser:
     export = list_commands.add_parser("export", parents=[database])
     export.add_argument("name")
     export.add_argument(
-        "--format", choices=services.EXPORT_FORMATS, default="csv", dest="export_format"
+        "--format",
+        choices=services.EXPORT_FORMATS,
+        default="csv",
+        dest="export_format",
+        help="csv, citations (Vancouver/NLM style), or plain (simple layout)",
     )
     export.add_argument(
         "--output", metavar="FILE", help="write to FILE instead of the screen"
