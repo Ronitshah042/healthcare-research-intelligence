@@ -17,11 +17,14 @@ from pathlib import Path
 from ingestion import (
     PUBMED_ATTRIBUTION,
     PaperIdentityConflictError,
+    PaperStorageError,
     PaperStore,
     PaperStoreStats,
     PubMedAttribution,
     PubMedClient,
     PubMedClientConfig,
+    PubMedConfigurationError,
+    PubMedError,
     SearchMode,
     SearchPipeline,
     SearchRequest,
@@ -49,10 +52,20 @@ _INGEST_PAGE_SIZE = 20
 _EARLIEST_YEAR = 1500
 
 __all__ = [
+    "SEARCH_STRATEGIES",
+    "EXPORT_FORMATS",
+    "SearchMode",
     "InvalidRequestError",
     "PaperNotFoundError",
     "SavedListExistsError",
     "SavedListNotFoundError",
+    "PaperStorageError",
+    "PubMedError",
+    "PubMedConfigurationError",
+    "PubMedAttribution",
+    "StoredPaper",
+    "SavedList",
+    "PaperStoreStats",
     "IngestResult",
     "SearchResults",
     "ListChange",
@@ -167,8 +180,10 @@ def ingest(
         )
     publication_year, publication_year_end = _year_range(year_from, year_to)
 
-    store = PaperStore(resolve_database_path(database_path))
+    # Build the client first so missing PubMed settings fail before a
+    # database file is created.
     pipeline = SearchPipeline(client if client is not None else build_pubmed_client())
+    store = PaperStore(resolve_database_path(database_path))
     total_available = fetched = saved = duplicates = invalid = conflicts = 0
     fallback_used = False
     handled: set[str] = set()
