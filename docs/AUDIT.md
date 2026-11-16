@@ -143,9 +143,9 @@ No source or test file was changed. The suite still reports 118 tests, OK.
 
 | # | Proposal | Addresses | Size |
 | --- | --- | --- | --- |
-| P1 | Count `<PubmedBookArticle>` records in `invalid_record_count` (or map them as a new record type) and stop raising when a page holds only books. | B1 | Small to count; medium to map |
-| P2 | Add tests asserting `PUBMED_ATTRIBUTION` on `PubMedSearchPage` and `SearchResult`. | Untested attribution | Small |
-| P3 | Carry attribution with stored results: a source field on `StoredPaper`, or a documented wrapper returned by `PaperStore` reads. Needs a schema decision. | Missing attribution | Medium |
+| P1 | **Done 2026-11-16** (counted, not mapped). Count `<PubmedBookArticle>` records in `invalid_record_count` (or map them as a new record type) and stop raising when a page holds only books. | B1 | Small to count; medium to map |
+| P2 | **Done 2026-11-16.** Add tests asserting `PUBMED_ATTRIBUTION` on `PubMedSearchPage` and `SearchResult`. | Untested attribution | Small |
+| P3 | **Done 2026-11-16** (source recorded per paper). Carry attribution with stored results: a source field on `StoredPaper`, or a documented wrapper returned by `PaperStore` reads. Needs a schema decision. | Missing attribution | Medium |
 | P4 | Decide whether authorless records are valid; if so, allow an empty author tuple. Changes the `PaperMetadata` contract. | B2 | Medium |
 | P5 | Move DOI/PMID normalisation into one shared module used by the client, pipeline, and storage; accept DOI prefixes in `lookup_doi`; strip leading zeros from PMIDs. | B3, B4, duplication | Medium |
 | P6 | Add tests for the low-risk untested validation paths listed in section 2. | Coverage | Small |

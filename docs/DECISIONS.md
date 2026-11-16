@@ -387,6 +387,46 @@ keeps its own validation and error type.
 **Cost:** The DOI format pattern itself is still defined separately in each
 layer; `PaperStore` scans zero-padded legacy PMIDs with a `GLOB '0*'` clause.
 
+### Attribution follows a recorded source, not an assumption
+
+**Decision:** Each `StandardisedPaper` and stored row has a `source_name`.
+The pipeline sets it to `"PubMed"`; `StoredPaper.attribution` returns
+`PUBMED_ATTRIBUTION` only when the recorded source is PubMed.
+
+**Alternative rejected:** attaching PubMed attribution to every stored paper.
+It needs no database change but would wrongly credit PubMed for a paper from
+another source and would have to be redone for a second source.
+
+**Benefit:** Attribution survives storage, cannot be credited to the wrong
+source, and a second source needs only a new name and attribution.
+
+**Cost:** One new database column and an automatic upgrade step. A paper
+built by hand without a source has no attribution, so callers must set
+`source_name` themselves if such a paper is PubMed-derived.
+
+### Older databases are assumed to hold only PubMed citations
+
+**Decision:** When `PaperStore` opens a database without the `source_name`
+column, it adds the column and marks every existing row as PubMed.
+
+**Reasoning:** PubMed was the only source this project could ingest before
+the column existed.
+
+**Cost:** A row inserted by another tool from a different source would be
+mislabelled as PubMed.
+
+### Updates never erase a recorded source
+
+**Decision:** `PaperStore.save` normally overwrites fields with incoming
+values, including `None`, but an incoming `source_name` of `None` keeps the
+stored source.
+
+**Benefit:** Re-saving a paper from a hand-built record cannot strip its
+required attribution.
+
+**Cost:** `source_name` behaves differently from the other fields, and a
+source cannot be cleared through `save`.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.

@@ -108,6 +108,7 @@ authors, and journals, with year and abstract-availability filters. It stores
 citation metadata only, never abstract text.
 
 PubMed-derived results must visibly attribute NLM/NIH and link to the NCBI
-disclaimer. This independent project is not affiliated with or endorsed by
+disclaimer. Live search results and papers read back from `PaperStore` both
+carry this attribution in an `attribution` field. This independent project is not affiliated with or endorsed by
 NCBI, NLM, NIH, or HHS. See [the PubMed integration guide](docs/PUBMED_INTEGRATION.md)
 for configuration, source-use boundaries, and operational requirements.

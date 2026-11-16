@@ -53,6 +53,7 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
 - Do not fetch full text or store API responses. Changing this needs a rights
   review and explicit approval.
 - PubMed-derived results must keep `PUBMED_ATTRIBUTION`; any UI must display it.
+  Stored papers derive it from `source_name`, so keep that set to `PUBMED_SOURCE_NAME`.
 
 **Secrets and requests**
 - `base_url` is restricted to HTTPS on `eutils.ncbi.nlm.nih.gov`. Do not loosen
@@ -70,7 +71,8 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
 - Match papers only on PMID or DOI, never on title similarity.
 - `PaperStore.save` raises `PaperIdentityConflictError` on contradictory IDs.
 - `save` fills in a missing identifier but overwrites all other fields with the
-  incoming values, including `None`.
+  incoming values, including `None`. The exception is `source_name`: an incoming
+  `None` keeps the stored source, so attribution is never lost on update.
 - Publication year is `PubDate/Year`, then the first year in `MedlineDate`. Never
   substitute `ArticleDate` or history dates.
 

@@ -560,3 +560,30 @@ OK
 
 Next steps: audit proposals P2 and P3 (attribution tests and attribution on
 stored results) remain open, along with P6 to P11.
+
+## Attribution on every PubMed-derived result (audit P2 and P3)
+
+**Status:** Complete
+
+- **P2:** tests now assert `PUBMED_ATTRIBUTION` on every `PubMedSearchPage`
+  path (records, no matches, blank query, page out of range), on the pipeline
+  `SearchResult` including empty results, and on the attribution text itself.
+- **P3:** each paper records its source. `StandardisedPaper.source_name` is
+  set to `"PubMed"` by the pipeline, `PaperStore` saves it in a new
+  `source_name` column, and `StoredPaper.attribution` returns
+  `PUBMED_ATTRIBUTION` for PubMed-derived papers on `save`, `get`,
+  `list_papers`, and all three search strategies. Older databases are
+  upgraded on opening and their rows marked as PubMed. An update without a
+  source keeps the recorded one.
+- The attribution contract for a future UI is documented in
+  `docs/PUBMED_INTEGRATION.md`.
+
+Full-suite verification on Python 3.15.2 and Python 3.9.6:
+
+```text
+Ran 136 tests
+OK
+```
+
+Next steps: audit proposals P4 to P11 remain open (P4 and P5 were largely
+addressed by the audit bug fixes).

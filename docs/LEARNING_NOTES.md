@@ -399,3 +399,32 @@ PubMed also indexes books, and EFetch returns them in a different XML shape
 made a page look complete when it was not. Counting them in
 `invalid_record_count` keeps the numbers honest: the caller can see that
 PubMed matched something this project does not yet represent.
+
+### How does attribution survive being stored?
+
+Attribution is a display obligation: whenever a PubMed-derived citation is
+shown, the PubMed source line and disclaimer must be shown with it. A live
+search result can simply carry the attribution object. A database row cannot
+hold a Python object, so the store saves a short label instead, the
+`source_name` (`"PubMed"`), and `StoredPaper.attribution` turns that label back
+into the attribution object when the paper is read.
+
+Storing the label rather than assuming "everything here is from PubMed" keeps
+the claim true for each paper individually, which matters once a second source
+exists.
+
+### What is a schema migration?
+
+A database table has a fixed list of columns, its "schema". Adding
+`source_name` means databases created earlier lack that column. A migration is
+the small upgrade step that fixes this: on opening, `PaperStore` asks SQLite
+which columns exist (`PRAGMA table_info`), and if `source_name` is missing it
+runs `ALTER TABLE ... ADD COLUMN` and fills in a value for the existing rows.
+The check makes the step safe to run every time: a database that is already
+up to date is left alone.
+
+### Why is `attribution` a property rather than a stored field?
+
+A property is computed each time it is read. Because `attribution` is worked
+out from `source_name`, the two can never disagree, which they could if both
+were stored separately.

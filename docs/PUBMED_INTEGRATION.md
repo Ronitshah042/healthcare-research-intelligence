@@ -188,6 +188,23 @@ A future UI must make the following visible with PubMed-derived results:
 - `This independent service is not affiliated with, endorsed by, or sponsored
   by NCBI, NLM, NIH, or HHS.`
 
+### Where code finds the attribution (contract for a future UI)
+
+Every PubMed-derived result exposes the same `PUBMED_ATTRIBUTION` object, with
+`source_name`, `source_url`, `disclaimer_url`, and
+`independent_service_notice` text fields:
+
+| Result | How to read it |
+| --- | --- |
+| `PubMedSearchPage` (client) | `page.attribution`, always set, including empty pages |
+| `SearchResult` (pipeline) | `result.attribution`, always set; each record has `source_name == "PubMed"` |
+| `StoredPaper` (`PaperStore.save`, `get`, `list_papers`, `search`) | `paper.attribution`: `PUBMED_ATTRIBUTION` when `paper.source_name == "PubMed"`, otherwise `None` |
+
+A presentation layer must display the attribution whenever it is not `None`.
+`PaperStore` records `source_name` per paper. A database created before this
+column existed is upgraded when opened and its rows are marked as PubMed. An
+update that carries no source keeps the source already recorded.
+
 The independently branded application must not imply government endorsement or
 use NCBI/NLM branding as its own. Before public launch, obtain legal review of
 the final attribution/disclaimer presentation and any planned reuse or
