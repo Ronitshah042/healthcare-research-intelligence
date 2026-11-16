@@ -12,6 +12,7 @@ from ingestion.pipeline import (
     SearchRequestValidationError,
 )
 from ingestion.pubmed import (
+    CitationDetails,
     PUBMED_ATTRIBUTION,
     PubMedSearchPage,
     PubMedSearchRecord,
@@ -296,6 +297,24 @@ class SearchPipelineTests(unittest.TestCase):
                 self.assertEqual(result.source_name, "PubMed")
                 for record in result.records:
                     self.assertEqual(record.source_name, "PubMed")
+
+    def test_carries_citation_details_through_standardising_and_merging(self) -> None:
+        from dataclasses import replace
+
+        details = CitationDetails(authors=("Lovelace A",), volume="12")
+        records = (
+            replace(self._record(pmid="123", doi=None), citation=details),
+            self._record(pmid="123", doi="10.1234/example"),
+        )
+        client = FakePubMedClient(self._page(records=records))
+        pipeline = SearchPipeline(client)  # type: ignore[arg-type]
+
+        result = pipeline.search(
+            SearchRequest(query="example", search_mode=SearchMode.TITLE)
+        )
+
+        self.assertEqual(len(result.records), 1)
+        self.assertEqual(result.records[0].citation, details)
 
     def test_rejects_an_unsupported_search_mode(self) -> None:
         with self.assertRaises(SearchRequestValidationError):

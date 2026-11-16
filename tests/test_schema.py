@@ -54,15 +54,28 @@ class SchemaTests(unittest.TestCase):
 
     def test_upgrades_every_earlier_layout_without_losing_rows(self) -> None:
         layouts = {
-            "before source_name": (_PAPERS_BEFORE_SOURCE_NAME, "PubMed"),
-            "with source_name, no version": (_PAPERS_WITH_SOURCE_NAME, None),
+            "before source_name": ((_PAPERS_BEFORE_SOURCE_NAME,), "PubMed"),
+            "with source_name, no version": ((_PAPERS_WITH_SOURCE_NAME,), None),
+            "version 2, before citation details": (
+                (
+                    _PAPERS_WITH_SOURCE_NAME,
+                    "CREATE TABLE saved_lists (id INTEGER PRIMARY KEY, "
+                    "name TEXT NOT NULL UNIQUE COLLATE NOCASE)",
+                    "CREATE TABLE saved_list_items (id INTEGER PRIMARY KEY, "
+                    "list_id INTEGER NOT NULL, paper_id INTEGER NOT NULL, "
+                    "UNIQUE (list_id, paper_id))",
+                    "INSERT INTO saved_lists (name) VALUES ('Kept list')",
+                    "PRAGMA user_version = 2",
+                ),
+                None,
+            ),
         }
-        for name, (create_papers, expected_source) in layouts.items():
+        for name, (statements, expected_source) in layouts.items():
             with self.subTest(layout=name):
                 if self.path.exists():
                     self.path.unlink()
                 self._execute(
-                    create_papers,
+                    *statements,
                     """INSERT INTO papers (pmid, title, authors_json, abstract_available)
                     VALUES ('42', 'Older paper', '["Ada Lovelace"]', 1)""",
                 )
@@ -73,6 +86,7 @@ class SchemaTests(unittest.TestCase):
                 self.assertEqual(paper.title, "Older paper")
                 self.assertEqual(paper.authors, ("Ada Lovelace",))
                 self.assertEqual(paper.source_name, expected_source)
+                self.assertIsNone(paper.citation)
                 self.assertIn("saved_lists", tables)
                 self.assertEqual(version, SCHEMA_VERSION)
 

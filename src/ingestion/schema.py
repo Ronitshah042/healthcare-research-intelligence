@@ -9,7 +9,8 @@ from .pubmed import PUBMED_SOURCE_NAME
 
 # Version 1: the ``papers`` table, including ``source_name``.
 # Version 2: saved lists (``saved_lists`` and ``saved_list_items``).
-SCHEMA_VERSION = 2
+# Version 3: ``papers.citation_json`` for formal citation details.
+SCHEMA_VERSION = 3
 
 
 class SchemaVersionError(RuntimeError):
@@ -37,6 +38,8 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
         _create_papers(connection)
     if version < 2:
         _create_saved_lists(connection)
+    if version < 3 and "citation_json" not in _paper_columns(connection):
+        connection.execute("ALTER TABLE papers ADD COLUMN citation_json TEXT")
     connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
 
@@ -54,17 +57,21 @@ def _create_papers(connection: sqlite3.Connection) -> None:
             source_identifier TEXT,
             source_url TEXT,
             source_name TEXT,
+            citation_json TEXT,
             CHECK (pmid IS NOT NULL OR doi IS NOT NULL)
         )"""
     )
-    columns = {row[1] for row in connection.execute("PRAGMA table_info(papers)")}
-    if "source_name" not in columns:
+    if "source_name" not in _paper_columns(connection):
         # Databases from before sources were recorded only ever held PubMed
         # citations, so mark their rows as PubMed.
         connection.execute("ALTER TABLE papers ADD COLUMN source_name TEXT")
         connection.execute(
             "UPDATE papers SET source_name = ?", (PUBMED_SOURCE_NAME,)
         )
+
+
+def _paper_columns(connection: sqlite3.Connection) -> set[str]:
+    return {row[1] for row in connection.execute("PRAGMA table_info(papers)")}
 
 
 def _create_saved_lists(connection: sqlite3.Connection) -> None:

@@ -9,6 +9,7 @@ import re
 from .identifiers import strip_doi_prefix, strip_pmid_leading_zeros
 from .metadata import PaperMetadata
 from .pubmed import (
+    CitationDetails,
     PUBMED_ATTRIBUTION,
     PUBMED_SOURCE_NAME,
     PubMedAttribution,
@@ -55,6 +56,8 @@ class StandardisedPaper:
     source_url: str | None
     # Where the citation came from; ``None`` when a caller built it by hand.
     source_name: str | None = None
+    # Extra fields for formal citation styles, when the source supplied them.
+    citation: CitationDetails | None = None
 
 
 @dataclass(frozen=True)
@@ -158,6 +161,7 @@ def _standardise_record(record: object) -> StandardisedPaper | None:
     if isinstance(publication_year, bool) or not isinstance(publication_year, int):
         publication_year = None
 
+    citation = getattr(record, "citation", None)
     return StandardisedPaper(
         pmid=_normalise_pmid(getattr(record, "pmid", None)),
         doi=_normalise_doi(getattr(record, "doi", None)),
@@ -169,6 +173,7 @@ def _standardise_record(record: object) -> StandardisedPaper | None:
         source_identifier=_normalise_optional_text(metadata.source_identifier),
         source_url=_normalise_optional_text(metadata.source_url),
         source_name=PUBMED_SOURCE_NAME,
+        citation=citation if isinstance(citation, CitationDetails) else None,
     )
 
 
@@ -244,6 +249,10 @@ def _merge_records(records: list[StandardisedPaper]) -> StandardisedPaper:
         ),
         source_url=_first_present(record.source_url for record in records),
         source_name=_first_present(record.source_name for record in records),
+        citation=next(
+            (record.citation for record in records if record.citation is not None),
+            None,
+        ),
     )
 
 

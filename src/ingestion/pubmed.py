@@ -120,6 +120,23 @@ PUBMED_ATTRIBUTION = PubMedAttribution(
 
 
 @dataclass(frozen=True)
+class CitationDetails:
+    """Bibliographic fields that formal citation styles need.
+
+    This is citation metadata only; it never holds abstract or full text.
+    """
+
+    # One entry per author as NLM writes them, such as ``Polack FP``;
+    # collective (group) names are kept unchanged.
+    authors: tuple[str, ...] = ()
+    # NLM title abbreviation without full stops, such as ``N Engl J Med``.
+    journal_abbreviation: str | None = None
+    volume: str | None = None
+    issue: str | None = None
+    pages: str | None = None
+
+
+@dataclass(frozen=True)
 class PubMedSearchRecord:
     """PubMed-specific citation information around validated paper metadata."""
 
@@ -129,6 +146,7 @@ class PubMedSearchRecord:
     journal_title: str | None
     citation_date: str | None
     abstract_available: bool = False
+    citation: CitationDetails = CitationDetails()
 
 
 @dataclass(frozen=True)
@@ -709,6 +727,39 @@ def _map_pubmed_article(
         abstract_available=(
             article.find("./MedlineCitation/Article/Abstract/AbstractText")
             is not None
+        ),
+        citation=_extract_citation_details(article),
+    )
+
+
+def _extract_citation_details(article: ElementTree.Element) -> CitationDetails:
+    authors: list[str] = []
+    for author in article.findall("./MedlineCitation/Article/AuthorList/Author"):
+        collective_name = _element_text(author.find("CollectiveName"))
+        last_name = _element_text(author.find("LastName"))
+        initials = _element_text(author.find("Initials"))
+        if collective_name:
+            authors.append(collective_name)
+        elif last_name:
+            authors.append(f"{last_name} {initials}" if initials else last_name)
+
+    abbreviation = _element_text(
+        article.find("./MedlineCitation/MedlineJournalInfo/MedlineTA")
+    )
+    if abbreviation is None:
+        iso_abbreviation = _element_text(
+            article.find("./MedlineCitation/Article/Journal/ISOAbbreviation")
+        )
+        if iso_abbreviation:
+            abbreviation = iso_abbreviation.replace(".", "")
+    issue_path = "./MedlineCitation/Article/Journal/JournalIssue/"
+    return CitationDetails(
+        authors=tuple(authors),
+        journal_abbreviation=abbreviation,
+        volume=_element_text(article.find(issue_path + "Volume")),
+        issue=_element_text(article.find(issue_path + "Issue")),
+        pages=_element_text(
+            article.find("./MedlineCitation/Article/Pagination/MedlinePgn")
         ),
     )
 

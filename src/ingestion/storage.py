@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import closing
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from difflib import SequenceMatcher
 import json
 from pathlib import Path
@@ -13,6 +13,7 @@ import sqlite3
 from .identifiers import strip_doi_prefix, strip_pmid_leading_zeros
 from .pipeline import StandardisedPaper
 from .pubmed import (
+    CitationDetails,
     PUBMED_ATTRIBUTION,
     PUBMED_RECORD_URL,
     PUBMED_SOURCE_NAME,
@@ -50,6 +51,7 @@ class StoredPaper:
     source_identifier: str | None
     source_url: str | None
     source_name: str | None = None
+    citation: CitationDetails | None = None
 
     @property
     def attribution(self) -> PubMedAttribution | None:
@@ -185,7 +187,8 @@ class PaperStore:
                             title = ?, authors_json = ?, journal = ?,
                             publication_year = ?, abstract_available = ?,
                             source_identifier = ?, source_url = ?,
-                            source_name = COALESCE(?, source_name)
+                            source_name = COALESCE(?, source_name),
+                            citation_json = ?
                             WHERE id = ?""",
                         (*self._values(normalized), existing["id"]),
                     )
@@ -194,8 +197,9 @@ class PaperStore:
                         """INSERT INTO papers (
                             pmid, doi, title, authors_json, journal,
                             publication_year, abstract_available,
-                            source_identifier, source_url, source_name
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                            source_identifier, source_url, source_name,
+                            citation_json
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                         self._values(normalized),
                     )
                 row = self._matching_rows(
@@ -381,6 +385,7 @@ class PaperStore:
             paper.pmid, paper.doi, paper.title, json.dumps(paper.authors),
             paper.journal, paper.publication_year, int(paper.abstract_available),
             paper.source_identifier, paper.source_url, paper.source_name,
+            None if paper.citation is None else json.dumps(asdict(paper.citation)),
         )
 
     @staticmethod
@@ -448,6 +453,7 @@ class PaperStore:
             abstract_available=bool(row["abstract_available"]),
             source_identifier=row["source_identifier"], source_url=row["source_url"],
             source_name=row["source_name"],
+            citation=_citation_from_json(row["citation_json"]),
         )
 
 
@@ -455,6 +461,16 @@ _DOI_PATTERN = re.compile(r"10\.[0-9]{4,9}/\S+", re.ASCII)
 _PMID_PATTERN = re.compile(r"[0-9]+", re.ASCII)
 _TITLE_TOKEN_PATTERN = re.compile(r"[^\W_]+", re.UNICODE)
 FUZZY_SIMILARITY_THRESHOLD = 0.85
+
+
+def _citation_from_json(value: str | None) -> CitationDetails | None:
+    if value is None:
+        return None
+    try:
+        fields = json.loads(value)
+        return CitationDetails(**{**fields, "authors": tuple(fields["authors"])})
+    except (TypeError, KeyError, json.JSONDecodeError) as error:
+        raise PaperStorageError("Stored citation details are invalid.") from error
 
 
 def _normalize_paper_identifiers(paper: StandardisedPaper) -> StandardisedPaper:

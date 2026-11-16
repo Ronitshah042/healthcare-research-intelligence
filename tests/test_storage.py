@@ -7,7 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from ingestion.pipeline import StandardisedPaper
-from ingestion.pubmed import PUBMED_ATTRIBUTION
+from ingestion.pubmed import PUBMED_ATTRIBUTION, CitationDetails
 from ingestion.storage import (
     PaperIdentityConflictError,
     PaperStorageError,
@@ -655,6 +655,26 @@ class PaperStoreTests(unittest.TestCase):
             self.paper, pmid="2", doi="10.1234/two", source_name=None
         ))
         self.assertIsNone(other.pubmed_url)
+
+    def test_saves_and_reads_citation_details(self) -> None:
+        details = CitationDetails(
+            authors=("Lovelace A", "Hopper G"), journal_abbreviation="Ex J",
+            volume="12", issue="3", pages="45-67",
+        )
+        self.store.save(replace(self.paper, citation=details))
+
+        self.assertEqual(self.store.get(pmid="12345").citation, details)
+        self.assertEqual(self.store.search("example")[0].citation, details)
+
+        self.store.save(replace(self.paper, pmid="2", doi=None))
+        self.assertIsNone(self.store.get(pmid="2").citation)
+
+    def test_reports_corrupt_citation_details_as_storage_error(self) -> None:
+        self.store.save(self.paper)
+        with sqlite3.connect(Path(self.temp_dir.name) / "papers.sqlite3") as connection:
+            connection.execute("UPDATE papers SET citation_json = 'not json'")
+        with self.assertRaises(PaperStorageError):
+            self.store.get(pmid="12345")
 
     def test_rejects_paper_without_persistent_identifier(self) -> None:
         paper = StandardisedPaper(

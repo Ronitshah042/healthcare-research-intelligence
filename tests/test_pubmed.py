@@ -12,6 +12,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from ingestion.metadata import PaperMetadata
 from ingestion.pubmed import (
+    CitationDetails,
     PUBMED_ATTRIBUTION,
     PubMedClient,
     PubMedHttpError,
@@ -534,6 +535,54 @@ class PubMedClientTests(unittest.TestCase):
             result.records[0].metadata.authors,
             ("Fernando P Polack", "J Smith", "Plato"),
         )
+
+    def test_maps_citation_details_for_formal_citation_styles(self) -> None:
+        authors = (
+            "<AuthorList>"
+            "<Author><LastName>Polack</LastName><ForeName>Fernando P</ForeName>"
+            "<Initials>FP</Initials></Author>"
+            "<Author><LastName>van der Waals</LastName><ForeName>Johannes</ForeName>"
+            "<Initials>J</Initials></Author>"
+            "<Author><CollectiveName>C4591001 Clinical Trial Group</CollectiveName></Author>"
+            "<Author><LastName>Plato</LastName></Author>"
+            "</AuthorList>"
+        )
+        article = (
+            _article_xml(include_author=False)
+            .replace("</ArticleTitle>", "</ArticleTitle>" + authors
+                     + "<Pagination><MedlinePgn>2603-2615</MedlinePgn></Pagination>")
+            .replace("<JournalIssue>", "<JournalIssue><Volume>383</Volume><Issue>27</Issue>")
+            .replace("</Article>", "</Article><MedlineJournalInfo>"
+                     "<MedlineTA>N Engl J Med</MedlineTA></MedlineJournalInfo>")
+        )
+        transport = FakeTransport([_esearch_response(1), _efetch_response(article)])
+
+        record = self._client(transport).search_title_abstract("sleep").records[0]
+
+        self.assertEqual(record.citation, CitationDetails(
+            authors=(
+                "Polack FP", "van der Waals J", "C4591001 Clinical Trial Group", "Plato",
+            ),
+            journal_abbreviation="N Engl J Med",
+            volume="383",
+            issue="27",
+            pages="2603-2615",
+        ))
+        self.assertEqual(len(record.citation.authors), len(record.metadata.authors))
+
+    def test_citation_details_fall_back_and_tolerate_missing_fields(self) -> None:
+        with_iso = _article_xml().replace(
+            "<Title>Example Journal</Title>",
+            "<Title>Example Journal</Title><ISOAbbreviation>Ex. J.</ISOAbbreviation>",
+        )
+        transport = FakeTransport(
+            [_esearch_response(2), _efetch_response(with_iso, _article_xml(pmid="2"))]
+        )
+
+        first, second = self._client(transport).search_title_abstract("sleep").records
+
+        self.assertEqual(first.citation.journal_abbreviation, "Ex J")
+        self.assertEqual(second.citation, CitationDetails(authors=("Lovelace",)))
 
     def test_rejects_unusable_esearch_counts_and_history(self) -> None:
         for response in (

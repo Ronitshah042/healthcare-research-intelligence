@@ -9,6 +9,7 @@ from .pipeline import (
     StandardisedPaper,
 )
 from .pubmed import (
+    CitationDetails,
     PUBMED_ATTRIBUTION,
     PUBMED_SOURCE_NAME,
     PublicationYearFilter,
@@ -42,6 +43,7 @@ __all__ = [
     "SearchRequestValidationError",
     "SearchResult",
     "StandardisedPaper",
+    "CitationDetails",
     "PUBMED_ATTRIBUTION",
     "PUBMED_SOURCE_NAME",
     "PublicationYearFilter",
