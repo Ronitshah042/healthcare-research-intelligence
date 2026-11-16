@@ -634,3 +634,38 @@ Tests per file: `test_pubmed.py` 55, `test_storage.py` 54, `test_services.py`
 
 Next steps: a manual live run of `hri ingest`; then the next phase. Open
 audit proposals: P6, P8, P9, P10, P11.
+
+## Before Phase 2: citations, list management, and concurrency
+
+**Status:** Complete, except the live PubMed check (see below)
+
+- **Push:** after a full passing suite and a check that no `.env`, database,
+  or `data/raw` content was tracked, the 16 pending commits were pushed to
+  `main` (through `852026f`).
+- **Bug fixed:** author names were stored with doubled initials
+  (`Fernando P FP Polack`) for every real PubMed record. Names are now
+  `ForeName LastName`. Papers ingested earlier keep the old form until
+  ingested again.
+- **Vancouver citations:** `--format citations` now produces Vancouver (NLM)
+  style; the earlier layout is `--format plain`. To support it, PubMed's NLM
+  author names, journal abbreviation, volume, issue, and pages are carried as
+  `CitationDetails` and stored in `papers.citation_json` (schema version 3,
+  with an upgrade test from version 2). CSV gained `volume`, `issue`, and
+  `pages` columns.
+- **Saved lists:** `rename_list` and `delete_list` service functions and
+  `hri lists rename|delete`. Deleting a list never deletes papers.
+- **Concurrency:** WAL mode and a named 10-second busy timeout, with an
+  eight-thread concurrent-writer test.
+- **Docs:** `SERVICE_API.md` covers the new functions, formats, and fields;
+  `AUDIT.md` section 4a lists the known unchecked areas.
+
+Full-suite verification on Python 3.15.2 and Python 3.9.6:
+
+```text
+Ran 218 tests
+OK
+```
+
+**Live PubMed check: not run.** It needs a local `.env` with
+`PUBMED_NCBI_TOOL` and `PUBMED_NCBI_EMAIL`, which did not exist when this
+entry was written. The outcome will be recorded here once it has been run.

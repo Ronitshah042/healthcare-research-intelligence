@@ -146,6 +146,20 @@ Two record shapes are handled specially:
 - **Citations without listed authors** are valid and have an empty author
   tuple.
 
+Author names are stored as `ForeName LastName` (for example
+`Fernando P Polack`); `Initials` are used only when `ForeName` is missing, and
+a `CollectiveName` is kept unchanged.
+
+Each record also carries `CitationDetails`, the extra bibliographic fields a
+formal citation needs. It is citation metadata only:
+
+| Field | PubMed XML source |
+| --- | --- |
+| `authors` | `LastName` then `Initials` (for example `Polack FP`); `CollectiveName` unchanged |
+| `journal_abbreviation` | `MedlineJournalInfo/MedlineTA`, else `Journal/ISOAbbreviation` without full stops |
+| `volume`, `issue` | `Journal/JournalIssue/Volume`, `Issue` |
+| `pages` | `Article/Pagination/MedlinePgn` |
+
 The `[pdat]` filter uses PubMed's publication-date index, while the returned
 model uses the journal citation rule above. Online-first and print dates can
 differ, so a `[pdat]` result is not a guarantee that the displayed primary

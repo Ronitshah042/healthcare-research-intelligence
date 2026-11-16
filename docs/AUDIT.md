@@ -139,6 +139,19 @@ None were fixed during the audit. **All four were fixed afterwards**, on 2026-11
 
 No source or test file was changed. The suite still reports 118 tests, OK.
 
+## 4a. Known unchecked areas (recorded 2026-11-16)
+
+These have not been verified and are accepted for now:
+
+| Area | Status |
+| --- | --- |
+| Windows | Never run. Deferred to continuous integration in Phase 6. |
+| Very large databases | Local search ranks every candidate row in memory (see section 3). Not measured beyond test-sized data. |
+| Two `hri` commands writing at once | Addressed by SQLite WAL mode and a 10-second busy timeout; covered by an eight-thread writer test, but not by separate processes. |
+| Live PubMed | Tests never contact PubMed. Manual live checks are recorded in `PROJECT_LOG.md` when they are run. |
+| PubMed client with an API key, or under sustained load | Not exercised. |
+| Upgrading a real, long-lived database | Upgrades are tested against databases built in each earlier layout, not against one in real use. |
+
 ## 5. Proposals (not implemented; each needs approval)
 
 | # | Proposal | Addresses | Size |

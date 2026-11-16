@@ -502,3 +502,47 @@ replacing standard output with an in-memory text buffer
 that builds the real PubMed client with one returning a fake client
 (`unittest.mock.patch`), so the whole path from command line to database runs
 without contacting PubMed.
+
+## Before Phase 2: citations, list management, and concurrency
+
+### What is Vancouver (NLM) style?
+
+It is the citation layout used by most medical journals and by PubMed itself:
+
+```text
+Polack FP, Thomas SJ, Kitchin N, et al. Safety and Efficacy of the BNT162b2
+mRNA Covid-19 Vaccine. N Engl J Med. 2020;383(27):2603-2615.
+doi: 10.1056/nejmoa2034577. PMID: 33301246.
+```
+
+Reading left to right: authors as surname plus initials (the first six, then
+"et al"), the title, the journal's official abbreviation, then
+`year;volume(issue):pages`, and finally identifiers.
+
+### Why could the names not just be rearranged?
+
+A stored name is one piece of text, `Fernando P Polack`. Turning it into
+`Polack FP` means guessing where the surname starts. The guess fails for
+`Johannes van der Waals` (surname `van der Waals`) and for group authors such
+as `WHO Study Group`, which is not a person at all. PubMed already supplies
+the surname and initials separately, so the reliable approach is to keep that
+form alongside the display name rather than reconstruct it later.
+
+### Why did tests miss the doubled initials?
+
+Tests can only catch what their example data contains. The fixtures had
+authors with a forename *or* initials, never both, while real PubMed records
+always have both. The lesson is to build at least one fixture from the shape
+real data takes, which the new regression test now does.
+
+### What are WAL mode and a busy timeout?
+
+SQLite allows one writer at a time. In its default mode a writer also blocks
+readers. In write-ahead logging (WAL) mode, changes go first to a separate
+`-wal` file, so readers keep working from the main file while a write is in
+progress.
+
+A second *writer* still has to wait its turn. The busy timeout says how long
+it waits before giving up: without one, it fails immediately with "database is
+locked"; with a 10-second timeout, it simply pauses until the first writer
+finishes.

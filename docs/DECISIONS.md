@@ -544,6 +544,72 @@ is self-contained.
 **Cost:** The citation layout is not a formal style (Vancouver, APA), and a
 CSV saved to disk does not itself contain the attribution text.
 
+## Before Phase 2: citations, list management, and concurrency
+
+### Vancouver (NLM) is the citation format; plain is kept
+
+**Decision:** `--format citations` produces Vancouver (NLM) style, the
+standard in medical publishing. The earlier simple layout is `--format plain`.
+CSV remains the default export format. APA is not provided.
+
+**Cost:** The output differs from a PubMed-generated citation in small ways:
+the date is the year only (the full date is not stored), DOIs are lower case,
+and only journal articles are covered because books are not stored.
+
+### Citation details are stored as one JSON column
+
+**Decision:** Vancouver needs NLM author names, the journal abbreviation,
+volume, issue, and pages. They travel together as one `CitationDetails`
+object and are stored in a single `citation_json` column (schema version 3).
+
+**Alternatives rejected:** deriving `Polack FP` from the stored
+`Fernando P Polack` by splitting on spaces, which mangles multi-word surnames
+and group names such as `WHO Study Group`; and replacing the stored full
+names with the NLM form, which would lose first names for display and search.
+
+**Benefit:** One field per layer instead of five, and full names are kept.
+
+**Cost:** The details cannot be searched or filtered in SQL. Papers saved
+before version 3 have none and fall back to full names and the full journal
+title until they are ingested again. Unlike `source_name`, a later save
+without details clears them, following the general overwrite rule.
+
+### Author display names use the forename, not forename plus initials
+
+**Decision:** A stored author name is `ForeName LastName`; `Initials` are
+used only when the forename is missing.
+
+**Reasoning:** PubMed sends both, and joining them produced
+`Fernando P FP Polack`. Test fixtures never included both elements, so the
+defect was invisible until citation formatting was examined.
+
+**Cost:** Papers ingested before the fix keep the doubled initials until they
+are ingested again.
+
+### Deleting a list never deletes papers
+
+**Decision:** `delete_list` removes the list and its memberships only.
+Deleting papers is not offered.
+
+**Benefit:** A list operation cannot destroy ingested data or affect another
+list.
+
+**Cost:** Papers nobody lists stay in the database. Deletion has no undo, and
+the service does not ask for confirmation; a UI must.
+
+### WAL mode and a busy timeout for concurrent writers
+
+**Decision:** `PaperStore` sets `PRAGMA journal_mode = WAL` when it opens a
+database, and every connection waits up to 10 seconds
+(`BUSY_TIMEOUT_SECONDS`) for another writer.
+
+**Benefit:** Two commands writing at once queue instead of failing, and
+readers are not blocked by a writer.
+
+**Cost:** SQLite keeps `-wal` and `-shm` files beside the database (ignored
+by Git), and WAL does not work reliably on network file systems. A writer
+blocked for more than 10 seconds still fails.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.

@@ -98,8 +98,11 @@ hri lists add "To read" 33301246
 hri lists show "To read"
 hri lists list
 hri lists remove "To read" 33301246
-hri lists export "To read" --format csv --output to-read.csv
-hri lists export "To read" --format citations
+hri lists rename "To read" "Reading list"
+hri lists export "Reading list" --format csv --output reading.csv
+hri lists export "Reading list" --format citations   # Vancouver (NLM) style
+hri lists export "Reading list" --format plain       # simple layout with links
+hri lists delete "Reading list"                      # the papers stay stored
 ```
 
 `hri ingest` reports how many records PubMed matched and how many were
