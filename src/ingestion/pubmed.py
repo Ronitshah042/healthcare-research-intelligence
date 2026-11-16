@@ -724,9 +724,10 @@ def _extract_authors(article: ElementTree.Element) -> list[str]:
         last_name = _element_text(author.find("LastName"))
         fore_name = _element_text(author.find("ForeName"))
         initials = _element_text(author.find("Initials"))
-        name_parts = [part for part in (fore_name, initials) if part]
+        # PubMed supplies both; the initials only stand in for a missing forename.
+        given_name = fore_name or initials
         if last_name:
-            authors.append(" ".join([*name_parts, last_name]))
+            authors.append(f"{given_name} {last_name}" if given_name else last_name)
     return authors
 
 

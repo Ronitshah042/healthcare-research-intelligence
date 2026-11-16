@@ -514,6 +514,27 @@ class PubMedClientTests(unittest.TestCase):
         )
         self.assertEqual(result.invalid_record_count, 1)
 
+    def test_author_names_do_not_repeat_initials_after_the_forename(self) -> None:
+        authors = (
+            "<AuthorList>"
+            "<Author><LastName>Polack</LastName><ForeName>Fernando P</ForeName>"
+            "<Initials>FP</Initials></Author>"
+            "<Author><LastName>Smith</LastName><Initials>J</Initials></Author>"
+            "<Author><LastName>Plato</LastName></Author>"
+            "</AuthorList>"
+        )
+        article = _article_xml(include_author=False).replace(
+            "</ArticleTitle>", "</ArticleTitle>" + authors
+        )
+        transport = FakeTransport([_esearch_response(1), _efetch_response(article)])
+
+        result = self._client(transport).search_title_abstract("sleep")
+
+        self.assertEqual(
+            result.records[0].metadata.authors,
+            ("Fernando P Polack", "J Smith", "Plato"),
+        )
+
     def test_rejects_unusable_esearch_counts_and_history(self) -> None:
         for response in (
             b"<eSearchResult><Count>many</Count></eSearchResult>",
