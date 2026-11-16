@@ -285,6 +285,27 @@ class PubMedClientTests(unittest.TestCase):
             ['"10.1234/example-value"[aid]'],
         )
 
+    def test_doi_lookup_accepts_common_doi_prefixes(self) -> None:
+        for value in ("doi:10.1234/example", " HTTPS://doi.org/10.1234/example "):
+            with self.subTest(value=value):
+                transport = FakeTransport([_esearch_response(0)])
+
+                self._client(transport).lookup_doi(value)
+
+                self.assertEqual(
+                    _parameters(transport.calls[0][0])["term"],
+                    ['"10.1234/example"[aid]'],
+                )
+
+    def test_pmid_lookup_ignores_leading_zeros(self) -> None:
+        transport = FakeTransport([_esearch_response(0)])
+
+        self._client(transport).lookup_pmid("00123")
+
+        self.assertEqual(
+            _parameters(transport.calls[0][0])["term"], ["(123)[pmid]"]
+        )
+
     def test_doi_lookup_retains_a_year_filter(self) -> None:
         transport = FakeTransport([_esearch_response(0)])
 

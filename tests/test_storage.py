@@ -66,6 +66,24 @@ class PaperStoreTests(unittest.TestCase):
         self.assertEqual(self.store.get(doi="10.1234/legacy").title, "New")
         self.assertEqual(self.store.get(doi="10.1234/other").pmid, "999")
 
+    def test_treats_zero_padded_pmids_as_the_same_paper(self) -> None:
+        self.store.save(replace(self.paper, pmid="0012345"))
+        self.store.save(replace(self.paper, pmid="12345", title="Updated"))
+        self.assertEqual(len(self.store.list_papers()), 1)
+        self.assertEqual(self.store.get(pmid="012345").title, "Updated")
+        self.assertEqual(self.store.get(pmid="012345").pmid, "12345")
+
+    def test_finds_and_updates_legacy_zero_padded_pmid_rows(self) -> None:
+        with sqlite3.connect(Path(self.temp_dir.name) / "papers.sqlite3") as connection:
+            connection.execute(
+                """INSERT INTO papers (pmid, title, authors_json, abstract_available)
+                VALUES ('00777', 'Old', '[]', 0)"""
+            )
+        self.assertEqual(self.store.get(pmid="777").title, "Old")
+        self.store.save(replace(self.paper, pmid="777", doi=None, title="New"))
+        self.assertEqual(len(self.store.list_papers()), 1)
+        self.assertEqual(self.store.get(pmid="777").title, "New")
+
     def test_enriches_record_with_identifier_arriving_later(self) -> None:
         self.store.save(replace(self.paper, doi=None))
         enriched = self.store.save(replace(self.paper, doi="10.1234/EXAMPLE"))

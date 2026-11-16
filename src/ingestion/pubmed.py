@@ -19,6 +19,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 
+from .identifiers import strip_doi_prefix, strip_pmid_leading_zeros
 from .metadata import MetadataValidationError, PaperMetadata, normalise_paper_metadata
 from .pubmed_config import PubMedClientConfig
 
@@ -579,7 +580,7 @@ def _normalise_plain_text_query(value: str) -> str:
 
 
 def _normalise_doi(value: str) -> str:
-    doi = value.strip()
+    doi = strip_doi_prefix(value.strip())
     if not doi:
         return ""
     if not _DOI_PATTERN.fullmatch(doi):
@@ -595,7 +596,7 @@ def _normalise_pmid(value: str) -> str:
         return ""
     if not _PMID_PATTERN.fullmatch(pmid):
         raise PubMedRequestValidationError("pmid must contain ASCII digits only.")
-    return pmid
+    return strip_pmid_leading_zeros(pmid)
 
 
 def _validate_pagination(page: object, page_size: object) -> None:

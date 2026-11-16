@@ -10,7 +10,8 @@ from pathlib import Path
 import re
 import sqlite3
 
-from .pipeline import StandardisedPaper, _strip_doi_prefix
+from .identifiers import strip_doi_prefix, strip_pmid_leading_zeros
+from .pipeline import StandardisedPaper
 
 
 _BOOLEAN_TOKEN_PATTERN = re.compile(
@@ -317,11 +318,12 @@ class PaperStore:
     ) -> list[sqlite3.Row]:
         matches: dict[int, sqlite3.Row] = {}
         if pmid is not None:
-            row = connection.execute(
-                "SELECT * FROM papers WHERE pmid = ?", (pmid,)
-            ).fetchone()
-            if row is not None:
-                matches[row["id"]] = row
+            # The GLOB clause also returns older zero-padded PMIDs.
+            for row in connection.execute(
+                "SELECT * FROM papers WHERE pmid = ? OR pmid GLOB '0*'", (pmid,)
+            ).fetchall():
+                if strip_pmid_leading_zeros(row["pmid"]) == pmid:
+                    matches[row["id"]] = row
         if doi is not None:
             # Exact matches use the UNIQUE index; the other clauses also return
             # older mixed-case/prefixed/padded values so they remain discoverable.
@@ -346,6 +348,8 @@ class PaperStore:
         existing: sqlite3.Row, incoming: StandardisedPaper
     ) -> None:
         old_pmid = existing["pmid"]
+        if old_pmid:
+            old_pmid = strip_pmid_leading_zeros(old_pmid)
         old_doi = _normalize_doi(existing["doi"]) if existing["doi"] else None
         if incoming.pmid and old_pmid and incoming.pmid != old_pmid:
             raise PaperIdentityConflictError(
@@ -391,11 +395,11 @@ def _normalize_pmid(value: str) -> str:
     normalized = value.strip()
     if _PMID_PATTERN.fullmatch(normalized) is None:
         raise ValueError("PMID must contain ASCII digits only.")
-    return normalized
+    return strip_pmid_leading_zeros(normalized)
 
 
 def _normalize_doi(value: str) -> str:
-    normalized = _strip_doi_prefix(value.strip())
+    normalized = strip_doi_prefix(value.strip())
     if _DOI_PATTERN.fullmatch(normalized) is None:
         raise ValueError("DOI must be a valid DOI identifier.")
     return normalized.casefold()

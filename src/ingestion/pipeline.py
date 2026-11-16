@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 import re
 
+from .identifiers import strip_doi_prefix, strip_pmid_leading_zeros
 from .metadata import PaperMetadata
 from .pubmed import (
     PUBMED_ATTRIBUTION,
@@ -252,28 +253,13 @@ def _normalise_pmid(value: object) -> str | None:
     pmid = _normalise_optional_text(value)
     if pmid is None or re.fullmatch(r"[0-9]+", pmid, re.ASCII) is None:
         return None
-    return pmid
-
-
-_DOI_PREFIXES = (
-    "https://doi.org/", "http://doi.org/", "https://dx.doi.org/",
-    "http://dx.doi.org/", "doi:",
-)
-
-
-def _strip_doi_prefix(doi: str) -> str:
-    """Remove one leading DOI URL or ``doi:`` prefix, ignoring case."""
-    lowered = doi.casefold()
-    for prefix in _DOI_PREFIXES:
-        if lowered.startswith(prefix):
-            return doi[len(prefix):].strip()
-    return doi
+    return strip_pmid_leading_zeros(pmid)
 
 
 def _normalise_doi(value: object) -> str | None:
     doi = _normalise_optional_text(value)
     if doi is not None:
-        doi = _strip_doi_prefix(doi)
+        doi = strip_doi_prefix(doi)
     if doi is None or re.fullmatch(r"10\.[0-9]{4,9}/\S+", doi, re.ASCII) is None:
         return None
     return doi.lower()

@@ -225,6 +225,21 @@ class SearchPipelineTests(unittest.TestCase):
         self.assertEqual(result.duplicate_record_count, 1)
         self.assertEqual(result.records[1].title, "Erratum")
 
+    def test_treats_zero_padded_pmids_as_the_same_paper(self) -> None:
+        records = (
+            self._record(pmid="123", doi=None),
+            self._record(pmid="0123", doi=None),
+        )
+        client = FakePubMedClient(self._page(records=records))
+        pipeline = SearchPipeline(client)  # type: ignore[arg-type]
+
+        result = pipeline.search(
+            SearchRequest(query="example", search_mode=SearchMode.TITLE)
+        )
+
+        self.assertEqual([record.pmid for record in result.records], ["123"])
+        self.assertEqual(result.duplicate_record_count, 1)
+
     def test_keeps_unlinked_partial_identifiers_separate(self) -> None:
         client = FakePubMedClient(
             self._page(
