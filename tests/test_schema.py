@@ -49,7 +49,11 @@ class SchemaTests(unittest.TestCase):
 
         tables, version = self._tables_and_version()
 
-        self.assertLessEqual({"papers", "saved_lists", "saved_list_items"}, tables)
+        self.assertLessEqual(
+            {"papers", "saved_lists", "saved_list_items", "documents",
+             "document_sections", "chunks", "fulltext_rejections"},
+            tables,
+        )
         self.assertEqual(version, SCHEMA_VERSION)
 
     def test_upgrades_every_earlier_layout_without_losing_rows(self) -> None:
@@ -89,6 +93,32 @@ class SchemaTests(unittest.TestCase):
                 self.assertIsNone(paper.citation)
                 self.assertIn("saved_lists", tables)
                 self.assertEqual(version, SCHEMA_VERSION)
+
+    def test_upgrades_version_3_by_adding_the_full_text_tables(self) -> None:
+        PaperStore(self.path)  # build the current layout, then roll it back
+        self._execute(
+            "DROP TABLE documents", "DROP TABLE document_sections",
+            "DROP TABLE chunks", "DROP TABLE fulltext_rejections",
+            """INSERT INTO papers (pmid, title, authors_json, abstract_available)
+            VALUES ('42', 'Older paper', '[]', 1)""",
+            "INSERT INTO saved_lists (name) VALUES ('Kept')",
+            "PRAGMA user_version = 3",
+        )
+
+        store = PaperStore(self.path)
+
+        tables, version = self._tables_and_version()
+        self.assertLessEqual(
+            {"documents", "document_sections", "chunks", "fulltext_rejections"},
+            tables,
+        )
+        self.assertEqual(version, SCHEMA_VERSION)
+        self.assertEqual(store.get(pmid="42").title, "Older paper")
+        with closing(sqlite3.connect(self.path)) as connection:
+            self.assertEqual(
+                connection.execute("SELECT name FROM saved_lists").fetchall(),
+                [("Kept",)],
+            )
 
     def test_opening_an_up_to_date_database_changes_nothing(self) -> None:
         PaperStore(self.path)

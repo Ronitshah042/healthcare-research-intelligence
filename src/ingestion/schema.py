@@ -10,7 +10,12 @@ from .pubmed import PUBMED_SOURCE_NAME
 # Version 1: the ``papers`` table, including ``source_name``.
 # Version 2: saved lists (``saved_lists`` and ``saved_list_items``).
 # Version 3: ``papers.citation_json`` for formal citation details.
-SCHEMA_VERSION = 3
+# Version 4: open-access full text (``documents``, ``document_sections``,
+#            ``chunks``) and ``fulltext_rejections``.
+SCHEMA_VERSION = 4
+REJECTION_REASONS = (
+    "licence", "retracted", "not_open_access", "current_version_unavailable",
+)
 
 
 class SchemaVersionError(RuntimeError):
@@ -40,6 +45,8 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
         _create_saved_lists(connection)
     if version < 3 and "citation_json" not in _paper_columns(connection):
         connection.execute("ALTER TABLE papers ADD COLUMN citation_json TEXT")
+    if version < 4:
+        _create_full_text(connection)
     connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
 
@@ -87,5 +94,61 @@ def _create_saved_lists(connection: sqlite3.Connection) -> None:
             list_id INTEGER NOT NULL REFERENCES saved_lists(id),
             paper_id INTEGER NOT NULL REFERENCES papers(id),
             UNIQUE (list_id, paper_id)
+        )"""
+    )
+
+
+def _create_full_text(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """CREATE TABLE IF NOT EXISTS documents (
+            id INTEGER PRIMARY KEY,
+            pmcid TEXT NOT NULL UNIQUE,
+            pmcid_version TEXT NOT NULL,
+            pmid TEXT,
+            doi TEXT,
+            title TEXT NOT NULL,
+            licence TEXT NOT NULL,
+            source_url TEXT NOT NULL,
+            retrieved_at TEXT NOT NULL,
+            attribution TEXT NOT NULL,
+            article_type TEXT,
+            notice_flags_json TEXT NOT NULL
+        )"""
+    )
+    connection.execute("CREATE INDEX IF NOT EXISTS documents_pmid ON documents(pmid)")
+    connection.execute("CREATE INDEX IF NOT EXISTS documents_doi ON documents(doi)")
+    connection.execute(
+        """CREATE TABLE IF NOT EXISTS document_sections (
+            id INTEGER PRIMARY KEY,
+            document_id INTEGER NOT NULL REFERENCES documents(id),
+            section_index INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            heading TEXT,
+            text TEXT NOT NULL,
+            UNIQUE (document_id, section_index)
+        )"""
+    )
+    connection.execute(
+        """CREATE TABLE IF NOT EXISTS chunks (
+            id INTEGER PRIMARY KEY,
+            document_id INTEGER NOT NULL REFERENCES documents(id),
+            position INTEGER NOT NULL,
+            section_index INTEGER NOT NULL,
+            section_name TEXT NOT NULL,
+            text TEXT NOT NULL,
+            token_count INTEGER NOT NULL,
+            licence TEXT NOT NULL,
+            UNIQUE (document_id, position)
+        )"""
+    )
+    reasons = ", ".join(f"'{reason}'" for reason in REJECTION_REASONS)
+    connection.execute(
+        f"""CREATE TABLE IF NOT EXISTS fulltext_rejections (
+            id INTEGER PRIMARY KEY,
+            pmcid TEXT NOT NULL UNIQUE,
+            pmcid_version TEXT,
+            licence TEXT,
+            reason TEXT NOT NULL CHECK (reason IN ({reasons})),
+            recorded_at TEXT NOT NULL
         )"""
     )
