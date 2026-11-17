@@ -805,6 +805,21 @@ class PubMedClientTests(unittest.TestCase):
                     self._client(transport, max_retries=1).search_author("Lovelace A")
                 self.assertEqual(len(transport.calls), 2)
 
+    def test_http_errors_do_not_expose_the_request_url_or_api_key(self) -> None:
+        failure = HTTPError(
+            "https://eutils.ncbi.nlm.nih.gov/x?api_key=secret-key", 400,
+            "Bad request", None, BytesIO(),
+        )
+        transport = FakeTransport([failure])
+
+        with self.assertRaises(PubMedHttpError) as raised:
+            self._client(transport, api_key="secret-key").search_author("Lovelace A")
+
+        self.assertEqual(raised.exception.status_code, 400)
+        self.assertIsNone(raised.exception.__cause__)
+        self.assertTrue(raised.exception.__suppress_context__)
+        self.assertNotIn("secret-key", str(raised.exception))
+
     def test_does_not_retry_permanent_http_or_malformed_xml_failures(self) -> None:
         failures: tuple[Exception | bytes, ...] = (
             HTTPError("https://example.org", 400, "Bad request", None, BytesIO()),

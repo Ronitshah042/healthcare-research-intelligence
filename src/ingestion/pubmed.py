@@ -2,23 +2,20 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from enum import Enum
 import hashlib
 import logging
-import math
 import re
-import socket
-import ssl
-from threading import Lock
-import time
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 
+from .http import (
+    FetchErrors,
+    HttpFetcher,
+    reset_process_rate_limiters_for_tests,
+)
 from .identifiers import strip_doi_prefix, strip_pmid_leading_zeros
 from .metadata import MetadataValidationError, PaperMetadata, normalise_paper_metadata
 from .pubmed_config import PubMedClientConfig
@@ -32,7 +29,6 @@ _PLAIN_TEXT_QUERY_FORBIDDEN_CHARACTERS = frozenset('[]()"*#')
 _BOOLEAN_OPERATOR_PATTERN = re.compile(r"\b(?:AND|OR|NOT)\b")
 _DOI_PATTERN = re.compile(r"10\.[0-9]{4,9}/[^\s\"]+", re.ASCII)
 _PMID_PATTERN = re.compile(r"[0-9]+", re.ASCII)
-_RETRYABLE_HTTP_STATUS_CODES = frozenset({408, 429, 500, 502, 503, 504})
 
 
 class PubMedError(Exception):
@@ -170,40 +166,24 @@ class _SearchHistory:
     query_key: str
 
 
-HttpTransport = Callable[[str, float], bytes]
-Clock = Callable[[], float]
-Sleeper = Callable[[float], None]
+# Both NCBI clients share one process-wide limit per API key.
+def ncbi_rate_limit_scope(api_key: str | None) -> str:
+    """Return the shared rate-limit scope for NCBI requests with this key."""
+    if api_key is None:
+        return "ncbi:anonymous"
+    api_key_digest = hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+    return f"ncbi:api-key:{api_key_digest}"
 
 
-class _RateLimitScheduler:
-    """Reserve rate-limited request slots for one process authentication scope."""
-
-    def __init__(self) -> None:
-        self.lock = Lock()
-        self.next_request_at: float | None = None
-
-    def reserve_slot(
-        self,
-        clock: Clock,
-        sleeper: Sleeper,
-        requests_per_second: float,
-    ) -> None:
-        with self.lock:
-            now = clock()
-            if self.next_request_at is not None and now < self.next_request_at:
-                sleeper(self.next_request_at - now)
-                now = clock()
-
-            interval = 1 / requests_per_second
-            scheduled_from = max(now, self.next_request_at or now)
-            self.next_request_at = scheduled_from + interval
+PUBMED_FETCH_ERRORS = FetchErrors(
+    timeout=lambda message: PubMedTimeoutError(message),
+    transport=lambda message: PubMedTransportError(message),
+    http_status=lambda status: PubMedHttpError(status),
+)
 
 
 class PubMedClient:
     """Search PubMed citation metadata while observing configured request limits."""
-
-    _process_rate_limiters: dict[str, _RateLimitScheduler] = {}
-    _process_rate_limiters_lock = Lock()
 
     def __init__(
         self,
@@ -214,29 +194,24 @@ class PubMedClient:
         sleeper: Sleeper | None = None,
     ) -> None:
         self._config = config
-        self._transport = transport or _default_transport
-        self._clock = clock or time.monotonic
-        self._sleeper = sleeper or time.sleep
-        self._rate_limiter = self._get_process_rate_limiter(config)
-        self._rate_limit_lock = self._rate_limiter.lock
+        self._fetcher = HttpFetcher(
+            service_name="PubMed",
+            errors=PUBMED_FETCH_ERRORS,
+            rate_limit_scope=ncbi_rate_limit_scope(config.api_key),
+            requests_per_second=config.requests_per_second,
+            timeout_seconds=config.timeout_seconds,
+            max_retries=config.max_retries,
+            retry_backoff_seconds=config.retry_backoff_seconds,
+            transport=transport,
+            clock=clock,
+            sleeper=sleeper,
+        )
+        self._rate_limit_lock = self._fetcher.rate_limiter.lock
 
-    @classmethod
-    def _get_process_rate_limiter(
-        cls, config: PubMedClientConfig
-    ) -> _RateLimitScheduler:
-        scope = _rate_limit_scope(config)
-        with cls._process_rate_limiters_lock:
-            limiter = cls._process_rate_limiters.get(scope)
-            if limiter is None:
-                limiter = _RateLimitScheduler()
-                cls._process_rate_limiters[scope] = limiter
-            return limiter
-
-    @classmethod
-    def _reset_process_rate_limiters_for_tests(cls) -> None:
+    @staticmethod
+    def _reset_process_rate_limiters_for_tests() -> None:
         """Clear process-shared limiter state for isolated deterministic tests."""
-        with cls._process_rate_limiters_lock:
-            cls._process_rate_limiters.clear()
+        reset_process_rate_limiters_for_tests()
 
     def search_title(
         self,
@@ -478,95 +453,10 @@ class PubMedClient:
             request_parameters["api_key"] = self._config.api_key
 
         url = f"{self._config.base_url}{endpoint}?{urlencode(request_parameters)}"
-        retries_used = 0
-
-        while True:
-            self._wait_for_request_slot()
-            try:
-                return self._transport(url, self._config.timeout_seconds)
-            except HTTPError as error:
-                if self._should_retry(retries_used, error.code):
-                    self._wait_before_retry(retries_used, _retry_after_seconds(error))
-                    retries_used += 1
-                    continue
-                raise PubMedHttpError(error.code) from error
-            except (TimeoutError, socket.timeout) as error:
-                if self._should_retry(retries_used):
-                    self._wait_before_retry(retries_used)
-                    retries_used += 1
-                    continue
-                raise PubMedTimeoutError("PubMed request timed out.") from error
-            except URLError as error:
-                if self._should_retry(retries_used) and not _is_certificate_error(
-                    error.reason
-                ):
-                    self._wait_before_retry(retries_used)
-                    retries_used += 1
-                    continue
-                if isinstance(error.reason, (TimeoutError, socket.timeout)):
-                    raise PubMedTimeoutError("PubMed request timed out.") from error
-                raise PubMedTransportError("Unable to reach the PubMed API.") from error
-            except OSError as error:
-                if self._should_retry(retries_used) and not _is_certificate_error(
-                    error
-                ):
-                    self._wait_before_retry(retries_used)
-                    retries_used += 1
-                    continue
-                raise PubMedTransportError("Unable to reach the PubMed API.") from error
+        return self._fetcher.get(url)
 
     def _wait_for_request_slot(self) -> None:
-        self._rate_limiter.reserve_slot(
-            self._clock,
-            self._sleeper,
-            self._config.requests_per_second,
-        )
-
-    def _should_retry(self, retries_used: int, status_code: int | None = None) -> bool:
-        if retries_used >= self._config.max_retries:
-            return False
-        return status_code is None or status_code in _RETRYABLE_HTTP_STATUS_CODES
-
-    def _wait_before_retry(
-        self, retries_used: int, retry_after_seconds: float | None = None
-    ) -> None:
-        backoff_seconds = self._config.retry_backoff_seconds * (2 ** retries_used)
-        wait_seconds = max(backoff_seconds, retry_after_seconds or 0.0)
-        LOGGER.warning("Retrying a transient PubMed request failure.")
-        self._sleeper(wait_seconds)
-
-
-def _default_transport(url: str, timeout_seconds: float) -> bytes:
-    request = Request(url, headers={"User-Agent": "healthcare-research-intelligence"})
-    with urlopen(request, timeout=timeout_seconds) as response:
-        return response.read()
-
-
-def _is_certificate_error(error: object) -> bool:
-    # A failed certificate check will fail the same way on every retry.
-    return isinstance(error, ssl.SSLCertVerificationError)
-
-
-def _rate_limit_scope(config: PubMedClientConfig) -> str:
-    if config.api_key is None:
-        return "anonymous"
-    api_key_digest = hashlib.sha256(config.api_key.encode("utf-8")).hexdigest()
-    return f"api-key:{api_key_digest}"
-
-
-def _retry_after_seconds(error: HTTPError) -> float | None:
-    if error.headers is None:
-        return None
-    value = error.headers.get("Retry-After")
-    if value is None:
-        return None
-    try:
-        seconds = float(value)
-    except ValueError:
-        return None
-    if not math.isfinite(seconds) or seconds < 0:
-        return None
-    return seconds
+        self._fetcher.wait_for_request_slot()
 
 
 def _normalise_search_input(value: object, search_mode: SearchMode) -> str:
