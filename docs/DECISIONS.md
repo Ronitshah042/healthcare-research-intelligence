@@ -610,6 +610,114 @@ readers are not blocked by a writer.
 by Git), and WAL does not work reliably on network file systems. A writer
 blocked for more than 10 seconds still fails.
 
+## Phase 2: open-access full text
+
+The content rules themselves are in `docs/CONTENT_POLICY.md`. This section
+records why the access method and design were chosen.
+
+### Access method: PMC Cloud Service for licence and text
+
+**Context (checked against NCBI's documentation on 2026-11-17):** NCBI permits
+only four services for automated retrieval of PMC content: the PMC Cloud
+Service, PMC OAI-PMH, E-utilities, and the BioC API. The PMC OA Web Service
+(`oa.fcgi`), which most older tools use, and the legacy FTP article packages
+were retired the week of 24 August 2026.
+
+| Option | Licence | Text | Verdict |
+| --- | --- | --- | --- |
+| PMC Cloud Service (S3 bucket `pmc-oa-opendata`, anonymous HTTPS) | `license_code` in a small per-version metadata JSON, plus `pmid`, `doi`, `is_pmc_openaccess`, `is_retracted` | JATS XML per version | **Chosen** for licence and text |
+| OAI-PMH `GetRecord`, `metadataPrefix=pmc` | Only inside the XML | JATS XML, OA only | Not chosen: licence must be parsed from the text we might reject |
+| E-utilities `efetch db=pmc` | Only inside the XML | Same XML | Not chosen for text, for the same reason; used only for searching |
+| BioC API | Not clearly exposed | Pre-split passages | Not chosen: less standard, licence unclear |
+
+**Decision:**
+- Find articles for a query with E-utilities `esearch db=pmc` and
+  `open access[filter]`.
+- Link identifiers and find the current version with the PMC ID Converter.
+- Read the licence from the version's Cloud metadata JSON, and download the
+  XML only when the licence is allowed.
+
+**Benefit:** Text under a rejected licence is never downloaded, and the
+licence is a clean field rather than parsed prose.
+
+**Cost:** Two new hosts, and three requests per stored article (converter,
+metadata, XML).
+
+### Exact endpoints
+
+Recorded from NCBI's documentation on 2026-11-17:
+
+- **PMC ID Converter:** `https://pmc.ncbi.nlm.nih.gov/tools/idconv/api/v1/articles/`
+  with `ids` (comma-separated, at most 200, all of one type), `idtype`
+  (`pmcid`, `pmid`, `mid`, or `doi`), `versions=yes`, `format=json`, `tool`
+  (no spaces), and `email`. The page documents the `current` version flag only
+  in its XML example; a live JSON request on 2026-11-17 returned
+  `records[].versions[].pmcid` and `records[].versions[].current`, and the
+  client relies on that JSON shape. No API key is documented, so none is sent.
+- **Cloud metadata:**
+  `https://pmc-oa-opendata.s3.amazonaws.com/metadata/PMC<n>.<v>.json`, fields
+  `pmcid`, `version`, `pmid`, `doi`, `title`, `citation`,
+  `is_pmc_openaccess`, `is_manuscript`, `is_retracted`, `license_code`,
+  `xml_url`.
+- **Cloud XML:**
+  `https://pmc-oa-opendata.s3.amazonaws.com/PMC<n>.<v>/PMC<n>.<v>.xml`.
+- **Search:** `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi`
+  with `db=pmc`, returning PMC UIDs (the PMCID without `PMC`).
+
+### The PMC client has its own fixed host allowlist
+
+**Decision:** The PMC client accepts exactly three HTTPS hosts and builds every
+URL itself. `tool`, `email`, and the API key are added only for NCBI hosts.
+The PubMed client keeps its single-host restriction.
+
+**Cost:** A wider network surface than before, mitigated by the fixed list and
+by never sending credentials to Amazon.
+
+### Shared rate limiting and retries
+
+**Decision:** The rate limiter and retry loop move from `pubmed.py` into
+`ingestion/http.py` and are used by both clients. Both NCBI hosts share one
+process-wide limit (3 requests per second, or 10 with an API key). The S3 host
+has its own limit of 3 per second, because Amazon publishes no rate for this
+bucket and polite pacing costs little.
+
+### Only the current version, found with the ID converter
+
+**Decision:** The version the ID converter marks `current` is the only one
+used. If it is not in the Open Access bucket, the article is counted as
+"not in OA subset (current version unavailable)" and nothing is stored. The
+version identifier is stored with the document.
+
+**Reasoning:** NCBI warns that a higher version number does not mean a newer
+version. In a check on 2026-11-17, `PMC12805672.1` was current while only
+`.2`, an author manuscript, was in the bucket.
+
+**Cost:** Some articles with an available but non-current version are skipped.
+
+### Retracted articles are rejected; corrections are flagged
+
+**Decision:** An article is rejected as `retracted` if its metadata says
+`is_retracted` or its XML links to a `retraction-forward`. Corrections, errata,
+partial retractions, and expressions of concern are stored with
+`notice_flags`. `recheck_fulltext` re-reads the metadata of every stored
+document and deletes any that have since been retracted.
+
+**Cost:** Correction flags depend on publishers tagging forward links, which
+JATS describes as rarely used, so they are best effort. PubMed's
+`CommentsCorrections` data would be more complete and is a possible later
+improvement. The re-check covers retraction only; refreshing correction flags
+would mean downloading the XML again.
+
+### Chunk size measured in approximate tokens
+
+**Decision:** Without a tokenizer (standard library only), a token is
+approximated as a word or a punctuation mark. Chunks aim for about 400 such
+tokens (never more than 500) with a 50-token overlap, break at sentence ends
+where possible, and never cross a section boundary.
+
+**Cost:** Real model tokenizers count differently, typically more tokens for
+the same text. Phase 3 should re-measure with the embedding model's tokenizer.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.

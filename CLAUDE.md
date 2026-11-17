@@ -59,16 +59,30 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
 
 ## Rules that are easy to break
 **Source content**
-- Abstract text is never kept: `PaperMetadata.abstract` stays `None` for PubMed
-  records, and only the `abstract_available` boolean is stored.
-- Do not fetch full text or store API responses. Changing this needs a rights
-  review and explicit approval.
+- `docs/CONTENT_POLICY.md` is the source of truth for stored text. Read it
+  before touching ingestion of any text.
+- PubMed abstracts are never kept: `PaperMetadata.abstract` stays `None` for
+  PubMed records, and only the `abstract_available` boolean is stored.
+- Full text may be stored only for PMC Open Access articles whose
+  `license_code` is on `HRI_ALLOWED_LICENCES` (default `CC0,CC BY`), only the
+  current version, and only from the PMC Cloud Service. The licence is checked
+  before the text is downloaded. Retracted articles are rejected; corrections
+  and concerns are stored with `notice_flags`.
+- The abstract inside an allowed PMC article is stored as its `abstract`
+  section. Never copy it onto the PubMed citation record.
+- Rejected articles leave only a `fulltext_rejections` row, never text.
+- Never store raw API responses. Widening the licence list or adding a text
+  source needs the owner's explicit approval.
 - PubMed-derived results must keep `PUBMED_ATTRIBUTION`; any UI must display it.
   Stored papers derive it from `source_name`, so keep that set to `PUBMED_SOURCE_NAME`.
 
 **Secrets and requests**
-- `base_url` is restricted to HTTPS on `eutils.ncbi.nlm.nih.gov`. Do not loosen
-  this; tests inject a transport instead of using a mock server.
+- The PubMed client's `base_url` is restricted to HTTPS on
+  `eutils.ncbi.nlm.nih.gov`. Do not loosen this; tests inject a transport
+  instead of using a mock server.
+- The PMC client has a fixed HTTPS allowlist: `eutils.ncbi.nlm.nih.gov`,
+  `pmc.ncbi.nlm.nih.gov` (ID converter), and `pmc-oa-opendata.s3.amazonaws.com`.
+  `tool`, `email`, and the API key are sent to NCBI hosts only, never to S3.
 - Do not put NCBI `<ERROR>` text, API keys, or request URLs in exceptions or logs.
 - The rate-limit scheduler is shared per process and keeps only a digest of the
   API key. Never hold its lock during HTTP calls. Every retry takes a new slot.

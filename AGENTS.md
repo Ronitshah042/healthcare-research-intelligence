@@ -37,6 +37,10 @@ system.
 - Do not use private patient records or identifiable health data.
 - Use public research material in accordance with applicable API rules,
   licences, copyright, and terms of service.
+- Store article text only as allowed by docs/CONTENT_POLICY.md: full text of
+  PMC Open Access articles under an allowed licence (default CC0 and CC BY),
+  never PubMed abstracts, never retracted articles. Changing that policy
+  needs the project owner's explicit approval.
 - Do not claim clinical validation or medical reliability without evidence.
 
 ## 5. Evidence and AI Reliability
