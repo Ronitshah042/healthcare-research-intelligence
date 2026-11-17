@@ -41,6 +41,18 @@ class RecordedArticleTests(unittest.TestCase):
         self.assertEqual(parsed.article_type, "research-article")
         self.assertEqual((parsed.notice_flags, parsed.links_to_retraction), ((), False))
 
+    def test_reads_authors_and_licence_url(self) -> None:
+        cc0 = parse_article(fixture("PMC12826829.1.xml"))
+        cc_by = parse_article(fixture("PMC10009402.1.xml"))
+
+        self.assertEqual(len(cc0.authors), 3)
+        self.assertEqual(cc_by.authors[0], "Magnus Helgesson")
+        self.assertEqual(len(cc_by.authors), 8)
+        self.assertEqual(
+            cc0.licence_url, "https://creativecommons.org/publicdomain/zero/1.0/"
+        )
+        self.assertEqual(cc_by.licence_url, "https://creativecommons.org/licenses/by/4.0/")
+
     def test_heading_wins_over_a_wrong_section_type(self) -> None:
         # The publisher tagged "4. Discussion" as sec-type="conclusions".
         parsed = parse_article(fixture("PMC12826829.1.xml"))
@@ -161,6 +173,22 @@ class EdgeCaseTests(unittest.TestCase):
             with self.subTest(article_type=article_type):
                 parsed = parse_article(article("<p>x</p>", article_type=article_type))
                 self.assertEqual(parsed.notice_flags, (flag,))
+
+    def test_reads_group_authors_and_skips_editors(self) -> None:
+        front = (
+            '<contrib-group><contrib contrib-type="author"><name><surname>Smith'
+            "</surname><given-names>Jo</given-names></name></contrib>"
+            '<contrib contrib-type="author"><collab>WHO Study Group</collab></contrib>'
+            '<contrib contrib-type="editor"><name><surname>Ed</surname></name></contrib>'
+            "</contrib-group>"
+            '<permissions><license xlink:href="https://example.org/l"><p>x</p>'
+            "</license></permissions><abstract><p>A.</p></abstract>"
+        )
+        parsed = parse_article(article(front=front))
+
+        self.assertEqual(parsed.authors, ("Jo Smith", "WHO Study Group"))
+        self.assertEqual(parsed.licence_url, "https://example.org/l")
+        self.assertIsNone(parse_article(article("<p>x</p>")).licence_url)
 
     def test_rejects_unusable_xml(self) -> None:
         bomb = (

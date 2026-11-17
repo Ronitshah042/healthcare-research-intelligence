@@ -103,6 +103,10 @@ class ParsedArticle:
     notice_flags: tuple[str, ...]
     # True when the XML links to a retraction of this article.
     links_to_retraction: bool
+    # Author names as ``Given Surname``, and group authors as written.
+    authors: tuple[str, ...] = ()
+    # The licence URL the article states, used in attribution text.
+    licence_url: str | None = None
 
 
 def parse_article(xml: bytes | str) -> ParsedArticle:
@@ -143,7 +147,41 @@ def parse_article(xml: bytes | str) -> ParsedArticle:
         article_type=article.get("article-type"),
         notice_flags=flags,
         links_to_retraction=links_to_retraction,
+        authors=_authors(article),
+        licence_url=_licence_url(article),
     )
+
+
+def _authors(article: ElementTree.Element) -> tuple[str, ...]:
+    authors: list[str] = []
+    for contrib in article.findall("front/article-meta/contrib-group/contrib"):
+        if contrib.get("contrib-type", "author") != "author":
+            continue
+        name = contrib.find("name")
+        if name is not None:
+            parts = [
+                _clean(_text_of(part))
+                for part in (name.find("given-names"), name.find("surname"))
+                if part is not None
+            ]
+            text = " ".join(part for part in parts if part)
+        else:
+            collab = contrib.find("collab")
+            text = _clean(_text_of(collab)) if collab is not None else ""
+        if text:
+            authors.append(text)
+    return tuple(authors)
+
+
+def _licence_url(article: ElementTree.Element) -> str | None:
+    license_element = article.find("front/article-meta/permissions/license")
+    if license_element is None:
+        return None
+    for element in license_element.iter():
+        if _local(element.tag) == "license_ref" and (element.text or "").strip():
+            return element.text.strip()
+    href = license_element.get("{http://www.w3.org/1999/xlink}href")
+    return href.strip() if href else None
 
 
 def _drop_unwanted(article: ElementTree.Element) -> None:
