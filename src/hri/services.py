@@ -7,8 +7,7 @@ in ``docs/SERVICE_API.md``.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
-from contextlib import contextmanager
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 import math
@@ -39,6 +38,7 @@ from ingestion.saved_lists import (
 )
 
 from .config import resolve_database_path
+from .errors import InvalidRequestError, as_invalid_request as _as_invalid_request
 from .export import (
     EXPORT_FORMATS,
     papers_to_citations,
@@ -89,10 +89,6 @@ __all__ = [
     "get_list",
     "export_list",
 ]
-
-
-class InvalidRequestError(ValueError):
-    """Raised when a caller supplies an unusable argument."""
 
 
 @dataclass(frozen=True)
@@ -395,17 +391,6 @@ def export_list(
 def build_pubmed_client() -> PubMedClient:
     """Build the live PubMed client from ``PUBMED_*`` environment variables."""
     return PubMedClient(PubMedClientConfig.from_environment())
-
-
-@contextmanager
-def _as_invalid_request() -> Iterator[None]:
-    """Report lower-layer ``ValueError`` input failures as one service error."""
-    try:
-        yield
-    except InvalidRequestError:
-        raise
-    except ValueError as error:
-        raise InvalidRequestError(str(error)) from error
 
 
 def _lists(database_path: str | Path | None) -> SavedListStore:
