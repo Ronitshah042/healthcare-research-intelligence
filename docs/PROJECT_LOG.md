@@ -666,6 +666,30 @@ Ran 218 tests
 OK
 ```
 
-**Live PubMed check: not run.** It needs a local `.env` with
-`PUBMED_NCBI_TOOL` and `PUBMED_NCBI_EMAIL`, which did not exist when this
-entry was written. The outcome will be recorded here once it has been run.
+**Live PubMed check (2026-11-17): passed.** Run against the real
+E-utilities API with credentials from the Git-ignored `.env`, into the
+default `data/hri.sqlite3`:
+
+```text
+hri ingest --query "metformin cardiovascular outcomes" --mode title_abstract --max 20 --year-from 2018
+  PubMed matches: 192, Fetched: 19, Saved: 19, Duplicates: 0,
+  Invalid skipped: 1, Conflicts skipped: 0
+```
+
+- **Book handling confirmed:** the one skipped record was a real
+  `PubmedBookArticle`, counted rather than dropped (audit bug B1).
+- **`hri stats`:** 19 papers, all with a DOI and an abstract on PubMed, all
+  from 2026 (PubMed returns the newest matches first).
+- **`hri search`:** keyword and Boolean searches returned the expected paper
+  with its PubMed link and the attribution block. Only 1 of the 19 papers
+  contains "metformin" locally, because the ingest matched titles *and
+  abstracts* while local search covers titles, authors, and journals only
+  (abstracts are not stored). This is expected but will surprise users.
+- **`hri show 43003454`:** full metadata, correct link and attribution.
+- **Author names:** no doubled initials in any of the 19 papers; accented
+  names (`Johan Ärnlöv`) kept intact.
+- **Vancouver export** on real data matched NLM style:
+  `Wallensten J, Ärnlöv J, Muglia L, Soraci L, Lattanzio F, Fabbietti P, et al. ... BMJ Open. 2026;16(11):e114393. doi: 10.1136/bmjopen-2025-114393. PMID: 43003454.`
+  Of the 19 papers, all had a journal abbreviation; 1 lacked a volume, 4 an
+  issue, and 6 pages (typical of articles published ahead of print). Those
+  parts are left out as designed.
