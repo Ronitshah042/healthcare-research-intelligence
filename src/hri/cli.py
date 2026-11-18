@@ -325,10 +325,12 @@ def _recheck_fulltext(args: argparse.Namespace) -> None:
     print(f"  Removed (now retracted):  {len(result.removed_retracted)}")
     print(f"  Newer version available:  {len(result.newer_version_available)}")
     print(f"  No longer in PMC Cloud:   {len(result.unavailable)}")
+    print(f"  Newly flagged:            {len(result.newly_flagged)}")
     for label, pmcids in (
         ("removed", result.removed_retracted),
         ("newer version", result.newer_version_available),
         ("unavailable", result.unavailable),
+        ("newly flagged", result.newly_flagged),
     ):
         for pmcid in pmcids:
             print(f"  {label}: {pmcid}")

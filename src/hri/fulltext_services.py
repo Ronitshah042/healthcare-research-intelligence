@@ -100,6 +100,8 @@ class FullTextRecheckResult:
     newer_version_available: tuple[str, ...]
     # PMCIDs whose stored version has left the Cloud Service; text is kept.
     unavailable: tuple[str, ...]
+    # PMCIDs that gained notice flags from PubMed's correction links.
+    newly_flagged: tuple[str, ...]
 
 
 def fetch_fulltext(
@@ -145,6 +147,8 @@ def fetch_fulltext(
     )
     rejections: list[FullTextRejection] = []
     considered = 0
+    with as_invalid_request():
+        notices = pmc.pubmed_notices(ids.pmid for ids in candidates if ids.pmid)
     for ids in candidates:
         if ids.current_version and stored_versions.get(ids.pmcid) == ids.current_version:
             counts["already_stored"] += 1
@@ -152,7 +156,9 @@ def fetch_fulltext(
         if considered == max_articles:
             break
         considered += 1
-        outcome = _fetch_one(pmc, store, policy, ids, now or _utc_now)
+        outcome = _fetch_one(
+            pmc, store, policy, ids, notices.get(ids.pmid or "", ()), now or _utc_now
+        )
         if isinstance(outcome, FullTextRejection):
             rejections.append(outcome)
         else:
@@ -193,7 +199,9 @@ def recheck_fulltext(
     store = FullTextStore(resolve_database_path(database_path))
     documents = store.documents()
     current = pmc.convert_ids([doc.pmcid for doc in documents], id_type="pmcid")
+    notices = pmc.pubmed_notices(doc.pmid for doc in documents if doc.pmid)
     removed: list[str] = []
+    flagged: list[str] = []
     newer: list[str] = []
     unavailable: list[str] = []
     for document in documents:
@@ -207,7 +215,10 @@ def recheck_fulltext(
         statuses = [pmc.cloud_metadata(version) for version in versions]
         if statuses[0] is None:
             unavailable.append(document.pmcid)
-        if any(status is not None and status.is_retracted for status in statuses):
+        pubmed_flags = notices.get(document.pmid or "", ())
+        if "retracted" in pubmed_flags or any(
+            status is not None and status.is_retracted for status in statuses
+        ):
             store.reject(
                 document.pmcid, "retracted",
                 recorded_at=_timestamp((now or _utc_now)()),
@@ -215,11 +226,17 @@ def recheck_fulltext(
             )
             LOGGER.warning("Removed retracted PMC article %s.", document.pmcid)
             removed.append(document.pmcid)
+            continue
+        merged = tuple(sorted(set(document.notice_flags) | set(pubmed_flags)))
+        if merged != document.notice_flags:
+            store.set_notice_flags(document.pmcid, merged)
+            flagged.append(document.pmcid)
     return FullTextRecheckResult(
         checked=len(documents),
         removed_retracted=tuple(removed),
         newer_version_available=tuple(pmcid for pmcid in newer if pmcid not in removed),
         unavailable=tuple(pmcid for pmcid in unavailable if pmcid not in removed),
+        newly_flagged=tuple(flagged),
     )
 
 
@@ -331,6 +348,7 @@ def _fetch_one(
     store: FullTextStore,
     policy: LicencePolicy,
     ids: ArticleIds,
+    pubmed_flags: tuple[str, ...],
     now: Callable[[], datetime],
 ) -> FullTextRejection | str:
     """Apply the content policy to one article; store it only if allowed."""
@@ -350,7 +368,7 @@ def _fetch_one(
         return reject("current_version_unavailable")
     if not metadata.is_open_access:
         return reject("not_open_access", metadata.licence)
-    if metadata.is_retracted:
+    if metadata.is_retracted or "retracted" in pubmed_flags:
         return reject("retracted", metadata.licence)
     if not policy.allows(metadata.licence):
         return reject("licence", metadata.licence)
@@ -364,6 +382,7 @@ def _fetch_one(
     if article.links_to_retraction:
         return reject("retracted", metadata.licence)
 
+    flags = tuple(sorted(set(article.notice_flags) | set(pubmed_flags)))
     retrieved_at = _timestamp(now())
     store.save(
         FullTextDocument(
@@ -385,12 +404,12 @@ def _fetch_one(
                 retrieved_at=retrieved_at,
             ),
             article_type=article.article_type,
-            notice_flags=article.notice_flags,
+            notice_flags=flags,
         ),
         article.sections,
         chunk_sections(article.sections),
     )
-    return "flagged" if article.notice_flags else "stored"
+    return "flagged" if flags else "stored"
 
 
 def _utc_now() -> datetime:

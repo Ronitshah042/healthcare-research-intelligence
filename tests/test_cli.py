@@ -225,6 +225,7 @@ class FullTextCommandTests(CliTestCase):
         self.assertEqual(code, 0)
         self.assertIn("Re-checked 2 stored full-text articles", out)
         self.assertIn(f"removed: {CC_BY}", out)
+        self.assertRegex(out, r"Newly flagged:\s+0\n")
 
     def test_search_passages_prints_text_with_attribution(self) -> None:
         self.run_fulltext("fetch-fulltext", "--query", "x")

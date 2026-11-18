@@ -182,6 +182,17 @@ class FullTextStore:
             raise PaperStorageError("Could not record full-text rejection.") from error
         return FullTextRejection(pmcid, pmcid_version, licence, reason, recorded_at)
 
+    def set_notice_flags(self, pmcid: str, flags: tuple[str, ...]) -> None:
+        """Replace a stored document's notice flags; its text is unchanged."""
+        try:
+            with closing(self._papers._connect()) as connection, connection:
+                connection.execute(
+                    "UPDATE documents SET notice_flags_json = ? WHERE pmcid = ?",
+                    (json.dumps(list(flags)), _normalise_pmcid(pmcid)),
+                )
+        except sqlite3.Error as error:
+            raise PaperStorageError("Could not update notice flags.") from error
+
     def get(self, pmcid: str) -> FullTextDocument | None:
         """Return the stored document for a PMCID, or ``None``."""
         rows = self._select(

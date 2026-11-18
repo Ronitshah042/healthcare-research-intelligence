@@ -2,7 +2,8 @@
 
 Only three HTTPS hosts are ever contacted, and every URL is built here:
 
-- ``eutils.ncbi.nlm.nih.gov``: search PMC for open-access articles.
+- ``eutils.ncbi.nlm.nih.gov``: search PMC for open-access articles, and read
+  PubMed's correction and retraction links for stored articles.
 - ``pmc.ncbi.nlm.nih.gov``: the ID converter, for PMID/PMCID/DOI links and
   the current article version.
 - ``pmc-oa-opendata.s3.amazonaws.com``: the PMC Cloud Service, for licence
@@ -46,6 +47,16 @@ CLOUD_REQUESTS_PER_SECOND = 3.0
 ID_CONVERTER_BATCH_SIZE = 200
 MAX_SEARCH_RESULTS = 200
 ID_TYPES = ("pmcid", "pmid", "doi")
+# PubMed ``CommentsCorrections`` link types and the notice flag each one sets.
+# ``retracted`` is not stored as a flag: the article is deleted instead.
+PUBMED_NOTICE_TYPES = {
+    "ErratumIn": "corrected",
+    "CorrectedandRepublishedIn": "corrected",
+    "ExpressionOfConcernIn": "expression_of_concern",
+    "PartialRetractionIn": "partially_retracted",
+    "RetractionIn": "retracted",
+    "RetractedandRepublishedIn": "retracted",
+}
 _PMCID_VERSION = re.compile(r"PMC[0-9]+\.[0-9]+", re.ASCII)
 
 
@@ -209,6 +220,37 @@ class PmcClient:
                 ids_found = _article_ids(record)
                 if ids_found is not None:
                     found[ids_found.requested_id] = ids_found
+        return found
+
+    def pubmed_notices(self, pmids: Iterable[str]) -> dict[str, tuple[str, ...]]:
+        """Return PubMed's correction and retraction notices, keyed by PMID.
+
+        Values are flags from ``PUBMED_NOTICE_TYPES``, sorted; PMIDs with no
+        notices are absent. Reads PubMed EFetch XML, 200 PMIDs per request.
+        """
+        unique = list(dict.fromkeys(_check_id(value, "pmid") for value in pmids))
+        found: dict[str, tuple[str, ...]] = {}
+        for start in range(0, len(unique), ID_CONVERTER_BATCH_SIZE):
+            batch = unique[start : start + ID_CONVERTER_BATCH_SIZE]
+            root = self._xml(self._get(
+                EUTILS_URL + "efetch.fcgi",
+                {"db": "pubmed", "id": ",".join(batch), "retmode": "xml"},
+            ))
+            try:
+                _raise_for_api_error(root)
+            except PubMedError:
+                raise PmcResponseError("PubMed reported an API error.") from None
+            for article in root.findall("PubmedArticle"):
+                pmid = (article.findtext("MedlineCitation/PMID") or "").strip()
+                flags = {
+                    PUBMED_NOTICE_TYPES[link.get("RefType", "")]
+                    for link in article.iterfind(
+                        "MedlineCitation/CommentsCorrectionsList/CommentsCorrections"
+                    )
+                    if link.get("RefType") in PUBMED_NOTICE_TYPES
+                }
+                if pmid in batch and flags:
+                    found[pmid] = tuple(sorted(flags))
         return found
 
     def cloud_metadata(self, pmcid_version: str) -> CloudMetadata | None:

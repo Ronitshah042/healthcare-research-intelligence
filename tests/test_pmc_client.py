@@ -63,6 +63,20 @@ def converter_record(pmcid: str, *, pmid: int | None = 1, current: str | None = 
 IDCONV = "pmc.ncbi.nlm.nih.gov/tools/idconv/api/v1/articles/"
 ESEARCH = "eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 CLOUD = "pmc-oa-opendata.s3.amazonaws.com/"
+EFETCH = "eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+
+
+def pubmed_article(pmid: str, *ref_types: str) -> str:
+    links = "".join(
+        f'<CommentsCorrections RefType="{ref_type}"><PMID>9{pmid}</PMID>'
+        "</CommentsCorrections>"
+        for ref_type in ref_types
+    )
+    return (
+        f"<PubmedArticle><MedlineCitation><PMID>{pmid}</PMID>"
+        f"<CommentsCorrectionsList>{links}</CommentsCorrectionsList>"
+        "</MedlineCitation></PubmedArticle>"
+    )
 
 
 class PmcClientTestCase(unittest.TestCase):
@@ -239,6 +253,52 @@ class CloudTests(PmcClientTestCase):
                     client.article_xml(value)  # type: ignore[arg-type]
         self.assertEqual(transport.urls, [])
         self.assertEqual(article_page_url("PMC5.2"), "https://pmc.ncbi.nlm.nih.gov/articles/PMC5/")
+
+
+class PubMedNoticeTests(PmcClientTestCase):
+    def test_maps_pubmed_correction_links_to_notice_flags(self) -> None:
+        response = (
+            "<PubmedArticleSet>"
+            + pubmed_article("1", "ErratumIn", "CommentIn", "ErratumIn")
+            + pubmed_article("2", "ExpressionOfConcernIn", "PartialRetractionIn")
+            + pubmed_article("3", "RetractionIn")
+            + pubmed_article("4", "CommentIn", "Cites")
+            + pubmed_article("77", "RetractionIn")  # not requested: ignored
+            + "</PubmedArticleSet>"
+        ).encode()
+        client, transport = self.client({EFETCH: [response]}, api_key="secret")
+
+        notices = client.pubmed_notices(["1", "002", "3", "4"])
+
+        self.assertEqual(notices, {
+            "1": ("corrected",),
+            "2": ("expression_of_concern", "partially_retracted"),
+            "3": ("retracted",),
+        })
+        query = parse_qs(urlsplit(transport.urls[0]).query)
+        self.assertEqual((query["db"], query["id"]), (["pubmed"], ["1,2,3,4"]))
+        self.assertEqual(query["api_key"], ["secret"])
+
+    def test_sends_no_request_for_no_pmids_and_batches_by_200(self) -> None:
+        empty = b"<PubmedArticleSet></PubmedArticleSet>"
+        client, transport = self.client({EFETCH: [empty, empty]})
+
+        self.assertEqual(client.pubmed_notices([]), {})
+        self.assertEqual(transport.urls, [])
+        client.pubmed_notices(str(number) for number in range(1, 251))
+        self.assertEqual(len(transport.urls), 2)
+
+    def test_rejects_bad_pmids_and_reports_errors_safely(self) -> None:
+        client, transport = self.client({})
+        with self.assertRaises(PmcRequestValidationError):
+            client.pubmed_notices(["12a"])
+        self.assertEqual(transport.urls, [])
+        for response in (b"<eFetchResult><ERROR>secret</ERROR></eFetchResult>", b"<x"):
+            with self.subTest(response=response):
+                client, _ = self.client({EFETCH: [response]})
+                with self.assertRaises(PmcResponseError) as raised:
+                    client.pubmed_notices(["1"])
+                self.assertNotIn("secret", str(raised.exception))
 
 
 class SafetyTests(PmcClientTestCase):

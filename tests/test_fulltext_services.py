@@ -64,6 +64,8 @@ class FakePmcClient:
         self.downloaded: list[str] = []
         self.converted: list[tuple[tuple[str, ...], str]] = []
         self.search_limits: list[int] = []
+        self.notices: dict[str, tuple[str, ...]] = {}
+        self.notice_requests: list[tuple[str, ...]] = []
 
     def search_open_access(self, query, *, max_results=20):
         self.search_limits.append(max_results)
@@ -85,6 +87,11 @@ class FakePmcClient:
             if key in by_type:
                 found[value] = replace(by_type[key], requested_id=value)
         return found
+
+    def pubmed_notices(self, pmids):
+        pmids = tuple(pmids)
+        self.notice_requests.append(pmids)
+        return {pmid: self.notices[pmid] for pmid in pmids if pmid in self.notices}
 
     def cloud_metadata(self, version):
         return self.metadata.get(version)
@@ -256,6 +263,50 @@ class FetchByQueryTests(FetchTestCase):
             with self.subTest(arguments=arguments):
                 with self.assertRaises(services.InvalidRequestError):
                     self.fetch(**arguments)
+
+
+class PubMedNoticeTests(FetchTestCase):
+    def test_a_pubmed_retraction_is_rejected_before_any_download(self) -> None:
+        self.client.notices["35275515"] = ("retracted",)
+
+        with self.assertLogs("hri.fulltext_services", "WARNING"):
+            result = self.fetch()
+
+        self.assertEqual((result.stored, result.rejected_retracted), (1, 1))
+        self.assertNotIn(f"{CC_BY}.1", self.client.downloaded)
+        self.assertIsNone(FullTextStore(self.db).get(CC_BY))
+        self.assertEqual(self.client.notice_requests, [("35275515", "41661935")])
+
+    def test_pubmed_corrections_are_merged_into_notice_flags(self) -> None:
+        self.client.notices["41661935"] = ("corrected", "expression_of_concern")
+
+        result = self.fetch()
+
+        self.assertEqual((result.stored, result.flagged), (2, 1))
+        self.assertEqual(
+            FullTextStore(self.db).get(CC0).notice_flags,
+            ("corrected", "expression_of_concern"),
+        )
+
+    def test_recheck_adds_new_flags_and_removes_pubmed_retractions(self) -> None:
+        self.fetch()
+        self.client.notices = {
+            "35275515": ("retracted",), "41661935": ("corrected",),
+        }
+
+        with self.assertLogs("hri.fulltext_services", "WARNING"):
+            result = services.recheck_fulltext(
+                database_path=self.db, client=self.client, now=lambda: NOW
+            )
+
+        self.assertEqual(result.removed_retracted, (CC_BY,))
+        self.assertEqual(result.newly_flagged, (CC0,))
+        store = FullTextStore(self.db)
+        self.assertIsNone(store.get(CC_BY))
+        self.assertEqual(store.get(CC0).notice_flags, ("corrected",))
+        self.assertTrue(store.chunks(CC0))
+        again = services.recheck_fulltext(database_path=self.db, client=self.client)
+        self.assertEqual(again.newly_flagged, ())
 
 
 class PassageSearchServiceTests(FetchTestCase):

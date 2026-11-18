@@ -400,7 +400,9 @@ policy. Give exactly one source:
   repeated runs move past articles already stored.
 
 For each article the **current version** is looked up, then its licence and
-status are read **before** any text is downloaded. Retracted articles,
+status are read **before** any text is downloaded, together with PubMed's
+correction links (CONTENT_POLICY.md section 6). Retracted articles, including
+those PubMed links to a retraction,
 disallowed or missing licences, and articles not in the Open Access subset are
 rejected: nothing is stored for them and the rejection is recorded. Allowed
 articles are parsed into sections, split into passages, and stored with their
@@ -427,7 +429,7 @@ background.
 | `current_version_unavailable` | `int` | The current version is not in the Open Access bucket. |
 | `not_in_pmc` | `int` | Stored papers with no PMC article (`from_db` only). |
 | `failed` | `int` | Allowed articles whose XML could not be parsed; nothing stored. |
-| `flagged` | `int` | Stored articles carrying correction or concern flags. |
+| `flagged` | `int` | Stored articles carrying correction or concern flags, from the XML or PubMed. |
 | `rejections` | `tuple[FullTextRejection, ...]` | `pmcid`, `pmcid_version`, `licence`, `reason`, `recorded_at` for each rejection in this run. Never contains text. |
 
 Errors: `InvalidRequestError`, `LicencePolicyError`,
@@ -442,15 +444,18 @@ recheck_fulltext(*, database_path=None, client=None, now=None)
 ```
 
 Re-reads the status of every stored article's version, and of its current
-version if that has changed, and **deletes any article that is now
-retracted**, recording the rejection. **Run it before every rebuild of a data
+version if that has changed, and PubMed's correction links for articles with
+a PMID. It **deletes any article that is now retracted** (by PMC or PubMed),
+recording the rejection, and adds new correction or concern flags to the
+articles it keeps. **Run it before every rebuild of a data
 bundle.**
 
-`FullTextRecheckResult` has `checked` (`int`), and three tuples of PMCIDs:
+`FullTextRecheckResult` has `checked` (`int`), and four tuples of PMCIDs:
 `removed_retracted`, `newer_version_available` (not fetched automatically;
 run `fetch_fulltext` again), and `unavailable` (the stored version has left
 the Cloud Service; its text is kept, because the licence it was stored under
-still applies).
+still applies), and `newly_flagged` (articles whose `notice_flags` gained a
+flag in this run).
 
 Errors: `PubMedConfigurationError`, `PubMedError`, `PaperStorageError`.
 
