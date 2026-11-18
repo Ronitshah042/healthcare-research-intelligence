@@ -108,6 +108,9 @@ hri lists delete "Reading list"                      # the papers stay stored
 hri fetch-fulltext --from-db --max 20       # for papers already stored
 hri fetch-fulltext --query "metformin dementia" --max 20
 hri recheck-fulltext                        # remove articles retracted since
+
+# Keyword search of the stored full-text passages, with attribution
+hri search-passages "metformin dementia" --section results --limit 5
 ```
 
 `hri ingest` reports how many records PubMed matched and how many were
@@ -123,6 +126,12 @@ articles were stored, already stored, rejected by licence or retraction, or
 not in the open-access subset. Rejected articles leave no text behind. PubMed
 abstracts are still never stored. The rules are in
 [docs/CONTENT_POLICY.md](docs/CONTENT_POLICY.md).
+
+`hri search-passages` finds stored passages that contain every word of the
+query (ignoring case and accents, with English stemming), best match first by
+BM25, and prints each with its article's licence and attribution. `--section`
+(repeatable) limits results to sections such as `methods` or `results`.
+Meaning-based (embedding) search is not built yet.
 
 The database is `data/hri.sqlite3` in the current folder (ignored by Git).
 Set `HRI_DB_PATH` or pass `--db PATH` to use another file; `--db` wins.
@@ -143,18 +152,19 @@ licences and terms will be used.
 
 ## Development Status
 
-**Status:** Phase 2 complete — PubMed ingestion, local search, saved lists,
+**Status:** Phase 3 complete — PubMed ingestion, local search, saved lists,
 and export, plus licensed open-access full text from PubMed Central parsed
-into sections and passages, all usable from the `hri` command line through a
-UI-agnostic service layer. Searching the full text, generating answers, and
-any user interface or web API are not built yet.
+into sections and passages, and keyword (BM25) search over those passages,
+all usable from the `hri` command line through a UI-agnostic service layer.
+Meaning-based (embedding) search, generating answers, and any user interface
+or web API are not built yet.
 
 The project now provides validated PubMed citation search through NCBI
 E-utilities, including title, title/abstract, author, DOI, and PMID search,
 year filters, pagination, and links to original PubMed records. Milestone 2B
 adds process-shared rate scheduling, bounded transient-failure retries, and
-safe NCBI error handling. It remains a small research-support foundation: it
-does not retrieve full text, display or persist abstracts, provide clinical
+safe NCBI error handling. The PubMed client itself
+does not retrieve full text (that is the separate PMC client), display or persist abstracts, provide clinical
 advice, generate answers, or provide a user interface.
 
 A small ingestion search pipeline now accepts one typed search request, routes

@@ -743,6 +743,50 @@ the same text. Phase 3 should re-measure with the embedding model's tokenizer.
   URL, the PMC page, the retrieval date, and the changes made, as CC BY
   requires.
 
+## Phase 3: keyword search over stored passages
+
+### Keyword (BM25) search now; embeddings later
+
+**Context:** The README plans hybrid (keyword plus meaning-based) search.
+Meaning-based search needs an embedding model. The options were a library
+such as sentence-transformers or fastembed (a new dependency of hundreds of
+MB plus a model download from Hugging Face, a host outside the allowlist),
+or a standard-library stand-in such as hashed TF-IDF vectors (no real
+understanding of meaning).
+
+**Decision (approved by the owner on 2026-11-18):** Build keyword search
+only, with SQLite's built-in FTS5 index and its BM25 ranking. Embeddings are
+a separate later phase that needs its own dependency and host approval.
+
+**Benefit:** No dependency, no new host, and it works on Python 3.9.6
+(SQLite 3.43) and 3.15 (SQLite 3.54).
+**Cost:** A passage must contain the query's words (after stemming);
+synonyms such as "heart attack" and "myocardial infarction" do not match.
+
+### How the index is built
+
+- Schema version 5 adds `chunks_fts`, an FTS5 table with `content='chunks'`,
+  so the text is not stored twice. Insert, delete and update triggers on
+  `chunks` keep it in step; the upgrade from version 4 rebuilds it from the
+  passages already stored.
+- Because deletion goes through the triggers, a retracted or replaced article
+  leaves search in the same transaction that removes its text.
+- Tokeniser: `porter unicode61 remove_diacritics 2`, so case, accents, and
+  English word endings are ignored.
+
+### How a query is read
+
+- The query is split into words (`\w+`); each word is put in double quotes
+  and all must match. Quoting means nothing the caller types is FTS5 syntax,
+  so input cannot cause syntax errors or change the search. Operator words
+  (`OR`, `NOT`, `NEAR`) are ordinary words.
+- All words must match (AND), matching the existing keyword search over
+  citations. Results are ordered by BM25, then by storage order for ties.
+- Search lives in `FullTextStore`, which owns the SQL, as `PaperStore` owns
+  citation search. The service is `search_passages` in
+  `hri/fulltext_services.py`. `src/retrieval/` stays empty until there is
+  ranking logic (such as hybrid fusion) that is not storage.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.

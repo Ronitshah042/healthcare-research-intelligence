@@ -117,3 +117,13 @@ CC BY requires credit to the authors and source. Every stored document keeps
 its attribution text, and any display of stored text or of an answer quoting
 it must show that attribution. PubMed metadata keeps `PUBMED_ATTRIBUTION` as
 before.
+
+## 9. Searching stored text
+
+`hri search-passages` (the `search_passages` service) searches only the
+passages stored under this policy, through an SQLite FTS5 index. The index
+holds no separate copy of the text: it reads the `chunks` table, and triggers
+remove an article's entries when its text is deleted, so rejected or retracted
+articles stop appearing at once. Every passage returned carries its document,
+and its `attribution` must be shown with the passage (section 8). The command
+line always prints it.

@@ -613,3 +613,44 @@ Science corrects itself: an article can be retracted months after
 publication. Stored text from a retracted article would otherwise keep being
 used as evidence. `recheck_fulltext` asks PMC again for each stored article's
 status and deletes any that are now retracted.
+
+## Phase 3: keyword search over passages
+
+### What is a full-text index?
+
+Searching every passage for a word one by one gets slow as the collection
+grows. A full-text index works like the index at the back of a book: for every
+word it lists the passages that contain it, so a search looks the words up
+instead of reading everything. SQLite has one built in, called FTS5.
+
+### What is BM25?
+
+BM25 is the standard way to rank keyword matches. A passage scores higher
+when the query words appear in it often, when those words are rare across all
+passages (a rare word says more than a common one), and when the passage is
+short (a word in a short passage counts for more). SQLite's `bm25()` returns
+negative numbers where lower is better; the project flips the sign so a
+higher `score` means more relevant. Scores compare passages within one search
+only.
+
+### What is stemming?
+
+Stemming cuts words down to a common root, so `veteran` and `veterans`, or
+`treat` and `treated`, match each other. The Porter stemmer does this for
+English with simple rules. It is not perfect (it does not know that "mice" is
+the plural of "mouse"), but it catches most word-ending differences.
+
+### Why quote every word?
+
+FTS5 has its own query language: `OR`, `NOT`, `NEAR(...)`, `*` for prefixes,
+and `column:` filters. Passing user text straight in could cause syntax
+errors or change what is searched. Putting each word in double quotes makes
+FTS5 treat it as a plain word, much as a parameterised SQL query keeps input
+from becoming SQL.
+
+### Keyword search versus meaning-based search
+
+Keyword search finds passages that use the same words as the question.
+Meaning-based (embedding) search turns text into lists of numbers so that
+passages with similar meaning sit close together, even when they use different
+words. Hybrid search combines both. This phase builds only the keyword half.

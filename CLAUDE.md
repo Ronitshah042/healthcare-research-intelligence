@@ -50,7 +50,7 @@ Dependency direction, lowest layer first:
 | `pmc_client.py` | `PmcClient`: PMC search, ID converter, Cloud metadata and XML |
 | `fulltext.py` | Parse JATS XML into canonical sections; drop references, figures, tables |
 | `chunking.py` | Split sections into ~400-token passages, never across sections |
-| `fulltext_store.py` | `FullTextStore`: documents, sections, chunks, rejections |
+| `fulltext_store.py` | `FullTextStore`: documents, sections, chunks, rejections, FTS5 passage search |
 
 `src/hri` sits on top and must stay free of business logic in the CLI:
 
@@ -60,7 +60,7 @@ Dependency direction, lowest layer first:
 | `export.py` | CSV and plain-citation rendering |
 | `errors.py` | `InvalidRequestError`, shared by the service modules |
 | `services.py` | UI-agnostic functions returning dataclasses; see `docs/SERVICE_API.md` |
-| `fulltext_services.py` | Full-text fetch, recheck, and stats; re-exported by `services` |
+| `fulltext_services.py` | Full-text fetch, recheck, stats, and passage search; re-exported by `services` |
 | `cli.py` | `hri` argparse commands; imports only `services` |
 
 Public names are exported from `src/ingestion/__init__.py`; add new ones there.

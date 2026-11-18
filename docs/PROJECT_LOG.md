@@ -739,5 +739,37 @@ OK
   citation-marker leftovers. One review article's topic headings were named
   `other`, as designed.
 
-Next steps: Phase 3 (semantic search over the stored passages) is not
-started. Open audit proposals: P6, P8, P9, P10.
+Next steps at the end of Phase 2: Phase 3 (search over the stored passages).
+Open audit proposals: P6, P8, P9, P10.
+
+## Phase 3: keyword search over stored passages (2026-11-18)
+
+The owner chose keyword search now and meaning-based (embedding) search as a
+later phase, so no dependency or new host was added.
+
+- **Storage:** schema version 5 adds `chunks_fts`, an SQLite FTS5 index over
+  `chunks.text` with Porter stemming, kept in step by triggers. Version 4
+  databases are indexed when opened.
+- **Search:** `FullTextStore.search` returns `PassageMatch` (passage,
+  document, BM25 score). Every query word is quoted, so no input is FTS5
+  syntax.
+- **Service:** `search_passages` (re-exported by `hri.services`), with
+  `limit` up to 50 and an optional section filter.
+- **CLI:** `hri search-passages QUERY [--section NAME]... [--limit N]`, which
+  prints every passage with its attribution.
+- **Tests:** ranking, all-words matching, stemming, section filter, query
+  syntax as plain text, removal on replacement and retraction, the version 4
+  upgrade, service validation, and the CLI.
+- **Docs:** `SERVICE_API.md`, `CONTENT_POLICY.md` section 9, `README.md`
+  (also fixed the stale line saying the project retrieves no full text),
+  `CLAUDE.md`, `DECISIONS.md`, and these notes.
+
+Full-suite verification on Python 3.15.2 and Python 3.9.6:
+
+```text
+Ran 302 tests
+OK
+```
+
+Not done: meaning-based search, paging through passage results, and phrase
+search.
