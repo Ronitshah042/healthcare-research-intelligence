@@ -36,6 +36,7 @@ websites, and scraping are not allowed.
 | --- | --- | --- |
 | Find open-access PMC articles for a query | `eutils.ncbi.nlm.nih.gov` | `esearch.fcgi`, `db=pmc`, query plus `AND open access[filter]` |
 | Link PMID, PMCID and DOI; find the current version | `pmc.ncbi.nlm.nih.gov` | `/tools/idconv/api/v1/articles/` with `ids` (up to 200, all one type), `idtype` (`pmid`, `pmcid`, or `doi`), `versions=yes`, `format=json`, `tool`, `email` |
+| PubMed's correction and retraction links for articles with a PMID | `eutils.ncbi.nlm.nih.gov` | `efetch.fcgi`, `db=pubmed`, `id` (up to 200 PMIDs), `retmode=xml`; only `CommentsCorrections` link types are read, never abstracts |
 | Licence and status of one article version | `pmc-oa-opendata.s3.amazonaws.com` | `GET /metadata/PMC<n>.<version>.json` |
 | Full text of one article version | `pmc-oa-opendata.s3.amazonaws.com` | `GET /PMC<n>.<version>/PMC<n>.<version>.xml` (JATS XML) |
 
@@ -97,18 +98,33 @@ Articles that have been corrected, carry an erratum, are subject to an
 expression of concern, or are themselves such a notice are stored with
 `notice_flags` so a UI or answer generator can warn about them.
 
-Flags are read from the article XML: the article type (`correction`,
-`retraction`, `expression-of-concern`) and `related-article` links of type
-`correction-forward`, `corrected-article`, `partial-retraction`, or any type
-mentioning concern. PMC rarely tags forward links, so **a missing flag does
-not prove an article is uncorrected**.
+Flags come from two sources and are merged:
+
+1. **The article XML:** the article type (`correction`, `retraction`,
+   `expression-of-concern`) and `related-article` links of type
+   `correction-forward`, `corrected-article`, `partial-retraction`, or any type
+   mentioning concern. PMC rarely tags these forward links.
+2. **PubMed's correction links**, for articles with a PMID, read when the
+   article is fetched and again by every re-check:
+
+   | PubMed link (`CommentsCorrections` `RefType`) | Result |
+   | --- | --- |
+   | `ErratumIn`, `CorrectedandRepublishedIn` | flag `corrected` |
+   | `ExpressionOfConcernIn` | flag `expression_of_concern` |
+   | `PartialRetractionIn` | flag `partially_retracted` |
+   | `RetractionIn`, `RetractedandRepublishedIn` | **rejected as `retracted`**, even when PMC does not mark it retracted (approved 2026-11-18) |
+
+PubMed's links are far more complete than PMC's, but they depend on NLM
+indexing, so **a missing flag still does not prove an article is
+uncorrected**. Articles without a PMID get XML flags only.
 
 ## 7. Re-checking stored articles
 
 Articles can be retracted after they are stored. `hri recheck-fulltext` (the
 `recheck_fulltext` service) re-reads the current version and metadata of
-every stored document and **deletes any that are now retracted**, recording
-the rejection. Every future rebuild of a data bundle (Phase 6) must run it
+every stored document and **deletes any that are now retracted** (by PMC or
+by a PubMed `RetractionIn` link), recording the rejection. It also adds any
+new PubMed correction or concern flags to the articles it keeps. Every future rebuild of a data bundle (Phase 6) must run it
 first.
 
 ## 8. Attribution and reuse

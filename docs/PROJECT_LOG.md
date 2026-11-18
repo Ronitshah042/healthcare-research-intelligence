@@ -742,6 +742,28 @@ OK
 Next steps at the end of Phase 2: Phase 3 (search over the stored passages).
 Open audit proposals: P6, P8, P9, P10.
 
+### Phase 2 follow-up: PubMed correction links (2026-11-18)
+
+PMC's XML rarely records later corrections, so fetch and re-check now also
+read PubMed's `CommentsCorrections` links (`PmcClient.pubmed_notices`, one
+batched E-utilities request per 200 PMIDs).
+
+- `ErratumIn` and `CorrectedandRepublishedIn` add `corrected`,
+  `ExpressionOfConcernIn` adds `expression_of_concern`, and
+  `PartialRetractionIn` adds `partially_retracted`.
+- `RetractionIn` and `RetractedandRepublishedIn` reject the article as
+  retracted before its text is downloaded, and re-check deletes stored ones
+  (owner's decision, 2026-11-18).
+- `recheck_fulltext` reports `newly_flagged`; flags are visible through
+  `FullTextDocument.notice_flags`, every `PassageMatch.document`, and the CLI.
+- Tests: link mapping, batching, error redaction, rejection before download,
+  flag merging, and re-check updates. `CONTENT_POLICY.md` section 6,
+  `SERVICE_API.md`.
+
+Full suite: 308 tests OK on Python 3.15.2 and 3.9.6.
+
+**Phase 2 is complete.**
+
 ## Phase 3: keyword search over stored passages (2026-11-18)
 
 The owner chose keyword search now and meaning-based (embedding) search as a
