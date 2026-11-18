@@ -141,6 +141,92 @@ class ArgumentTests(CliTestCase):
             self.assertNotIn("sqlite3", line)
 
 
+class FullTextCommandTests(CliTestCase):
+    def fake_client(self):
+        from test_fulltext_services import FakePmcClient
+
+        return FakePmcClient()
+
+    def run_fulltext(self, *argv: str, client=None):
+        client = client or self.fake_client()
+        with mock.patch(
+            "hri.fulltext_services.build_pmc_client", return_value=client
+        ), mock.patch.dict("os.environ", {"HRI_ALLOWED_LICENCES": ""}):
+            return self.run_cli(*argv), client
+
+    def test_fetch_fulltext_by_query_reports_counts(self) -> None:
+        from test_fulltext_services import CC0, metadata
+
+        client = self.fake_client()
+        client.metadata[f"{CC0}.1"] = metadata(f"{CC0}.1", licence="CC BY-NC")
+
+        (code, out, _), _ = self.run_fulltext(
+            "fetch-fulltext", "--query", "adhd", "--max", "5", client=client
+        )
+
+        self.assertEqual(code, 0)
+        for expected in (
+            'Fetched open-access full text for "adhd"',
+            "Candidates:", "Stored:", "Rejected (licence):",
+            f"rejected {CC0}: licence (CC BY-NC)",
+            "keeps its licence and attribution",
+        ):
+            self.assertIn(expected, out)
+        self.assertRegex(out, r"Stored:\s+1\n")
+        self.assertRegex(out, r"Rejected \(licence\):\s+1\n")
+        self.assertNotIn("Papers not in PMC", out)
+
+    def test_fetch_fulltext_from_db_and_stats(self) -> None:
+        self.ingest([_record("35275515")])
+
+        (code, out, _), _ = self.run_fulltext("fetch-fulltext", "--from-db")
+
+        self.assertEqual(code, 0)
+        self.assertIn("for stored papers", out)
+        self.assertRegex(out, r"Stored:\s+1\n")
+        self.assertRegex(out, r"Papers not in PMC:\s+0\n")
+        _, stats, _ = self.run_cli("stats")
+        self.assertIn("Full-text articles:   1", stats)
+
+    def test_fetch_fulltext_requires_exactly_one_source(self) -> None:
+        for argv in (
+            ["fetch-fulltext"],
+            ["fetch-fulltext", "--from-db", "--query", "x"],
+            ["fetch-fulltext", "--query", "x", "--max", "many"],
+        ):
+            with self.subTest(argv=argv):
+                with self.assertRaises(SystemExit) as raised, \
+                        redirect_stderr(StringIO()):
+                    cli.main(argv)
+                self.assertEqual(raised.exception.code, 2)
+        (code, _, err), _ = self.run_fulltext(
+            "fetch-fulltext", "--query", "x", "--max", "500"
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("max_articles", err)
+
+    def test_reports_a_bad_licence_setting(self) -> None:
+        with mock.patch.dict("os.environ", {"HRI_ALLOWED_LICENCES": " , "}):
+            code, _, err = self.run_cli("fetch-fulltext", "--query", "x")
+
+        self.assertEqual(code, 1)
+        self.assertIn("HRI_ALLOWED_LICENCES", err)
+
+    def test_recheck_fulltext_reports_removals(self) -> None:
+        from test_fulltext_services import CC_BY, metadata
+
+        client = self.fake_client()
+        self.run_fulltext("fetch-fulltext", "--query", "x", client=client)
+        client.metadata[f"{CC_BY}.1"] = metadata(f"{CC_BY}.1", is_retracted=True)
+
+        with self.assertLogs("hri.fulltext_services", "WARNING"):
+            (code, out, _), _ = self.run_fulltext("recheck-fulltext", client=client)
+
+        self.assertEqual(code, 0)
+        self.assertIn("Re-checked 2 stored full-text articles", out)
+        self.assertIn(f"removed: {CC_BY}", out)
+
+
 class EndToEndTests(CliTestCase):
     def test_ingest_search_show_and_stats(self) -> None:
         records = [

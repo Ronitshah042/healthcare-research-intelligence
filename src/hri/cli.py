@@ -32,6 +32,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             "(see .env.example).",
             _EXIT_FAILED,
         )
+    except services.LicencePolicyError as error:
+        return _fail(f"{error} Check HRI_ALLOWED_LICENCES.", _EXIT_FAILED)
     except (services.PaperStorageError, services.PubMedError, OSError) as error:
         return _fail(error, _EXIT_FAILED)
     return _EXIT_OK
@@ -101,6 +103,34 @@ def build_parser() -> argparse.ArgumentParser:
         "stats", parents=[database], help="count stored papers"
     )
     stats.set_defaults(handler=_stats)
+
+    fulltext = commands.add_parser(
+        "fetch-fulltext",
+        parents=[database],
+        help="store licensed open-access full text from PMC",
+        description="Store PMC Open Access full text allowed by "
+        "docs/CONTENT_POLICY.md (default licences: CC0, CC BY).",
+    )
+    source = fulltext.add_mutually_exclusive_group(required=True)
+    source.add_argument(
+        "--from-db", action="store_true", help="for papers already stored"
+    )
+    source.add_argument("--query", help="plain-text search of open-access PMC")
+    fulltext.add_argument(
+        "--max",
+        type=int,
+        default=services.DEFAULT_FULLTEXT_ARTICLES,
+        dest="max_articles",
+        help=f"articles to process, up to {services.MAX_FULLTEXT_ARTICLES}",
+    )
+    fulltext.set_defaults(handler=_fetch_fulltext)
+
+    recheck = commands.add_parser(
+        "recheck-fulltext",
+        parents=[database],
+        help="remove stored full text that has since been retracted",
+    )
+    recheck.set_defaults(handler=_recheck_fulltext)
 
     lists = commands.add_parser("lists", help="manage saved lists of papers")
     list_commands = lists.add_subparsers(dest="list_command", required=True)
@@ -226,6 +256,59 @@ def _stats(args: argparse.Namespace) -> None:
         print("By year:")
     for year, count in stats.papers_by_year:
         print(f"  {'unknown' if year is None else year}: {count}")
+    fulltext = services.get_fulltext_stats(database_path=_db(args))
+    print(f"Full-text articles:   {fulltext.documents}")
+    print(f"Full-text passages:   {fulltext.chunks}")
+    print(f"Flagged articles:     {fulltext.flagged_documents}")
+    for reason, count in fulltext.rejections_by_reason:
+        print(f"Rejected ({reason}): {count}")
+
+
+def _fetch_fulltext(args: argparse.Namespace) -> None:
+    result = services.fetch_fulltext(
+        from_db=args.from_db,
+        query=args.query,
+        max_articles=args.max_articles,
+        database_path=_db(args),
+    )
+    source = "stored papers" if result.source == "database" else f'"{result.query}"'
+    print(f"Fetched open-access full text for {source}")
+    rows = [
+        ("Candidates", result.candidates),
+        ("Stored", result.stored),
+        ("Already stored", result.already_stored),
+        ("Rejected (licence)", result.rejected_licence),
+        ("Rejected (retracted)", result.rejected_retracted),
+        ("Not in OA subset", result.not_in_open_access),
+        ("  of which current version unavailable", result.current_version_unavailable),
+        ("Failed to parse", result.failed),
+        ("Flagged (corrections/concerns)", result.flagged),
+    ]
+    if result.source == "database":
+        rows.append(("Papers not in PMC", result.not_in_pmc))
+    width = max(len(label) for label, _ in rows) + 2
+    for label, value in rows:
+        print(f"  {label + ':':<{width}}{value}")
+    for rejection in result.rejections:
+        licence = f" ({rejection.licence})" if rejection.licence else ""
+        print(f"  rejected {rejection.pmcid}: {rejection.reason}{licence}")
+    if result.stored:
+        print("Every stored article keeps its licence and attribution text.")
+
+
+def _recheck_fulltext(args: argparse.Namespace) -> None:
+    result = services.recheck_fulltext(database_path=_db(args))
+    print(f"Re-checked {result.checked} stored full-text articles")
+    print(f"  Removed (now retracted):  {len(result.removed_retracted)}")
+    print(f"  Newer version available:  {len(result.newer_version_available)}")
+    print(f"  No longer in PMC Cloud:   {len(result.unavailable)}")
+    for label, pmcids in (
+        ("removed", result.removed_retracted),
+        ("newer version", result.newer_version_available),
+        ("unavailable", result.unavailable),
+    ):
+        for pmcid in pmcids:
+            print(f"  {label}: {pmcid}")
 
 
 def _lists_create(args: argparse.Namespace) -> None:
