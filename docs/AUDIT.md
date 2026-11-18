@@ -166,4 +166,4 @@ These have not been verified and are accepted for now:
 | P8 | Add a CI workflow running the suite on Python 3.9 and the latest version. | No CI | Small |
 | P9 | Choose and add a licence. | No licence | Decision |
 | P10 | Replace in-memory ranking with SQLite FTS5 when the stored set grows. | Search scale | Large; not needed yet |
-| P11 | Raise `PubMedHttpError` without chaining the original `HTTPError` (`from None`) so the request URL cannot be reached through the exception. | Secret hygiene | Small |
+| P11 | **Done 2026-11-17** (Phase 2, shared `http.py`). Raise `PubMedHttpError` without chaining the original `HTTPError` (`from None`) so the request URL cannot be reached through the exception. | Secret hygiene | Small |

@@ -37,7 +37,7 @@ The final technology choices will be confirmed during implementation.
 
 ```text
 src/
-├── ingestion/    PubMed client, pipeline, SQLite storage, saved lists
+├── ingestion/    PubMed and PMC clients, parsing, chunking, SQLite storage
 ├── hri/          service layer, export, and the hri command line
 ├── retrieval/
 ├── generation/
@@ -103,6 +103,11 @@ hri lists export "Reading list" --format csv --output reading.csv
 hri lists export "Reading list" --format citations   # Vancouver (NLM) style
 hri lists export "Reading list" --format plain       # simple layout with links
 hri lists delete "Reading list"                      # the papers stay stored
+
+# Open-access full text (PMC, CC0 and CC BY only by default)
+hri fetch-fulltext --from-db --max 20       # for papers already stored
+hri fetch-fulltext --query "metformin dementia" --max 20
+hri recheck-fulltext                        # remove articles retracted since
 ```
 
 `hri ingest` reports how many records PubMed matched and how many were
@@ -110,6 +115,14 @@ fetched, saved, duplicated, skipped as invalid, or skipped for conflicting
 identifiers. Modes are `title`, `title_abstract`, `author`, `doi`, and `pmid`;
 `--max` goes up to 1000. Run `hri --help` or `hri <command> --help` for every
 option.
+
+`hri fetch-fulltext` stores the full text of PubMed Central Open Access
+articles whose licence is allowed (CC0 and CC BY unless `HRI_ALLOWED_LICENCES`
+says otherwise), split into passages for later search. It reports how many
+articles were stored, already stored, rejected by licence or retraction, or
+not in the open-access subset. Rejected articles leave no text behind. PubMed
+abstracts are still never stored. The rules are in
+[docs/CONTENT_POLICY.md](docs/CONTENT_POLICY.md).
 
 The database is `data/hri.sqlite3` in the current folder (ignored by Git).
 Set `HRI_DB_PATH` or pass `--db PATH` to use another file; `--db` wins.
@@ -130,9 +143,11 @@ licences and terms will be used.
 
 ## Development Status
 
-**Status:** Phase 1 complete — PubMed ingestion, local search, saved lists,
-and export are usable end to end from the `hri` command line through a
-UI-agnostic service layer. There is no user interface or web API yet.
+**Status:** Phase 2 complete — PubMed ingestion, local search, saved lists,
+and export, plus licensed open-access full text from PubMed Central parsed
+into sections and passages, all usable from the `hri` command line through a
+UI-agnostic service layer. Searching the full text, generating answers, and
+any user interface or web API are not built yet.
 
 The project now provides validated PubMed citation search through NCBI
 E-utilities, including title, title/abstract, author, DOI, and PMID search,

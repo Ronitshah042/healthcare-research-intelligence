@@ -37,14 +37,20 @@ Dependency direction, lowest layer first:
 
 | Module | Responsibility |
 |---|---|
+| `http.py` | Shared rate limiting, retries, and error redaction for every API client |
 | `identifiers.py` | Shared DOI-prefix and PMID leading-zero clean-up; imports nothing from the project |
 | `metadata.py` | `PaperMetadata` and validation; imports nothing from the project |
 | `pubmed_config.py` | `PubMedClientConfig` and environment variables |
-| `pubmed.py` | `PubMedClient`: query validation, rate limits, retries, XML mapping |
+| `pubmed.py` | `PubMedClient`: query validation, XML mapping (HTTP via `http.py`) |
 | `pipeline.py` | `SearchPipeline`: thin routing, `StandardisedPaper`, deduplication |
 | `schema.py` | Versioned SQLite layout and upgrades (`PRAGMA user_version`) |
 | `storage.py` | `PaperStore`: SQLite persistence, local search, and statistics |
 | `saved_lists.py` | `SavedListStore`: named lists of stored papers |
+| `licence_policy.py` | `LicencePolicy`: the `HRI_ALLOWED_LICENCES` allowlist |
+| `pmc_client.py` | `PmcClient`: PMC search, ID converter, Cloud metadata and XML |
+| `fulltext.py` | Parse JATS XML into canonical sections; drop references, figures, tables |
+| `chunking.py` | Split sections into ~400-token passages, never across sections |
+| `fulltext_store.py` | `FullTextStore`: documents, sections, chunks, rejections |
 
 `src/hri` sits on top and must stay free of business logic in the CLI:
 
@@ -52,7 +58,9 @@ Dependency direction, lowest layer first:
 |---|---|
 | `config.py` | Database path from `--db`, `HRI_DB_PATH`, or the default |
 | `export.py` | CSV and plain-citation rendering |
+| `errors.py` | `InvalidRequestError`, shared by the service modules |
 | `services.py` | UI-agnostic functions returning dataclasses; see `docs/SERVICE_API.md` |
+| `fulltext_services.py` | Full-text fetch, recheck, and stats; re-exported by `services` |
 | `cli.py` | `hri` argparse commands; imports only `services` |
 
 Public names are exported from `src/ingestion/__init__.py`; add new ones there.
@@ -122,8 +130,9 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
 
 ## Tests
 - Use `unittest`. Tests must never call live services or sleep for real time.
-- Inject `transport`, `clock`, and `sleeper` into `PubMedClient`; use a fake client
-  for pipeline tests and a temporary directory for storage tests.
+- Inject `transport`, `clock`, and `sleeper` into `PubMedClient` and `PmcClient`;
+  use a fake client for pipeline and service tests and a temporary directory for
+  storage tests. PMC tests use the recorded fixtures in `tests/fixtures/pmc/`.
 - Reset shared limiter state with `PubMedClient._reset_process_rate_limiters_for_tests()`.
 - Add a regression test with every bug fix.
 

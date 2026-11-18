@@ -546,3 +546,70 @@ A second *writer* still has to wait its turn. The busy timeout says how long
 it waits before giving up: without one, it fails immediately with "database is
 locked"; with a 10-second timeout, it simply pauses until the first writer
 finishes.
+
+## Phase 2: open-access full text
+
+### What do the Creative Commons licences allow?
+
+Authors and publishers choose a licence that says what others may do with an
+article. The ones that matter here:
+
+| Licence | Meaning |
+| --- | --- |
+| CC0 | Public domain: no conditions at all. |
+| CC BY | Reuse freely, including commercially, but credit the source and say what you changed. |
+| CC BY-SA | As CC BY, but anything built from it must use the same licence. |
+| CC BY-NC | Non-commercial use only. |
+| CC BY-ND | No derivatives: the text must not be changed. Splitting it into passages arguably changes it. |
+
+The project stores only CC0 and CC BY by default because they are the only
+ones that clearly allow storing, splitting, and quoting text in any later use.
+"Open access" alone is not enough: an article can be free to read but still
+forbid reuse.
+
+### What is JATS XML?
+
+JATS (Journal Article Tag Suite) is the standard XML format for journal
+articles. Every part of an article is marked up: `<article-title>`,
+`<abstract>`, `<sec>` for a section with its `<title>`, `<p>` for a
+paragraph, `<xref ref-type="bibr">` for a citation marker, `<table-wrap>`
+and `<fig>` for tables and figures, and `<ref-list>` for the references.
+Parsing means walking this tree, keeping the prose, and dropping the rest.
+
+### Why read the licence before downloading the article?
+
+The PMC Cloud Service keeps a small metadata file for each article version,
+with the licence as a plain field (`"license_code": "CC BY"`). Reading it
+first means text under a licence we cannot use is never downloaded at all,
+which is cleaner than downloading the article, finding its licence inside, and
+throwing it away.
+
+### What is a host allowlist?
+
+The client builds every URL itself and refuses any URL whose host is not on a
+fixed list of three. A mistake elsewhere in the code, or an unexpected URL in
+a server response, therefore cannot make it contact another server or send
+the email address or API key somewhere else.
+
+### Why split articles into chunks?
+
+Later phases will search passages and quote them as evidence. A whole article
+is too long to compare with a question, and a single sentence lacks context.
+Passages of a few hundred words are a common middle ground. The overlap
+repeats the last sentences of one chunk at the start of the next, so an idea
+that spans a boundary is still found whole in at least one chunk. Chunks never
+cross a section boundary, so a passage from Methods is never mixed with one
+from Results.
+
+### Why keep a record of rejections?
+
+A rejected article stores no text, but recording its PMCID, licence, and reason
+makes the policy auditable: anyone can see what was turned away and why, and a
+count of rejections by reason shows whether the policy is working as intended.
+
+### Why re-check articles after storing them?
+
+Science corrects itself: an article can be retracted months after
+publication. Stored text from a retracted article would otherwise keep being
+used as evidence. `recheck_fulltext` asks PMC again for each stored article's
+status and deletes any that are now retracted.

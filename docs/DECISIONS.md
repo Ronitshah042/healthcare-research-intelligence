@@ -718,6 +718,31 @@ where possible, and never cross a section boundary.
 **Cost:** Real model tokenizers count differently, typically more tokens for
 the same text. Phase 3 should re-measure with the embedding model's tokenizer.
 
+### Implementation choices made while building Phase 2
+
+- **Query search looks past the limit.** `fetch_fulltext --query` asks PMC for
+  up to 200 matches (one request) and processes up to `--max` new ones.
+  Otherwise a second run would find only the articles the first one stored.
+- **A version that leaves the Cloud Service keeps its text.** The licence it
+  was stored under still applies; only retraction removes stored text.
+- **Unparseable XML is a failure, not a rejection.** It is counted and logged
+  but not recorded in `fulltext_rejections`, because the licence allowed it
+  and a later run may succeed.
+- **Unclear Cloud status fields fall on the safe side.** A missing
+  `is_pmc_openaccess` counts as not open access, and a missing `is_retracted`
+  counts as retracted.
+- **Section names come from headings first.** Publishers sometimes set
+  `sec-type` wrongly (one fixture tags "Discussion" as `conclusions`).
+  Headings that match no canonical name, common in reviews, become `other`
+  and keep the original heading.
+- **Full-text services live in their own module**, re-exported by
+  `hri.services` so a UI still has one import point. The shared input error
+  moved to `hri/errors.py` to avoid a circular import.
+- **Attribution is written once, at storage time.** It names up to six
+  authors, the title, the PMC citation, the stored version, the licence and its
+  URL, the PMC page, the retrieval date, and the changes made, as CC BY
+  requires.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.

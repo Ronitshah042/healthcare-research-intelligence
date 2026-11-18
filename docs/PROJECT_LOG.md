@@ -693,3 +693,51 @@ hri ingest --query "metformin cardiovascular outcomes" --mode title_abstract --m
   Of the 19 papers, all had a journal abbreviation; 1 lacked a volume, 4 an
   issue, and 6 pages (typical of articles published ahead of print). Those
   parts are left out as designed.
+
+## Phase 2: licensed open-access full text
+
+**Status:** Complete
+
+The project owner approved storing full text under the policy in
+`docs/CONTENT_POLICY.md`: PubMed Central Open Access articles only, CC0 and
+CC BY by default, current versions only, retracted articles rejected,
+corrections flagged, and PubMed abstracts still never stored.
+
+- **Research first:** NCBI's documentation (checked 2026-11-17) shows the PMC
+  OA Web Service and legacy FTP packages were retired in August 2026. The
+  PMC Cloud Service (licence metadata and XML), the PMC ID Converter (links and
+  current version), and E-utilities (search) were chosen; the reasons and
+  exact endpoints are in `DECISIONS.md`.
+- **Shared HTTP layer:** rate limiting, retries, and redaction moved from
+  `pubmed.py` into `http.py`, used by both clients. HTTP errors no longer
+  chain the original error, whose URL carried credentials (audit P11).
+- **New modules:** `licence_policy.py`, `pmc_client.py`, `fulltext.py`,
+  `chunking.py`, `fulltext_store.py`, and `hri/fulltext_services.py`.
+- **Storage:** schema version 4 adds `documents`, `document_sections`,
+  `chunks`, and `fulltext_rejections`, with an upgrade test from version 3.
+- **CLI:** `hri fetch-fulltext --from-db | --query`, `hri recheck-fulltext`,
+  and full-text counts in `hri stats`.
+- **Fixtures:** trimmed real CC0 and CC BY articles in `tests/fixtures/pmc/`,
+  with their source, licence, and changes recorded.
+- **Docs:** `CONTENT_POLICY.md` (new), rules in `AGENTS.md` and `CLAUDE.md`,
+  `DECISIONS.md`, `SERVICE_API.md`, `README.md`, and these notes.
+
+Full-suite verification on Python 3.15.2 and Python 3.9.6:
+
+```text
+Ran 292 tests
+OK
+```
+
+**Live check (2026-11-17), into a scratch copy of the database:**
+
+- `hri fetch-fulltext --from-db --max 3`: 3 articles stored, all CC BY and
+  linked to stored papers; 4 of the 19 stored papers have no PMC article.
+- `hri fetch-fulltext --query "metformin dementia" --max 3`: 2 stored, 1
+  rejected for licence `CC BY-NC-ND`, with no text stored for it.
+- 5 documents, 106 passages, each at most 400 approximate tokens, with no
+  citation-marker leftovers. One review article's topic headings were named
+  `other`, as designed.
+
+Next steps: Phase 3 (semantic search over the stored passages) is not
+started. Open audit proposals: P6, P8, P9, P10.
