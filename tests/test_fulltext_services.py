@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 
 from hri import services
+from hri.fulltext_services import build_attribution
 from ingestion import PaperStore, StandardisedPaper
 from ingestion.fulltext_store import FullTextStore
 from ingestion.licence_policy import LicencePolicy
@@ -255,6 +256,37 @@ class FetchByQueryTests(FetchTestCase):
             with self.subTest(arguments=arguments):
                 with self.assertRaises(services.InvalidRequestError):
                     self.fetch(**arguments)
+
+
+class AttributionTests(unittest.TestCase):
+    def test_builds_a_credit_line_with_licence_source_and_changes(self) -> None:
+        text = build_attribution(
+            authors=[f"Author {n}" for n in range(1, 8)],
+            title="Does it work?",
+            citation="J Test. 2024;1(2):3-4.",
+            pmcid_version="PMC5.2",
+            licence="CC BY",
+            licence_url="https://creativecommons.org/licenses/by/4.0/",
+            retrieved_at="2026-11-17T09:30:00Z",
+        )
+
+        self.assertEqual(
+            text,
+            "Author 1, Author 2, Author 3, Author 4, Author 5, Author 6, et al. "
+            "Does it work? J Test. 2024;1(2):3-4. PMC5.2. Licence: CC BY "
+            "(https://creativecommons.org/licenses/by/4.0/). Source: PubMed "
+            "Central, https://pmc.ncbi.nlm.nih.gov/articles/PMC5/, retrieved "
+            "2026-11-17. Changes: text extracted and split into passages; "
+            "references, figures, and tables removed.",
+        )
+
+    def test_leaves_out_missing_authors_and_citation(self) -> None:
+        text = build_attribution(
+            authors=[], title="Title.", citation=None, pmcid_version="PMC5.1",
+            licence="CC0", licence_url=None, retrieved_at="2026-11-17T00:00:00Z",
+        )
+
+        self.assertTrue(text.startswith("Title. PMC5.1. Licence: CC0. Source:"))
 
 
 class FetchFromDatabaseTests(FetchTestCase):

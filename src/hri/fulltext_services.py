@@ -240,10 +240,14 @@ def build_attribution(
     shown = ", ".join(names[:_ATTRIBUTION_AUTHORS])
     if len(names) > _ATTRIBUTION_AUTHORS:
         shown += ", et al."
-    parts = [part for part in (shown, title.rstrip("."), citation) if part]
+    sentences = []
+    for part in (shown, title, citation):
+        text = (part or "").strip().rstrip(".")
+        if text:
+            sentences.append(text if text.endswith(("?", "!")) else text + ".")
     licence_text = f"{licence} ({licence_url})" if licence_url else licence
     return (
-        ". ".join(part.rstrip(".") for part in parts) + ". "
+        " ".join(sentences) + " "
         f"{pmcid_version}. Licence: {licence_text}. "
         f"Source: PubMed Central, {article_page_url(pmcid_version)}, "
         f"retrieved {retrieved_at[:10]}. "
