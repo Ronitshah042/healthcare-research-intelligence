@@ -14,12 +14,13 @@ from pathlib import Path
 
 from ingestion import PaperStore, PubMedClientConfig
 from ingestion.chunking import chunk_sections
-from ingestion.fulltext import FullTextParseError, parse_article
+from ingestion.fulltext import SECTION_NAMES, FullTextParseError, parse_article
 from ingestion.fulltext_store import (
     FullTextDocument,
     FullTextRejection,
     FullTextStats,
     FullTextStore,
+    PassageMatch,
 )
 from ingestion.licence_policy import LicencePolicy, LicencePolicyError
 from ingestion.pmc_client import (
@@ -37,6 +38,8 @@ from .errors import InvalidRequestError, as_invalid_request
 LOGGER = logging.getLogger(__name__)
 DEFAULT_FULLTEXT_ARTICLES = 20
 MAX_FULLTEXT_ARTICLES = 200
+DEFAULT_PASSAGE_RESULTS = 10
+MAX_PASSAGE_RESULTS = 50
 _ATTRIBUTION_AUTHORS = 6
 
 __all__ = [
@@ -51,6 +54,11 @@ __all__ = [
     "fetch_fulltext",
     "recheck_fulltext",
     "get_fulltext_stats",
+    "DEFAULT_PASSAGE_RESULTS",
+    "MAX_PASSAGE_RESULTS",
+    "SECTION_NAMES",
+    "PassageMatch",
+    "search_passages",
 ]
 
 
@@ -218,6 +226,37 @@ def recheck_fulltext(
 def get_fulltext_stats(*, database_path: str | Path | None = None) -> FullTextStats:
     """Return counts of stored documents, chunks, flags, and rejections."""
     return FullTextStore(resolve_database_path(database_path)).stats()
+
+
+def search_passages(
+    query: str,
+    *,
+    limit: int = DEFAULT_PASSAGE_RESULTS,
+    sections: Iterable[str] = (),
+    database_path: str | Path | None = None,
+) -> tuple[PassageMatch, ...]:
+    """Return stored passages containing every word of ``query``, best first.
+
+    Each match carries its document, whose ``attribution`` must be shown with
+    the passage text (CONTENT_POLICY.md).
+    """
+    if not isinstance(query, str):
+        raise InvalidRequestError("query must be text.")
+    if isinstance(limit, bool) or not isinstance(limit, int) or not (
+        1 <= limit <= MAX_PASSAGE_RESULTS
+    ):
+        raise InvalidRequestError(
+            f"limit must be between 1 and {MAX_PASSAGE_RESULTS}."
+        )
+    wanted = tuple(dict.fromkeys(section.strip().lower() for section in sections))
+    unknown = [section for section in wanted if section not in SECTION_NAMES]
+    if unknown:
+        raise InvalidRequestError(
+            f"Unknown section {unknown[0]!r}; use one of: {', '.join(SECTION_NAMES)}."
+        )
+    store = FullTextStore(resolve_database_path(database_path))
+    with as_invalid_request():
+        return store.search(query, limit=limit, sections=wanted)
 
 
 def build_pmc_client() -> PmcClient:

@@ -47,6 +47,7 @@ from hri import services
 | [`fetch_fulltext`](#fetch_fulltext) | Store allowed open-access full text | `FullTextFetchResult` |
 | [`recheck_fulltext`](#recheck_fulltext) | Remove stored articles that are now retracted | `FullTextRecheckResult` |
 | [`get_fulltext_stats`](#get_fulltext_stats) | Counts of stored full text and rejections | `FullTextStats` |
+| [`search_passages`](#search_passages) | Keyword search of stored full-text passages | `tuple[PassageMatch, ...]` |
 
 ## Errors
 
@@ -145,6 +146,8 @@ Use these to build menus and validate input instead of repeating the values.
 | `DEFAULT_PAGE_SIZE`, `MAX_PAGE_SIZE` | `20`, `100` |
 | `DEFAULT_INGEST_RECORDS`, `MAX_INGEST_RECORDS` | `100`, `1000` |
 | `DEFAULT_FULLTEXT_ARTICLES`, `MAX_FULLTEXT_ARTICLES` | `20`, `200` |
+| `DEFAULT_PASSAGE_RESULTS`, `MAX_PASSAGE_RESULTS` | `10`, `50` |
+| `SECTION_NAMES` | `("title", "abstract", "introduction", "methods", "results", "discussion", "conclusion", "other")` |
 
 ## Functions
 
@@ -470,11 +473,46 @@ Errors: `PaperStorageError`.
 `pmid`, `doi`, `title`, `licence`, `source_url`, `retrieved_at`,
 `attribution`, `article_type`, and `notice_flags` (for example
 `("corrected",)`; empty when none are known). `FullTextRejection` is described
-under `fetch_fulltext`. Reading stored text through the service layer is not
-provided yet; it arrives with retrieval in Phase 3.
+under `fetch_fulltext`.
+
+### `search_passages`
+
+```python
+search_passages(
+    query, *, limit=10, sections=(), database_path=None
+) -> tuple[PassageMatch, ...]
+```
+
+Keyword search over the stored open-access passages, best match first.
+
+- A passage matches when it contains every word of `query`. Words are compared
+  ignoring case and accents, after English (Porter) stemming, so `veteran`
+  also finds `veterans`.
+- `query` is always plain words. Quotes, `*`, `:`, brackets and words such as
+  `OR`, `NOT` or `NEAR` are not search syntax: punctuation is ignored and
+  operator words must appear in the passage like any other word.
+- `limit` is 1 to `MAX_PASSAGE_RESULTS`. There is no paging.
+- `sections` keeps only passages from those sections, named as in
+  `SECTION_NAMES` (case and surrounding spaces are ignored).
+- Retracted or replaced articles drop out as soon as their text is removed.
+
+`PassageMatch` has:
+
+| Field | Meaning |
+| --- | --- |
+| `chunk` | `StoredChunk`: `pmcid`, `pmcid_version`, `position`, `section_index`, `section_name`, `text`, `token_count`, `licence` |
+| `document` | The `FullTextDocument` the passage comes from |
+| `score` | BM25 relevance, higher is better; compare only within one search |
+
+A presentation layer must show `document.attribution` with any passage text
+it displays, and should show `document.notice_flags` when not empty
+(CONTENT_POLICY.md).
+
+Errors: `InvalidRequestError` (no words in `query`, bad `limit`, unknown
+section), `PaperStorageError`.
 
 ## Not provided yet
 
-Deleting papers, paging inside a list, progress reporting during `ingest` or
-`fetch_fulltext`, other citation styles such as APA, reading or searching
-stored full text (Phase 3), and PubMed abstract text.
+Deleting papers, paging inside a list or through passage results, progress
+reporting during `ingest` or `fetch_fulltext`, other citation styles such as
+APA, meaning-based (embedding) passage search, and PubMed abstract text.

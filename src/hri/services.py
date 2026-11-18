@@ -58,16 +58,21 @@ _EARLIEST_YEAR = 1500
 
 from .fulltext_services import (  # re-exported so callers need one import
     DEFAULT_FULLTEXT_ARTICLES,
+    DEFAULT_PASSAGE_RESULTS,
     MAX_FULLTEXT_ARTICLES,
+    MAX_PASSAGE_RESULTS,
+    SECTION_NAMES,
     FullTextDocument,
     FullTextFetchResult,
     FullTextRecheckResult,
     FullTextRejection,
     FullTextStats,
     LicencePolicyError,
+    PassageMatch,
     fetch_fulltext,
     get_fulltext_stats,
     recheck_fulltext,
+    search_passages,
 )
 
 __all__ = [
@@ -111,6 +116,11 @@ __all__ = [
     "fetch_fulltext",
     "recheck_fulltext",
     "get_fulltext_stats",
+    "DEFAULT_PASSAGE_RESULTS",
+    "MAX_PASSAGE_RESULTS",
+    "SECTION_NAMES",
+    "PassageMatch",
+    "search_passages",
 ]
 
 

@@ -132,6 +132,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     recheck.set_defaults(handler=_recheck_fulltext)
 
+    passages = commands.add_parser(
+        "search-passages",
+        parents=[database],
+        help="keyword search of stored open-access full text",
+        description="Find stored passages containing every word of QUERY, "
+        "best match first. Each passage is shown with its attribution.",
+    )
+    passages.add_argument("query")
+    passages.add_argument(
+        "--section",
+        action="append",
+        choices=services.SECTION_NAMES,
+        dest="sections",
+        help="keep only passages from this section (repeatable)",
+    )
+    passages.add_argument(
+        "--limit",
+        type=int,
+        default=services.DEFAULT_PASSAGE_RESULTS,
+        help=f"passages to show, up to {services.MAX_PASSAGE_RESULTS}",
+    )
+    passages.set_defaults(handler=_search_passages)
+
     lists = commands.add_parser("lists", help="manage saved lists of papers")
     list_commands = lists.add_subparsers(dest="list_command", required=True)
     create = list_commands.add_parser("create", parents=[database])
@@ -309,6 +332,37 @@ def _recheck_fulltext(args: argparse.Namespace) -> None:
     ):
         for pmcid in pmcids:
             print(f"  {label}: {pmcid}")
+
+
+def _search_passages(args: argparse.Namespace) -> None:
+    matches = services.search_passages(
+        args.query,
+        limit=args.limit,
+        sections=args.sections or (),
+        database_path=_db(args),
+    )
+    if not matches:
+        print("No stored passages match.")
+        return
+    for number, match in enumerate(matches, start=1):
+        document = match.document
+        print(
+            f"{number}. [{match.chunk.section_name}] {document.title} "
+            f"({document.pmcid_version}, score {match.score:.2f})"
+        )
+        identifiers = [
+            f"PMID {document.pmid}" if document.pmid else None,
+            f"DOI {document.doi}" if document.doi else None,
+        ]
+        if any(identifiers):
+            print("   " + " | ".join(part for part in identifiers if part))
+        if document.notice_flags:
+            print(f"   Notice: {', '.join(document.notice_flags)}")
+        print()
+        print(f"   {match.chunk.text}")
+        print()
+        print(f"   {document.attribution}")
+        print()
 
 
 def _lists_create(args: argparse.Namespace) -> None:

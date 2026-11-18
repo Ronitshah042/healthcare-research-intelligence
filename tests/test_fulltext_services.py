@@ -258,6 +258,35 @@ class FetchByQueryTests(FetchTestCase):
                     self.fetch(**arguments)
 
 
+class PassageSearchServiceTests(FetchTestCase):
+    def test_returns_passages_with_their_attribution(self) -> None:
+        self.fetch()
+
+        matches = services.search_passages(
+            "veterans", sections=[" Results ", "results"], database_path=self.db
+        )
+
+        self.assertTrue(matches)
+        for match in matches:
+            self.assertEqual(match.chunk.section_name, "results")
+            self.assertIn("Licence:", match.document.attribution)
+            self.assertIn("veteran", match.chunk.text.casefold())
+
+    def test_rejects_invalid_requests(self) -> None:
+        for query, arguments in (
+            ("", {}),
+            ("*", {}),
+            (None, {}),
+            ("adhd", {"limit": 0}),
+            ("adhd", {"limit": services.MAX_PASSAGE_RESULTS + 1}),
+            ("adhd", {"limit": True}),
+            ("adhd", {"sections": ["references"]}),
+        ):
+            with self.subTest(query=query, arguments=arguments):
+                with self.assertRaises(services.InvalidRequestError):
+                    services.search_passages(query, database_path=self.db, **arguments)
+
+
 class AttributionTests(unittest.TestCase):
     def test_builds_a_credit_line_with_licence_source_and_changes(self) -> None:
         text = build_attribution(

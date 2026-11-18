@@ -226,6 +226,23 @@ class FullTextCommandTests(CliTestCase):
         self.assertIn("Re-checked 2 stored full-text articles", out)
         self.assertIn(f"removed: {CC_BY}", out)
 
+    def test_search_passages_prints_text_with_attribution(self) -> None:
+        self.run_fulltext("fetch-fulltext", "--query", "x")
+
+        code, out, _ = self.run_cli(
+            "search-passages", "veterans", "--section", "results", "--limit", "1"
+        )
+
+        self.assertEqual(code, 0)
+        self.assertRegex(out, r"^1\. \[results\] .+ \(PMC12826829\.1, score ")
+        self.assertIn("Licence: CC0", out)
+        self.assertNotIn("2. [", out)
+        code, out, _ = self.run_cli("search-passages", "zzzz")
+        self.assertEqual((code, out), (0, "No stored passages match.\n"))
+        code, _, err = self.run_cli("search-passages", "***")
+        self.assertEqual(code, 2)
+        self.assertIn("at least one word", err)
+
 
 class EndToEndTests(CliTestCase):
     def test_ingest_search_show_and_stats(self) -> None:
