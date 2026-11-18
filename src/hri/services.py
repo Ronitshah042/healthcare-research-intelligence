@@ -56,6 +56,20 @@ _INGEST_PAGE_SIZE = 20
 # Start of the range when only an end year is given; PubMed holds nothing older.
 _EARLIEST_YEAR = 1500
 
+from .fulltext_services import (  # re-exported so callers need one import
+    DEFAULT_FULLTEXT_ARTICLES,
+    MAX_FULLTEXT_ARTICLES,
+    FullTextDocument,
+    FullTextFetchResult,
+    FullTextRecheckResult,
+    FullTextRejection,
+    FullTextStats,
+    LicencePolicyError,
+    fetch_fulltext,
+    get_fulltext_stats,
+    recheck_fulltext,
+)
+
 __all__ = [
     "SEARCH_STRATEGIES",
     "EXPORT_FORMATS",
@@ -88,6 +102,15 @@ __all__ = [
     "get_lists",
     "get_list",
     "export_list",
+    "LicencePolicyError",
+    "FullTextDocument",
+    "FullTextRejection",
+    "FullTextStats",
+    "FullTextFetchResult",
+    "FullTextRecheckResult",
+    "fetch_fulltext",
+    "recheck_fulltext",
+    "get_fulltext_stats",
 ]
 
 

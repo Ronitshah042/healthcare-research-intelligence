@@ -12,7 +12,7 @@ from hri import services
 
 - **Return values are typed objects** (frozen dataclasses or tuples of them).
   Nothing is printed and no text is formatted for display.
-- **No function contacts the network except `ingest`.**
+- **Only `ingest`, `fetch_fulltext`, and `recheck_fulltext` contact the network.**
 - **`database_path`** is an optional keyword on every function. When omitted,
   the path is `HRI_DB_PATH` if set, otherwise `data/hri.sqlite3` relative to
   the current working directory. The database and its folder are created on
@@ -22,8 +22,11 @@ from hri import services
 - **Attribution must be displayed.** Wherever a result has an `attribution`
   that is not `None`, a UI must show its four text fields alongside the data
   (see [Attribution](#attribution)).
-- **Abstract text is never available.** Only the `abstract_available` flag is
-  stored; link to PubMed for the abstract itself.
+- **PubMed abstracts are never available.** Only the `abstract_available` flag
+  is stored on a paper; link to PubMed for the abstract itself. The separate
+  full-text store holds open-access articles allowed by
+  [CONTENT_POLICY.md](CONTENT_POLICY.md), whose own abstract is one of their
+  sections. Never show an article's text without its `attribution`.
 
 ## Quick reference
 
@@ -41,6 +44,9 @@ from hri import services
 | [`get_lists`](#get_lists) | All saved lists | `tuple[SavedList, ...]` |
 | [`get_list`](#get_list) | One list with its papers | `ListContents` |
 | [`export_list`](#export_list) | A list as CSV, Vancouver citations, or plain text | `ListExport` |
+| [`fetch_fulltext`](#fetch_fulltext) | Store allowed open-access full text | `FullTextFetchResult` |
+| [`recheck_fulltext`](#recheck_fulltext) | Remove stored articles that are now retracted | `FullTextRecheckResult` |
+| [`get_fulltext_stats`](#get_fulltext_stats) | Counts of stored full text and rejections | `FullTextStats` |
 
 ## Errors
 
@@ -54,7 +60,8 @@ All are importable from `hri.services`.
 | `SavedListExistsError` | A list with that name already exists (names ignore case). | `create_list`, `rename_list` |
 | `PaperStorageError` | The database could not be read or written, or was created by a newer version of this project. | every function |
 | `PubMedConfigurationError` | `PUBMED_NCBI_TOOL` or `PUBMED_NCBI_EMAIL` is missing or invalid. Subclass of `ValueError`, but **not** of `InvalidRequestError`. | `ingest` |
-| `PubMedError` | PubMed could not be reached or returned something unusable. Subclasses: `PubMedTimeoutError`, `PubMedTransportError`, `PubMedHttpError` (has `.status_code`), `PubMedResponseError`. Messages never contain the API key, request URL, or NCBI error text. | `ingest` |
+| `PubMedError` | PubMed or PMC could not be reached or returned something unusable. PMC failures are the `PmcError` subclasses `PmcTimeoutError`, `PmcTransportError`, `PmcHttpError`, and `PmcResponseError`. Subclasses: `PubMedTimeoutError`, `PubMedTransportError`, `PubMedHttpError` (has `.status_code`), `PubMedResponseError`. Messages never contain the API key, request URL, or NCBI error text. | `ingest`, `fetch_fulltext`, `recheck_fulltext` |
+| `LicencePolicyError` | `HRI_ALLOWED_LICENCES` is set but lists no licence. A configuration problem, not user input. | `fetch_fulltext` |
 
 **Catch order matters.** `PaperNotFoundError`, `SavedListNotFoundError`, and
 `SavedListExistsError` are subclasses of `PaperStorageError`. Catch the specific
@@ -137,6 +144,7 @@ Use these to build menus and validate input instead of repeating the values.
 | `EXPORT_FORMATS` | `("csv", "citations", "plain")` |
 | `DEFAULT_PAGE_SIZE`, `MAX_PAGE_SIZE` | `20`, `100` |
 | `DEFAULT_INGEST_RECORDS`, `MAX_INGEST_RECORDS` | `100`, `1000` |
+| `DEFAULT_FULLTEXT_ARTICLES`, `MAX_FULLTEXT_ARTICLES` | `20`, `200` |
 
 ## Functions
 
@@ -371,7 +379,102 @@ download it.
 Errors: `InvalidRequestError` (unknown format or bad name),
 `SavedListNotFoundError`, `PaperStorageError`.
 
+### `fetch_fulltext`
+
+```python
+fetch_fulltext(*, from_db=False, query=None, max_articles=20,
+               database_path=None, client=None, policy=None, now=None)
+    -> FullTextFetchResult
+```
+
+Stores the full text of PMC Open Access articles allowed by the content
+policy. Give exactly one source:
+
+- `from_db=True`: articles for papers already stored, matched by PMID, or by
+  DOI for papers without a PMID.
+- `query="..."`: plain-text search of PMC limited to open-access articles
+  (the same syntax rules as `ingest`). Up to 200 results are considered, so
+  repeated runs move past articles already stored.
+
+For each article the **current version** is looked up, then its licence and
+status are read **before** any text is downloaded. Retracted articles,
+disallowed or missing licences, and articles not in the Open Access subset are
+rejected: nothing is stored for them and the rejection is recorded. Allowed
+articles are parsed into sections, split into passages, and stored with their
+licence and attribution. Like `ingest`, it can take a while; run it in the
+background.
+
+| Input | Type | Rules |
+| --- | --- | --- |
+| `from_db`, `query` | `bool`, `str \| None` | Exactly one source. |
+| `max_articles` | `int` | 1 to 200. Counts articles processed in this run; articles whose current version is already stored are skipped without counting. |
+| `client`, `policy`, `now` | | Leave as `None`. The client and licence allowlist come from the environment; tests pass fakes. |
+
+`FullTextFetchResult`:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `source`, `query` | `str`, `str \| None` | `"database"` or `"query"`, and the query if any. |
+| `candidates` | `int` | Articles with a PMC record that were considered. |
+| `stored` | `int` | Articles stored or updated, including flagged ones. |
+| `already_stored` | `int` | Current version already stored; nothing fetched. |
+| `rejected_licence` | `int` | Licence missing or not allowed. |
+| `rejected_retracted` | `int` | Retracted. |
+| `not_in_open_access` | `int` | Not in the Open Access subset, including the next field. |
+| `current_version_unavailable` | `int` | The current version is not in the Open Access bucket. |
+| `not_in_pmc` | `int` | Stored papers with no PMC article (`from_db` only). |
+| `failed` | `int` | Allowed articles whose XML could not be parsed; nothing stored. |
+| `flagged` | `int` | Stored articles carrying correction or concern flags. |
+| `rejections` | `tuple[FullTextRejection, ...]` | `pmcid`, `pmcid_version`, `licence`, `reason`, `recorded_at` for each rejection in this run. Never contains text. |
+
+Errors: `InvalidRequestError`, `LicencePolicyError`,
+`PubMedConfigurationError`, `PubMedError` (PMC failures), `PaperStorageError`.
+If PMC fails partway through, articles stored before the failure stay stored.
+
+### `recheck_fulltext`
+
+```python
+recheck_fulltext(*, database_path=None, client=None, now=None)
+    -> FullTextRecheckResult
+```
+
+Re-reads the status of every stored article's version, and of its current
+version if that has changed, and **deletes any article that is now
+retracted**, recording the rejection. **Run it before every rebuild of a data
+bundle.**
+
+`FullTextRecheckResult` has `checked` (`int`), and three tuples of PMCIDs:
+`removed_retracted`, `newer_version_available` (not fetched automatically;
+run `fetch_fulltext` again), and `unavailable` (the stored version has left
+the Cloud Service; its text is kept, because the licence it was stored under
+still applies).
+
+Errors: `PubMedConfigurationError`, `PubMedError`, `PaperStorageError`.
+
+### `get_fulltext_stats`
+
+```python
+get_fulltext_stats(*, database_path=None) -> FullTextStats
+```
+
+`FullTextStats` has `documents`, `chunks`, `flagged_documents` (all `int`),
+and `rejections_by_reason`, a tuple of `(reason, count)` pairs in alphabetical
+order. Reasons are `current_version_unavailable`, `licence`,
+`not_open_access`, and `retracted`.
+
+Errors: `PaperStorageError`.
+
+### `FullTextDocument` and `FullTextRejection`
+
+`FullTextDocument` describes one stored article: `pmcid`, `pmcid_version`,
+`pmid`, `doi`, `title`, `licence`, `source_url`, `retrieved_at`,
+`attribution`, `article_type`, and `notice_flags` (for example
+`("corrected",)`; empty when none are known). `FullTextRejection` is described
+under `fetch_fulltext`. Reading stored text through the service layer is not
+provided yet; it arrives with retrieval in Phase 3.
+
 ## Not provided yet
 
-Deleting papers, paging inside a list, progress reporting during `ingest`,
-other citation styles such as APA, and abstract text.
+Deleting papers, paging inside a list, progress reporting during `ingest` or
+`fetch_fulltext`, other citation styles such as APA, reading or searching
+stored full text (Phase 3), and PubMed abstract text.
