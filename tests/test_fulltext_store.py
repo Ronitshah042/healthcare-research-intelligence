@@ -28,6 +28,16 @@ DOCUMENT = FullTextDocument(
     article_type="research-article",
     notice_flags=(),
 )
+CVD_DOCUMENT = replace(
+    DOCUMENT,
+    pmcid="PMC12826829",
+    pmcid_version="PMC12826829.1",
+    pmid=None,
+    doi=None,
+    title="Cardiovascular disease in older U.S. military veterans",
+    licence="CC0",
+    attribution="Licence: CC0. Source: PMC12826829.1.",
+)
 
 
 class FullTextStoreTests(unittest.TestCase):
@@ -154,6 +164,87 @@ class FullTextStoreTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     self.store.save(bad, self.sections, self.chunks)
         self.assertEqual(self.store.stats().documents, 0)
+
+
+class PassageSearchTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.store = FullTextStore(Path(self.temp_dir.name) / "hri.sqlite3")
+        for document in (DOCUMENT, CVD_DOCUMENT):
+            name = document.pmcid_version + ".xml"
+            article = parse_article((FIXTURES / name).read_bytes())
+            self.store.save(document, article.sections, chunk_sections(article.sections))
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def test_finds_passages_with_every_word_best_first(self) -> None:
+        matches = self.store.search("ADHD Sweden", limit=20)
+
+        self.assertTrue(matches)
+        for match in matches:
+            self.assertEqual(match.document.pmcid, "PMC10009402")
+            self.assertEqual(match.chunk.licence, "CC BY")
+            self.assertEqual(match.document.attribution, DOCUMENT.attribution)
+            text = match.chunk.text.casefold()
+            self.assertIn("adhd", text)
+            self.assertIn("swed", text)
+        scores = [match.score for match in matches]
+        self.assertEqual(scores, sorted(scores, reverse=True))
+        self.assertTrue(all(score > 0 for score in scores))
+
+    def test_needs_every_word_and_stems_them(self) -> None:
+        self.assertEqual(self.store.search("ADHD veterans", limit=20), ())
+        plural = self.store.search("veterans", limit=20)
+        self.assertEqual(
+            [m.chunk.position for m in self.store.search("veteran", limit=20)],
+            [m.chunk.position for m in plural],
+        )
+        self.assertEqual({m.document.pmcid for m in plural}, {"PMC12826829"})
+
+    def test_filters_by_section_and_limits_results(self) -> None:
+        matches = self.store.search("adhd", limit=20, sections=("methods", "title"))
+
+        self.assertTrue(matches)
+        self.assertLessEqual({m.chunk.section_name for m in matches}, {"methods", "title"})
+        self.assertEqual(len(self.store.search("adhd", limit=2)), 2)
+
+    def test_search_syntax_in_the_query_is_plain_text(self) -> None:
+        plain = self.store.search("adhd", limit=20)
+        for query in (
+            'adhd*', '"adhd', 'adhd"', '^adhd', '-adhd',
+            '(adhd)', 'adhd:', '{adhd}',
+        ):
+            with self.subTest(query=query):
+                self.assertEqual(self.store.search(query, limit=20), plain)
+        # Operator words are searched for as ordinary words.
+        self.assertEqual(self.store.search("adhd OR veterans", limit=20), ())
+        for match in self.store.search("NEAR(adhd", limit=20):
+            self.assertIn("near", match.chunk.text.casefold())
+
+    def test_rejects_empty_queries_and_bad_limits(self) -> None:
+        for query in ("", "   ", "*:()"):
+            with self.subTest(query=query):
+                with self.assertRaises(ValueError):
+                    self.store.search(query, limit=5)
+        with self.assertRaises(ValueError):
+            self.store.search("adhd", limit=0)
+
+    def test_replaced_and_rejected_text_leaves_the_index(self) -> None:
+        one_section = (ArticleSection("abstract", None, ("Replacement wording.",)),)
+        self.store.save(
+            replace(DOCUMENT, pmcid_version="PMC10009402.2"),
+            one_section, chunk_sections(one_section),
+        )
+        self.assertEqual(self.store.search("adhd", limit=20), ())
+        self.assertEqual(len(self.store.search("replacement", limit=20)), 1)
+
+        self.store.reject(
+            "PMC10009402", "retracted", recorded_at="2026-11-18T00:00:00Z"
+        )
+
+        self.assertEqual(self.store.search("replacement", limit=20), ())
+        self.assertTrue(self.store.search("veterans", limit=20))
 
 
 if __name__ == "__main__":

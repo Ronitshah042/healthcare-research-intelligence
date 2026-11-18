@@ -120,6 +120,32 @@ class SchemaTests(unittest.TestCase):
                 [("Kept",)],
             )
 
+    def test_upgrades_version_4_by_indexing_stored_passages(self) -> None:
+        from ingestion.chunking import chunk_sections
+        from ingestion.fulltext import ArticleSection
+        from test_fulltext_store import DOCUMENT
+        from ingestion.fulltext_store import FullTextStore
+
+        section = (ArticleSection("results", None, ("Mortality fell sharply.",)),)
+        FullTextStore(self.path).save(DOCUMENT, section, chunk_sections(section))
+        self._execute(
+            "DROP TRIGGER chunks_fts_insert", "DROP TRIGGER chunks_fts_delete",
+            "DROP TRIGGER chunks_fts_update", "DROP TABLE chunks_fts",
+            "PRAGMA user_version = 4",
+        )
+
+        store = FullTextStore(self.path)
+
+        tables, version = self._tables_and_version()
+        self.assertIn("chunks_fts", tables)
+        self.assertEqual(version, SCHEMA_VERSION)
+        self.assertEqual(
+            [m.chunk.text for m in store.search("mortality", limit=5)],
+            ["Mortality fell sharply."],
+        )
+        store.reject("PMC10009402", "retracted", recorded_at="2026-11-18T00:00:00Z")
+        self.assertEqual(store.search("mortality", limit=5), ())
+
     def test_opening_an_up_to_date_database_changes_nothing(self) -> None:
         PaperStore(self.path)
         self._execute(

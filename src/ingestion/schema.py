@@ -12,7 +12,9 @@ from .pubmed import PUBMED_SOURCE_NAME
 # Version 3: ``papers.citation_json`` for formal citation details.
 # Version 4: open-access full text (``documents``, ``document_sections``,
 #            ``chunks``) and ``fulltext_rejections``.
-SCHEMA_VERSION = 4
+# Version 5: ``chunks_fts``, an FTS5 keyword index over ``chunks.text`` kept
+#            in step by triggers.
+SCHEMA_VERSION = 5
 REJECTION_REASONS = (
     "licence", "retracted", "not_open_access", "current_version_unavailable",
 )
@@ -47,6 +49,8 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
         connection.execute("ALTER TABLE papers ADD COLUMN citation_json TEXT")
     if version < 4:
         _create_full_text(connection)
+    if version < 5:
+        _create_chunk_index(connection)
     connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
 
@@ -152,3 +156,34 @@ def _create_full_text(connection: sqlite3.Connection) -> None:
             recorded_at TEXT NOT NULL
         )"""
     )
+
+
+def _create_chunk_index(connection: sqlite3.Connection) -> None:
+    # The index stores no second copy of the text: it reads ``chunks``, and
+    # the triggers keep it in step, so deleted (e.g. retracted) text drops out.
+    connection.execute(
+        """CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
+            text, content='chunks', content_rowid='id',
+            tokenize='porter unicode61 remove_diacritics 2'
+        )"""
+    )
+    for statement in (
+        """CREATE TRIGGER IF NOT EXISTS chunks_fts_insert AFTER INSERT ON chunks
+            BEGIN
+                INSERT INTO chunks_fts (rowid, text) VALUES (new.id, new.text);
+            END""",
+        """CREATE TRIGGER IF NOT EXISTS chunks_fts_delete AFTER DELETE ON chunks
+            BEGIN
+                INSERT INTO chunks_fts (chunks_fts, rowid, text)
+                    VALUES ('delete', old.id, old.text);
+            END""",
+        """CREATE TRIGGER IF NOT EXISTS chunks_fts_update AFTER UPDATE ON chunks
+            BEGIN
+                INSERT INTO chunks_fts (chunks_fts, rowid, text)
+                    VALUES ('delete', old.id, old.text);
+                INSERT INTO chunks_fts (rowid, text) VALUES (new.id, new.text);
+            END""",
+        # Index the passages a version 4 database already holds.
+        "INSERT INTO chunks_fts (chunks_fts) VALUES ('rebuild')",
+    ):
+        connection.execute(statement)

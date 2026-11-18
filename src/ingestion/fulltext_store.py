@@ -11,6 +11,7 @@ from contextlib import closing
 from dataclasses import dataclass
 import json
 from pathlib import Path
+import re
 import sqlite3
 
 from .chunking import Chunk
@@ -52,6 +53,16 @@ class StoredChunk:
     text: str
     token_count: int
     licence: str
+
+
+@dataclass(frozen=True)
+class PassageMatch:
+    """One passage found by keyword search, with its document for citing it."""
+
+    chunk: StoredChunk
+    document: FullTextDocument
+    # BM25 relevance; higher is better. Only comparable within one search.
+    score: float
 
 
 @dataclass(frozen=True)
@@ -229,6 +240,56 @@ class FullTextStore:
                 position=row["position"], section_index=row["section_index"],
                 section_name=row["section_name"], text=row["text"],
                 token_count=row["token_count"], licence=row["licence"],
+            )
+            for row in rows
+        )
+
+    def search(
+        self,
+        query: str,
+        *,
+        limit: int,
+        sections: tuple[str, ...] = (),
+    ) -> tuple[PassageMatch, ...]:
+        """Return the passages containing every word of ``query``, best first.
+
+        Words are matched after Porter stemming, ignoring case and accents.
+        Each word is quoted, so FTS5 operators and syntax in ``query`` are
+        searched for as plain text and cannot change the search.
+        """
+        words = tuple(dict.fromkeys(re.findall(r"\w+", query.casefold())))
+        if not words:
+            raise ValueError("Search text must contain at least one word.")
+        if limit < 1:
+            raise ValueError("limit must be at least 1.")
+        section_filter = ""
+        if sections:
+            section_filter = (
+                f" AND chunks.section_name IN ({', '.join('?' * len(sections))})"
+            )
+        rows = self._select(
+            f"""SELECT documents.*, chunks.position, chunks.section_index,
+                    chunks.section_name, chunks.text AS chunk_text,
+                    chunks.token_count, chunks.licence AS chunk_licence,
+                    bm25(chunks_fts) AS rank
+                FROM chunks_fts
+                JOIN chunks ON chunks.id = chunks_fts.rowid
+                JOIN documents ON documents.id = chunks.document_id
+                WHERE chunks_fts MATCH ?{section_filter}
+                ORDER BY rank, chunks.id LIMIT ?""",
+            (" ".join(f'"{word}"' for word in words), *sections, limit),
+        )
+        return tuple(
+            PassageMatch(
+                chunk=StoredChunk(
+                    pmcid=row["pmcid"], pmcid_version=row["pmcid_version"],
+                    position=row["position"], section_index=row["section_index"],
+                    section_name=row["section_name"], text=row["chunk_text"],
+                    token_count=row["token_count"], licence=row["chunk_licence"],
+                ),
+                document=_to_document(row),
+                # SQLite's bm25() is negative, lower meaning more relevant.
+                score=-row["rank"],
             )
             for row in rows
         )
