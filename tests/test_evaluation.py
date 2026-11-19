@@ -254,9 +254,11 @@ class RunEvalTests(PipelineTestCase):
         self.assertEqual(before["label"], "before")
         self.assertEqual(before["answer_models"], {"Fake fake-1": 2})
 
-        self.run_eval(label="after", baseline_path=directory / "before.json")
+        self.run_eval(label="after", baseline_path=directory / "before.json",
+                      note="Kept: nothing got worse.")
 
         report = self.report.read_text()
+        self.assertIn("**Decision:** Kept: nothing got worse.", report)
         self.assertIn("## Before and after", report)
         self.assertIn("| Measure | before | after | Change |", report)
         self.assertIn("| Citation validity | 67% | 67% | +0 points |", report)

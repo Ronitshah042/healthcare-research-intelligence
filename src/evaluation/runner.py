@@ -286,6 +286,7 @@ def render_report(
     *,
     current: dict | None = None,
     baseline: dict | None = None,
+    note: str | None = None,
 ) -> str:
     """The Markdown report for ``docs/EVAL_RESULTS.md``."""
     retrieval = retrieval_table(run)
@@ -379,9 +380,11 @@ def render_report(
         ]))
     if baseline is not None and current is not None:
         lines += ["", "## Before and after", "",
-                  f"Baseline `{baseline.get('label')}` ({baseline.get('date')}) against "
-                  f"this run `{current.get('label')}`, same question set.", ""]
+                  f"`{baseline.get('label')}` ({baseline.get('date')}) against "
+                  f"`{current.get('label')}` ({current.get('date')}), same question set.", ""]
         lines += comparison_table(baseline, current)
+        if note:
+            lines += ["", f"**Decision:** {note}"]
     lines += ["", "## Interpretation", ""] + [f"- {line}" for line in _interpret(retrieval, answers)]
     lines += ["", "## Known weaknesses", ""] + [f"- {line}" for line in weaknesses]
     return "\n".join(lines) + "\n"

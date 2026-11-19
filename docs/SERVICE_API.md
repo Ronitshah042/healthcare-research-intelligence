@@ -652,7 +652,7 @@ run_eval(
     question_set, *, database_path=None, max_questions=None, answers=True,
     report_path="docs/EVAL_RESULTS.md", spotcheck_dir=None, pace_seconds=5.0,
     judge_prompt_path="eval/judge_prompt.txt", label="run", summary_path=None,
-    baseline_path=None,
+    baseline_path=None, note=None,
 ) -> EvalResult
 ```
 
@@ -680,7 +680,8 @@ columns for a human check.
 - **Status:** while any question is marked `needs_review`, the report title
   says "preliminary (questions under review)".
 - **Comparisons:** `summary_path` saves the headline numbers as JSON under
-  `label`; `baseline_path` adds a before/after table against such a file.
+  `label`; `baseline_path` adds a before/after table against such a file,
+  and `note` is printed under it as the decision.
 - **Free tier:** answers and judgements are cached and reused, so a rerun
   costs nothing for unchanged questions; it waits `pace_seconds` after each
   question that used an AI request; `max_questions` takes the first N; the

@@ -208,6 +208,7 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument(
         "--baseline", metavar="PATH", help="summary JSON of an earlier run to compare with"
     )
+    evaluate.add_argument("--note", help="decision text shown under the comparison")
     evaluate.set_defaults(handler=_eval)
 
     lists = commands.add_parser("lists", help="manage saved lists of papers")
@@ -481,6 +482,7 @@ def _eval(args: argparse.Namespace) -> None:
         label=args.label,
         summary_path=args.summary,
         baseline_path=args.baseline,
+        note=args.note,
     )
     print(f"Evaluated {result.questions} questions; AI requests used: {result.llm_calls}")
     for method, values in result.retrieval.items():

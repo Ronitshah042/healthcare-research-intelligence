@@ -89,6 +89,7 @@ def run_eval(
     label: str = "run",
     summary_path: str | Path | None = None,
     baseline_path: str | Path | None = None,
+    note: str | None = None,
     answer_llm: LLMClient | None = None,
     judge_llm: LLMClient | None = None,
     embedder: Embedder | None = None,
@@ -149,7 +150,8 @@ def run_eval(
         Path(summary_path).write_text(json.dumps(summary, indent=2) + "\n")
     report = Path(report_path)
     report.parent.mkdir(parents=True, exist_ok=True)
-    report.write_text(render_report(run, KNOWN_WEAKNESSES, current=summary, baseline=baseline))
+    report.write_text(render_report(
+        run, KNOWN_WEAKNESSES, current=summary, baseline=baseline, note=note))
     spotcheck = None
     if answers:
         spotcheck = Path(spotcheck_dir or path.parent) / f"spotcheck-{run.started:%Y-%m-%d}.csv"
