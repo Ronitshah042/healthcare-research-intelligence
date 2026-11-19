@@ -62,12 +62,18 @@ Dependency direction, lowest layer first:
 | `services.py` | UI-agnostic functions returning dataclasses; see `docs/SERVICE_API.md` |
 | `fulltext_services.py` | Full-text fetch, recheck, and stats; re-exported by `services` |
 | `answer_services.py` | `ask_question`; re-exported by `services` |
+| `eval_services.py` | `run_eval`; re-exported by `services` |
 | `retrieval_services.py` | Passage search (hybrid or keyword), embedding, model preparation; re-exported by `services` |
 | `cli.py` | `hri` argparse commands; imports only `services` |
 
 `src/generation` holds `llm.py` (Gemini, Groq, fallback; standard-library
 HTTP), `cache.py` (answer cache, daily cap), and `rag.py` (prompt, citation
 checks, `Answer`). It may import `ingestion` and `retrieval`, never `hri`.
+
+`src/evaluation` holds `metrics.py` (pure metric functions), `judge.py`
+(AI judge of cited claims) and `runner.py` (question sets, report, spot-check
+sheet). It may import `ingestion`, `retrieval` and `generation`, never `hri`.
+Question sets and the judge prompt live in `eval/`.
 
 `src/retrieval` sits between them: `embeddings.py` (the pinned model, the
 optional `fastembed` adapter, vector encoding) and `hybrid.py` (vector search
@@ -158,6 +164,8 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
 - Inject `transport`, `clock`, and `sleeper` into `PubMedClient` and `PmcClient`;
   use a fake client for pipeline and service tests and a temporary directory for
   storage tests. PMC tests use the recorded fixtures in `tests/fixtures/pmc/`.
+- Evaluation tests (`tests/test_evaluation.py`) use fixed data, `FakeLLM`
+  and `FakeEmbedder`; spot-check CSVs hold article text and stay uncommitted.
 - Answer tests use `FakeLLM` (`tests/test_answer.py`) and a fake POST
   transport; they never contact an AI provider.
 - Embedding tests use `FakeEmbedder` (`tests/test_retrieval.py`) and set

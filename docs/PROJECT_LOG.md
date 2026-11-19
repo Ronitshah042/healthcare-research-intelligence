@@ -893,3 +893,53 @@ evidence, and each provider retries once after 2 seconds on HTTP 500/502/
 Python 3.15.2, 3.9.6, and 3.13.18.
 
 Not done: the Groq fallback live (no Groq key), and measured free-tier limits.
+
+## Phase 5: evaluation (2026-11-19)
+
+- **Collection:** `data/eval.sqlite3` (not committed), from a copy of the
+  owner's 19 citations: 6 with allowed open-access text (9 rejected by
+  licence, 4 not in PMC) plus 12 from three PMC searches. 18 articles, 497
+  passages; 72 passages (14.5%) exceed the embedding model's 512 tokens
+  (longest 602).
+- **Question set:** `eval/questions.json`, 32 questions written from the
+  stored abstracts: 23 answerable (4 multi-article), 5 about library papers
+  without stored text, 4 off-topic; 8 marked `needs_review`.
+- **New code:** `src/evaluation/metrics.py`, `judge.py`, `runner.py`;
+  `src/hri/eval_services.py` (`run_eval`); `hri eval`; judge prompt in
+  `eval/judge_prompt.txt`. Clients now take an output-token budget; a
+  fallback chain reports "rate limited" only when every provider was.
+- **Tests:** 21 new (metrics with fixed data, question-set validation, claim
+  extraction, verdict parsing including truncated replies, judge caching,
+  runner, report, spot-check sheet, judge rate-limit stop, CLI).
+  Full suite: 368 tests OK on Python 3.15.2, 3.9.6, and 3.13.18.
+
+**Results (full detail in `docs/EVAL_RESULTS.md`):**
+
+| Retrieval (23 answerable) | Recall@1 | Recall@5 | MRR |
+| --- | --- | --- | --- |
+| keyword (any-word BM25) | 88% | 95% | 0.98 |
+| semantic | 89% | 99% | 1.00 |
+| hybrid | 89% | 97% | 1.00 |
+
+- Citation validity 100% (211 citations, none invented).
+- Correct abstention 100% (9 of 9). Answered when expected 91% (21 of 23).
+- Latency of uncached answers: median 3.6 s, p90 18.9 s (first run).
+- AI requests: 49 on the first run (28 answers, 21 judge attempts), 1 per
+  later rerun.
+- **Judge incomplete:** `gemini-3.6-flash` hit its free quota after 3
+  replies, and those were cut off by the 1,024-token output limit, so no
+  support rate is reported. Fixed: 4,096-token judge budget, shorter
+  reasons, parsing of truncated replies, and judging stops at the first
+  rate-limit refusal.
+- Developer spot-check of 5 claims: 4 supported, 1 partial (an MR finding
+  described as "causal"). Not independent.
+- **Baseline `eval-baseline-v1` (judge on Groq, owner's decision):** the
+  judge `openai/gpt-oss-120b` rated all 121 cited claims: 98% supported, 2%
+  partial, 0% unsupported. Evidence recall 93%. Results are preliminary
+  while 8 questions await the owner's review. Summary:
+  `eval/results/baseline-v1.json`. `llama-3.3-70b-versatile` turned out to
+  be unavailable to the free Groq key (404), so the Groq answer fallback is
+  now `qwen/qwen3.8-27b` (see DECISIONS.md).
+- Both false abstentions came from evidence selection: q13's key results
+  passage was not among the 6 sent, and q22's 6 passages all came from one
+  of its two relevant articles. Article-level retrieval scores hide this.

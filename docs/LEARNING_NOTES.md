@@ -734,3 +734,30 @@ Free AI tiers limit requests per minute and per day, and may use what is sent
 to improve the provider's products. The cache avoids paying twice for the
 same question and evidence, the daily cap keeps usage predictable, and a
 second provider takes over when the first refuses.
+
+## Phase 5: measuring the system
+
+### Recall, precision, and MRR
+
+For each question we know which articles are relevant. Recall@k asks "of the
+relevant articles, how many appear in the top k results?". Precision@k asks
+"of the top k results, how many are relevant?". Mean reciprocal rank (MRR)
+looks at the first relevant result only: 1 if it is first, 1/2 if second,
+and so on, averaged over questions. High recall matters most here, because
+the answer can only cite what was retrieved.
+
+### LLM-as-judge
+
+Checking hundreds of claims by hand is slow, so a second AI model reads each
+cited sentence and the passages it cites and says whether they support it.
+Judges can be lenient, especially towards answers from similar models, so a
+small sample is also checked by a person; the agreement between the person
+and the judge says how far the judge can be trusted.
+
+### Why the starter numbers are optimistic
+
+The questions were written from the stored abstracts, so they share the
+articles' wording, and each topic appears in only one or two of 18 articles.
+Real questions use other words and touch several articles. The set is a
+regression check (did a change make things worse?) more than a measure of
+real-world quality.

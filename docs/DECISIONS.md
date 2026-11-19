@@ -967,6 +967,54 @@ cannot close its block or open another. The system prompt says the rules
 cannot be changed by evidence text. Citation checking still removes any
 citation an injected passage tricks the model into inventing.
 
+## Phase 5: evaluation
+
+- **A separate evaluation database** (`data/eval.sqlite3`, ignored by Git),
+  approved by the owner, built from a copy of the owner's 19 citations: their
+  open-access full text (6 of 19 allowed: 9 rejected by licence, mostly
+  CC BY-NC-ND, and 4 not in PMC) plus three PMC searches (GLP-1
+  cardiovascular, SGLT2 heart failure, metformin cognition), giving 18
+  articles and 497 passages. The main database is untouched.
+- **JSON, not YAML**, for question sets: YAML needs a dependency.
+- **Retrieval is scored per article**, the unit a citation points to:
+  passages are reduced to the order in which distinct articles first appear.
+  Precision@k divides by k even when fewer results exist, and is capped by
+  the number of relevant articles (one for most questions, so at most 20% at
+  k = 5).
+- **Keyword retrieval in the evaluation is any-word BM25**, the variant
+  `ask_question` uses, not the all-words search of `hri search-passages`.
+- **Judge on Groq** (owner's decision, 2026-11-19, replacing the first
+  choice `gemini-3.6-flash`, whose free quota ran out after 3 judgements on
+  the first run): `openai/gpt-oss-120b` by default (`HRI_JUDGE_MODEL`),
+  a different model family from the Gemini answer model.
+- **Groq model change (2026-11-19):** `llama-3.3-70b-versatile`, the approved
+  Groq fallback for answers, is listed in Groq's documentation but the API
+  returns HTTP 404 `model_not_found` for the owner's free key. The key's
+  model list includes `openai/gpt-oss-120b`, `openai/gpt-oss-20b` and
+  `qwen/qwen3.8-27b`; both `gpt-oss-120b` and `qwen3.8-27b` returned valid
+  judge JSON in a test. Defaults are now `qwen/qwen3.8-27b` for the answer
+  fallback and `openai/gpt-oss-120b` for the judge, so the judge is a third
+  model family. The Groq answer fallback has not yet been tested on real
+  questions. A model never
+  judges its own answers; such answers are left unjudged and counted. The
+  judge rates each cited sentence against only the passages it cites, as
+  supported, partial, or unsupported, with each cited passage sent once to
+  save tokens. Its prompt is `eval/judge_prompt.txt`. The human spot-check
+  sheet remains the real check.
+- **Preliminary until reviewed:** while any question is `needs_review`, the
+  report is titled "preliminary (questions under review)", and the README
+  carries no evaluation numbers (owner's decision).
+- **Evidence recall** (relevant articles among the passages actually sent to
+  the model) is reported alongside article-level retrieval, because the
+  first run showed retrieval at 100% while the evidence sent missed a
+  relevant article.
+- **Correct abstention excludes "busy" answers**: a provider outage is not a
+  judgement about evidence.
+- **Free tier:** answers and judgements are cached in the database and
+  reused; one question every 5 seconds; `--max-questions`; the daily cap.
+- **Spot-check sheets are not committed**: they hold article text without the
+  attribution lines CC BY requires.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.

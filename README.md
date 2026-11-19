@@ -121,6 +121,9 @@ hri search-passages "metformin dementia" --section results --limit 5
 
 # Answer a question from stored passages, citing every claim (needs an AI key)
 hri ask "What does the evidence say about metformin and dementia?"
+
+# Measure retrieval and answer quality; writes docs/EVAL_RESULTS.md
+hri eval --set eval/questions.json --db data/eval.sqlite3 --max-questions 10
 ```
 
 `hri ingest` reports how many records PubMed matched and how many were
@@ -158,6 +161,15 @@ aid, not medical advice. On Gemini's free tier, Google may use questions to
 improve its products, so never include personal data. Answers are cached and
 limited to `HRI_LLM_DAILY_REQUEST_CAP` requests a day (default 100).
 
+`hri eval` scores keyword, semantic and hybrid retrieval (recall@k,
+precision@k, MRR) and, unless `--no-answers` is given, the answers: citation
+validity, an AI judge's rating of each cited claim (prompt in
+`eval/judge_prompt.txt`), correct abstention, latency, and AI requests used.
+It reuses cached answers, waits `--pace` seconds after each question that
+used the AI, and writes a spot-check sheet (`eval/spotcheck-<date>.csv`, not
+committed) for checking the judge by hand. Latest results:
+[docs/EVAL_RESULTS.md](docs/EVAL_RESULTS.md).
+
 The database is `data/hri.sqlite3` in the current folder (ignored by Git).
 Set `HRI_DB_PATH` or pass `--db PATH` to use another file; `--db` wins.
 
@@ -177,8 +189,9 @@ licences and terms will be used.
 
 ## Development Status
 
-**Status:** Phase 4 complete — evidence-grounded answers with checked
-citations (`hri ask`), on top of Phase 3 — PubMed ingestion, local search, saved lists,
+**Status:** Phase 5 complete — an evaluation harness (`hri eval`) with
+measured results, on top of Phase 4's evidence-grounded answers with checked
+citations (`hri ask`) and Phase 3 — PubMed ingestion, local search, saved lists,
 and export, plus licensed open-access full text from PubMed Central parsed
 into sections and passages, and hybrid search over those passages (BM25
 keyword ranking fused with optional embedding similarity), all usable from
