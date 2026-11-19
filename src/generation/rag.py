@@ -31,6 +31,8 @@ INSUFFICIENT_TEXT = (
     "The stored evidence is not sufficient to answer this question reliably."
 )
 DEFAULT_EVIDENCE = 6
+# So one article cannot fill all the evidence and crowd out other articles.
+MAX_PASSAGES_PER_ARTICLE = 3
 MIN_EVIDENCE = 2
 # Cosine similarity of the closest passage; below this, nothing is on topic.
 # shortcut: calibrated on 9 questions over 5 articles with bge-small (on-topic
@@ -157,8 +159,16 @@ def retrieve(
         ranked = fuse(keyword, meaning, limit=CANDIDATES)
         method = "hybrid"
         similarity = meaning[0].score if meaning else 0.0
-    sendable = tuple(match for match in ranked if is_usable_evidence(match))
-    return sendable[:count], method, similarity
+    picked: list[PassageMatch] = []
+    per_article: dict[str, int] = {}
+    for match in ranked:
+        if len(picked) == count:
+            break
+        used = per_article.get(match.chunk.pmcid, 0)
+        if is_usable_evidence(match) and used < MAX_PASSAGES_PER_ARTICLE:
+            picked.append(match)
+            per_article[match.chunk.pmcid] = used + 1
+    return tuple(picked), method, similarity
 
 
 def is_usable_evidence(match: PassageMatch) -> bool:

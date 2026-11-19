@@ -318,6 +318,21 @@ class AnswerTests(PipelineTestCase):
         self.assertNotIn("title", {m.chunk.section_name for m in answer.evidence})
         self.assertNotIn('title">', llm.prompts[0][1])
 
+    def test_no_article_supplies_more_than_three_passages(self) -> None:
+        self.save(replace(DOCUMENT, pmcid="PMC444", pmcid_version="PMC444.1",
+                          pmid="444", doi=None),
+                  *(f"Metformin dementia risk finding number {n}." for n in range(6)))
+        services.embed_passages(database_path=self.db, embedder=self.embedder)
+        llm = FakeLLM("Finding [1].")
+
+        answer = self.ask(llm, question="metformin dementia risk finding number")
+
+        counts = {}
+        for match in answer.evidence:
+            counts[match.chunk.pmcid] = counts.get(match.chunk.pmcid, 0) + 1
+        self.assertEqual(counts["PMC444"], rag.MAX_PASSAGES_PER_ARTICLE)
+        self.assertGreater(len(counts), 1)  # other articles fill the remaining places
+
     def test_only_cc0_and_cc_by_passages_are_sent(self) -> None:
         self.save(replace(DOCUMENT, pmcid="PMC888", pmcid_version="PMC888.1",
                           pmid="888", doi=None, licence="CC BY-NC"),
