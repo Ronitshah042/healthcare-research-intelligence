@@ -14,7 +14,9 @@ from .pubmed import PUBMED_SOURCE_NAME
 #            ``chunks``) and ``fulltext_rejections``.
 # Version 5: ``chunks_fts``, an FTS5 keyword index over ``chunks.text`` kept
 #            in step by triggers.
-SCHEMA_VERSION = 5
+# Version 6: ``chunk_embeddings``, one vector per passage and model, deleted
+#            with its passage.
+SCHEMA_VERSION = 6
 REJECTION_REASONS = (
     "licence", "retracted", "not_open_access", "current_version_unavailable",
 )
@@ -51,6 +53,8 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
         _create_full_text(connection)
     if version < 5:
         _create_chunk_index(connection)
+    if version < 6:
+        _create_chunk_embeddings(connection)
     connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
 
@@ -185,5 +189,31 @@ def _create_chunk_index(connection: sqlite3.Connection) -> None:
             END""",
         # Index the passages a version 4 database already holds.
         "INSERT INTO chunks_fts (chunks_fts) VALUES ('rebuild')",
+    ):
+        connection.execute(statement)
+
+
+def _create_chunk_embeddings(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """CREATE TABLE IF NOT EXISTS chunk_embeddings (
+            chunk_id INTEGER NOT NULL REFERENCES chunks(id),
+            -- Model name and pinned revision, e.g. ``BAAI/bge-small-en-v1.5@aa8f8b0``.
+            model TEXT NOT NULL,
+            -- Little-endian float32 values (``array('f')``), unit length.
+            vector BLOB NOT NULL,
+            PRIMARY KEY (chunk_id, model)
+        )"""
+    )
+    # A vector must never outlive, or disagree with, the text it was made from.
+    for statement in (
+        """CREATE TRIGGER IF NOT EXISTS chunk_embeddings_delete AFTER DELETE ON chunks
+            BEGIN
+                DELETE FROM chunk_embeddings WHERE chunk_id = old.id;
+            END""",
+        """CREATE TRIGGER IF NOT EXISTS chunk_embeddings_update
+            AFTER UPDATE OF text ON chunks
+            BEGIN
+                DELETE FROM chunk_embeddings WHERE chunk_id = old.id;
+            END""",
     ):
         connection.execute(statement)

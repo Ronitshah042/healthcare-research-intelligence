@@ -146,6 +146,32 @@ class SchemaTests(unittest.TestCase):
         store.reject("PMC10009402", "retracted", recorded_at="2026-11-18T00:00:00Z")
         self.assertEqual(store.search("mortality", limit=5), ())
 
+    def test_upgrades_version_5_by_adding_passage_embeddings(self) -> None:
+        from ingestion.chunking import chunk_sections
+        from ingestion.fulltext import ArticleSection
+        from test_fulltext_store import DOCUMENT
+        from ingestion.fulltext_store import FullTextStore
+
+        section = (ArticleSection("results", None, ("Mortality fell.",)),)
+        FullTextStore(self.path).save(DOCUMENT, section, chunk_sections(section))
+        self._execute(
+            "DROP TRIGGER chunk_embeddings_delete",
+            "DROP TRIGGER chunk_embeddings_update",
+            "DROP TABLE chunk_embeddings", "PRAGMA user_version = 5",
+        )
+
+        store = FullTextStore(self.path)
+
+        tables, version = self._tables_and_version()
+        self.assertIn("chunk_embeddings", tables)
+        self.assertEqual(version, SCHEMA_VERSION)
+        self.assertEqual(store.count_unembedded("m"), 1)
+        (chunk_id, _), = store.chunks_to_embed("m", limit=5)
+        store.save_embeddings("m", [(chunk_id, b"\0\0\0\0")])
+        self.assertEqual(store.count_unembedded("m"), 0)
+        store.reject("PMC10009402", "retracted", recorded_at="2026-11-18T00:00:00Z")
+        self.assertEqual(store.embeddings("m"), [])
+
     def test_opening_an_up_to_date_database_changes_nothing(self) -> None:
         PaperStore(self.path)
         self._execute(

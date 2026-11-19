@@ -7,6 +7,7 @@ rejection record.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from contextlib import closing
 from dataclasses import dataclass
 import json
@@ -279,10 +280,7 @@ class FullTextStore:
                 f" AND chunks.section_name IN ({', '.join('?' * len(sections))})"
             )
         rows = self._select(
-            f"""SELECT documents.*, chunks.position, chunks.section_index,
-                    chunks.section_name, chunks.text AS chunk_text,
-                    chunks.token_count, chunks.licence AS chunk_licence,
-                    bm25(chunks_fts) AS rank
+            f"""SELECT {_PASSAGE_COLUMNS}, bm25(chunks_fts) AS rank
                 FROM chunks_fts
                 JOIN chunks ON chunks.id = chunks_fts.rowid
                 JOIN documents ON documents.id = chunks.document_id
@@ -290,20 +288,80 @@ class FullTextStore:
                 ORDER BY rank, chunks.id LIMIT ?""",
             (" ".join(f'"{word}"' for word in words), *sections, limit),
         )
-        return tuple(
-            PassageMatch(
-                chunk=StoredChunk(
-                    pmcid=row["pmcid"], pmcid_version=row["pmcid_version"],
-                    position=row["position"], section_index=row["section_index"],
-                    section_name=row["section_name"], text=row["chunk_text"],
-                    token_count=row["token_count"], licence=row["chunk_licence"],
-                ),
-                document=_to_document(row),
-                # SQLite's bm25() is negative, lower meaning more relevant.
-                score=-row["rank"],
+        # SQLite's bm25() is negative, lower meaning more relevant.
+        return tuple(_to_match(row, -row["rank"]) for row in rows)
+
+    def passages(self, chunk_ids: Iterable[int]) -> dict[int, PassageMatch]:
+        """Return stored passages by chunk ID, with a score of 0."""
+        ids = list(dict.fromkeys(chunk_ids))
+        found: dict[int, PassageMatch] = {}
+        # Stay well under SQLite's limit on query parameters.
+        for start in range(0, len(ids), 500):
+            batch = ids[start : start + 500]
+            rows = self._select(
+                f"""SELECT {_PASSAGE_COLUMNS} FROM chunks
+                    JOIN documents ON documents.id = chunks.document_id
+                    WHERE chunks.id IN ({', '.join('?' * len(batch))})""",
+                tuple(batch),
             )
-            for row in rows
+            found.update((row["chunk_id"], _to_match(row, 0.0)) for row in rows)
+        return found
+
+    def embeddings(
+        self, model: str, *, sections: tuple[str, ...] = ()
+    ) -> list[tuple[int, bytes]]:
+        """Return ``(chunk_id, vector)`` for every passage embedded by ``model``."""
+        section_filter = ""
+        if sections:
+            section_filter = (
+                f" AND chunks.section_name IN ({', '.join('?' * len(sections))})"
+            )
+        rows = self._select(
+            f"""SELECT chunk_embeddings.chunk_id, chunk_embeddings.vector
+                FROM chunk_embeddings
+                JOIN chunks ON chunks.id = chunk_embeddings.chunk_id
+                WHERE chunk_embeddings.model = ?{section_filter}""",
+            (model, *sections),
         )
+        return [(row["chunk_id"], row["vector"]) for row in rows]
+
+    def chunks_to_embed(self, model: str, *, limit: int) -> list[tuple[int, str]]:
+        """Return up to ``limit`` ``(chunk_id, text)`` pairs with no vector yet."""
+        rows = self._select(
+            """SELECT chunks.id, chunks.text FROM chunks
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM chunk_embeddings
+                    WHERE chunk_id = chunks.id AND model = ?
+                )
+                ORDER BY chunks.id LIMIT ?""",
+            (model, limit),
+        )
+        return [(row["id"], row["text"]) for row in rows]
+
+    def count_unembedded(self, model: str) -> int:
+        """Count stored passages that have no vector from ``model``."""
+        rows = self._select(
+            """SELECT COUNT(*) FROM chunks WHERE NOT EXISTS (
+                SELECT 1 FROM chunk_embeddings
+                WHERE chunk_id = chunks.id AND model = ?
+            )""",
+            (model,),
+        )
+        return rows[0][0]
+
+    def save_embeddings(
+        self, model: str, vectors: Iterable[tuple[int, bytes]]
+    ) -> None:
+        """Store vectors for passages; a passage deleted meanwhile is skipped."""
+        try:
+            with closing(self._papers._connect()) as connection, connection:
+                connection.executemany(
+                    """INSERT OR REPLACE INTO chunk_embeddings (chunk_id, model, vector)
+                        SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM chunks WHERE id = ?)""",
+                    [(chunk_id, model, vector, chunk_id) for chunk_id, vector in vectors],
+                )
+        except sqlite3.Error as error:
+            raise PaperStorageError("Could not save passage embeddings.") from error
 
     def rejections(self) -> tuple[FullTextRejection, ...]:
         """Return every recorded rejection, most recent first."""
@@ -356,6 +414,24 @@ class FullTextStore:
                 return connection.execute(sql, parameters).fetchall()
         except sqlite3.Error as error:
             raise PaperStorageError("Could not read full text.") from error
+
+
+_PASSAGE_COLUMNS = """documents.*, chunks.id AS chunk_id, chunks.position,
+    chunks.section_index, chunks.section_name, chunks.text AS chunk_text,
+    chunks.token_count, chunks.licence AS chunk_licence"""
+
+
+def _to_match(row: sqlite3.Row, score: float) -> PassageMatch:
+    return PassageMatch(
+        chunk=StoredChunk(
+            pmcid=row["pmcid"], pmcid_version=row["pmcid_version"],
+            position=row["position"], section_index=row["section_index"],
+            section_name=row["section_name"], text=row["chunk_text"],
+            token_count=row["token_count"], licence=row["chunk_licence"],
+        ),
+        document=_to_document(row),
+        score=score,
+    )
 
 
 def _delete_document(connection: sqlite3.Connection, pmcid: str) -> None:
