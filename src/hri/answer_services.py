@@ -60,7 +60,7 @@ def ask_question(
         raise InvalidRequestError(f"evidence_count must be between 2 and {MAX_EVIDENCE}.")
     path = resolve_database_path(database_path)
     store = FullTextStore(path)
-    cache = AnswerCache(path, daily_cap=_daily_cap())
+    cache = AnswerCache(path, daily_cap=daily_request_cap())
     if llm is None:
         client = build_default_llm(before_request=cache.count_request)
     else:
@@ -73,7 +73,8 @@ def ask_question(
     )
 
 
-def _daily_cap() -> int:
+def daily_request_cap() -> int:
+    """``HRI_LLM_DAILY_REQUEST_CAP``, default 100."""
     value = os.environ.get("HRI_LLM_DAILY_REQUEST_CAP", "").strip()
     if not value:
         return DEFAULT_DAILY_REQUEST_CAP

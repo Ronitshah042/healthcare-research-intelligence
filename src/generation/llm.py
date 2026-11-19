@@ -25,7 +25,9 @@ from urllib.request import Request, urlopen
 
 
 DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
-DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
+# llama-3.3-70b-versatile is listed by Groq but not available to free keys
+# (HTTP 404 model_not_found, 2026-11-19).
+DEFAULT_GROQ_MODEL = "qwen/qwen3.8-27b"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 TIMEOUT_SECONDS = 60.0
@@ -88,6 +90,7 @@ class _HttpLLM:
         *,
         transport: PostTransport | None = None,
         sleeper: Callable[[float], None] = time.sleep,
+        max_output_tokens: int = MAX_OUTPUT_TOKENS,
     ) -> None:
         if not api_key.strip():
             raise LLMError(f"{self.provider} has no API key configured.")
@@ -95,6 +98,7 @@ class _HttpLLM:
         self.model = model
         self._post = transport or default_post
         self._sleep = sleeper
+        self.max_output_tokens = max_output_tokens
 
     def _call(self, url: str, headers: Mapping[str, str], payload: dict) -> dict:
         body = json.dumps(payload).encode()
@@ -139,7 +143,7 @@ class GeminiClient(_HttpLLM):
                 "systemInstruction": {"parts": [{"text": system}]},
                 "contents": [{"role": "user", "parts": [{"text": user}]}],
                 "generationConfig": {
-                    "temperature": 0.1, "maxOutputTokens": MAX_OUTPUT_TOKENS,
+                    "temperature": 0.1, "maxOutputTokens": self.max_output_tokens,
                 },
             },
         )
@@ -167,7 +171,7 @@ class GroqClient(_HttpLLM):
                     {"role": "user", "content": user},
                 ],
                 "temperature": 0.1,
-                "max_tokens": MAX_OUTPUT_TOKENS,
+                "max_tokens": self.max_output_tokens,
             },
         )
         try:
@@ -197,14 +201,17 @@ class FallbackLLM:
         self._before_request = before_request
 
     def generate(self, system: str, user: str) -> LLMReply:
-        failures = []
+        failures: list[LLMError] = []
         for client in self.clients:
             self._before_request()
             try:
                 return client.generate(system, user)
             except LLMError as error:
-                failures.append(str(error))
-        raise LLMError(" ".join(failures) or "No AI provider is configured.")
+                failures.append(error)
+        message = " ".join(map(str, failures)) or "No AI provider is configured."
+        if failures and all(isinstance(e, LLMRateLimitedError) for e in failures):
+            raise LLMRateLimitedError(message)
+        raise LLMError(message)
 
 
 def build_default_llm(
@@ -213,6 +220,7 @@ def build_default_llm(
     before_request: Callable[[], None] = lambda: None,
     transport: PostTransport | None = None,
     sleeper: Callable[[float], None] = time.sleep,
+    max_output_tokens: int = MAX_OUTPUT_TOKENS,
 ) -> FallbackLLM:
     """Gemini, then Groq, each only if its API key is set."""
     env = environment if environment is not None else os.environ
@@ -224,5 +232,8 @@ def build_default_llm(
         key = env.get(key_name, "").strip()
         if key:
             model = env.get(model_name, "").strip() or default_model
-            clients.append(client_type(key, model, transport=transport, sleeper=sleeper))
+            clients.append(client_type(
+                key, model, transport=transport, sleeper=sleeper,
+                max_output_tokens=max_output_tokens,
+            ))
     return FallbackLLM(clients, before_request=before_request)

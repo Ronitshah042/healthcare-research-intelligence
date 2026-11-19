@@ -42,9 +42,9 @@ class FakeLLM:
     """Return scripted replies and remember every prompt."""
 
     provider = "Fake"
-    model = "fake-1"
 
-    def __init__(self, *replies: str | Exception) -> None:
+    def __init__(self, *replies: str | Exception, model: str = "fake-1") -> None:
+        self.model = model
         self.replies = list(replies)
         self.prompts: list[tuple[str, str]] = []
 
@@ -95,7 +95,7 @@ class LLMClientTests(unittest.TestCase):
         post = FakePost(json.dumps(
             {"choices": [{"message": {"content": "Answer [2]."}}]}
         ).encode())
-        client = GroqClient("groq-key", "llama-3.3-70b-versatile", transport=post)
+        client = GroqClient("groq-key", "qwen/qwen3.8-27b", transport=post)
 
         reply = client.generate("system rules", "user prompt")
 
@@ -103,7 +103,7 @@ class LLMClientTests(unittest.TestCase):
         url, headers, payload = post.calls[0]
         self.assertEqual(url, "https://api.groq.com/openai/v1/chat/completions")
         self.assertEqual(headers, {"Authorization": "Bearer groq-key"})
-        self.assertEqual(payload["model"], "llama-3.3-70b-versatile")
+        self.assertEqual(payload["model"], "qwen/qwen3.8-27b")
         self.assertEqual([m["role"] for m in payload["messages"]], ["system", "user"])
 
     def test_errors_never_contain_keys_prompts_or_server_text(self) -> None:
@@ -150,6 +150,22 @@ class LLMClientTests(unittest.TestCase):
 
         self.assertEqual((reply.provider, reply.text), ("Groq", "From Groq [1]."))
         self.assertEqual(len(requests), 2)
+
+    def test_reports_rate_limited_only_when_every_provider_was(self) -> None:
+        limited = GeminiClient("g", "m", transport=FakePost(http_error(429)))
+        with self.assertRaises(LLMRateLimitedError):
+            FallbackLLM([limited]).generate("s", "u")
+        mixed = (GeminiClient("g", "m", transport=FakePost(http_error(429))),
+                 GroqClient("q", "m", transport=FakePost(http_error(400))))
+        with self.assertRaises(LLMError) as raised:
+            FallbackLLM(mixed).generate("s", "u")
+        self.assertNotIsInstance(raised.exception, LLMRateLimitedError)
+
+    def test_output_budget_is_configurable(self) -> None:
+        post = FakePost(json.dumps({"choices": [{"message": {"content": "x"}}]}).encode())
+        build_default_llm({"GROQ_API_KEY": "q"}, transport=post,
+                          max_output_tokens=4096).generate("s", "u")
+        self.assertEqual(post.calls[0][2]["max_tokens"], 4096)
 
     def test_builds_only_configured_providers_with_default_models(self) -> None:
         both = build_default_llm({"GEMINI_API_KEY": "g", "GROQ_API_KEY": "q",
