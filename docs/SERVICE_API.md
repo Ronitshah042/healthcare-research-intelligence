@@ -47,7 +47,9 @@ from hri import services
 | [`fetch_fulltext`](#fetch_fulltext) | Store allowed open-access full text | `FullTextFetchResult` |
 | [`recheck_fulltext`](#recheck_fulltext) | Remove stored articles that are now retracted | `FullTextRecheckResult` |
 | [`get_fulltext_stats`](#get_fulltext_stats) | Counts of stored full text and rejections | `FullTextStats` |
-| [`search_passages`](#search_passages) | Keyword search of stored full-text passages | `tuple[PassageMatch, ...]` |
+| [`search_passages`](#search_passages) | Hybrid (or keyword-only) search of stored passages | `PassageSearchResult` |
+| [`prepare_embedder`](#prepare_embedder) | Download (once) and load the embedding model | `EmbedderStatus` |
+| [`embed_passages`](#embed_passages) | Embed stored passages that have no vector yet | `EmbedPassagesResult` |
 
 ## Errors
 
@@ -63,6 +65,7 @@ All are importable from `hri.services`.
 | `PubMedConfigurationError` | `PUBMED_NCBI_TOOL` or `PUBMED_NCBI_EMAIL` is missing or invalid. Subclass of `ValueError`, but **not** of `InvalidRequestError`. | `ingest` |
 | `PubMedError` | PubMed or PMC could not be reached or returned something unusable. PMC failures are the `PmcError` subclasses `PmcTimeoutError`, `PmcTransportError`, `PmcHttpError`, and `PmcResponseError`. Subclasses: `PubMedTimeoutError`, `PubMedTransportError`, `PubMedHttpError` (has `.status_code`), `PubMedResponseError`. Messages never contain the API key, request URL, or NCBI error text. | `ingest`, `fetch_fulltext`, `recheck_fulltext` |
 | `LicencePolicyError` | `HRI_ALLOWED_LICENCES` is set but lists no licence. A configuration problem, not user input. | `fetch_fulltext` |
+| `EmbedderUnavailableError` | Meaning-based search cannot run: the optional `fastembed` install is missing, or the model could not be downloaded, failed its SHA-256 check, or could not be loaded. The message says which, and never contains server text. | `embed_passages` |
 
 **Catch order matters.** `PaperNotFoundError`, `SavedListNotFoundError`, and
 `SavedListExistsError` are subclasses of `PaperStorageError`. Catch the specific
@@ -147,6 +150,7 @@ Use these to build menus and validate input instead of repeating the values.
 | `DEFAULT_INGEST_RECORDS`, `MAX_INGEST_RECORDS` | `100`, `1000` |
 | `DEFAULT_FULLTEXT_ARTICLES`, `MAX_FULLTEXT_ARTICLES` | `20`, `200` |
 | `DEFAULT_PASSAGE_RESULTS`, `MAX_PASSAGE_RESULTS` | `10`, `50` |
+| `SEARCH_METHODS` | `("hybrid", "keyword")` |
 | `SECTION_NAMES` | `("title", "abstract", "introduction", "methods", "results", "discussion", "conclusion", "other")` |
 
 ## Functions
@@ -484,22 +488,37 @@ under `fetch_fulltext`.
 
 ```python
 search_passages(
-    query, *, limit=10, sections=(), database_path=None
-) -> tuple[PassageMatch, ...]
+    query, *, limit=10, sections=(), database_path=None, embedder=None
+) -> PassageSearchResult
 ```
 
-Keyword search over the stored open-access passages, best match first.
+Searches the stored open-access passages, best match first. **It never
+downloads anything.** When the embedding model has been prepared (see
+`prepare_embedder`), the search is **hybrid**; otherwise it is keyword-only
+and `notice` says why.
 
-- A passage matches when it contains every word of `query`. Words are compared
-  ignoring case and accents, after English (Porter) stemming, so `veteran`
-  also finds `veterans`.
-- `query` is always plain words. Quotes, `*`, `:`, brackets and words such as
-  `OR`, `NOT` or `NEAR` are not search syntax: punctuation is ignored and
-  operator words must appear in the passage like any other word.
+- **Keyword part:** a passage matches when it contains every word of `query`,
+  ignoring case and accents, after English (Porter) stemming, ranked by BM25.
+  `query` is always plain words: quotes, `*`, `:`, brackets and words such as
+  `OR`, `NOT` or `NEAR` are not search syntax.
+- **Meaning part:** the question is embedded with the BGE query instruction
+  and compared with every embedded passage by cosine similarity.
+- **Fusion:** the top 50 of each ranking are combined by reciprocal rank
+  fusion, `sum(1 / (60 + rank))`, so passages found both ways come first.
 - `limit` is 1 to `MAX_PASSAGE_RESULTS`. There is no paging.
 - `sections` keeps only passages from those sections, named as in
   `SECTION_NAMES` (case and surrounding spaces are ignored).
-- Retracted or replaced articles drop out as soon as their text is removed.
+- Retracted or replaced articles drop out of both indexes as soon as their
+  text is removed.
+- `embedder`: leave as `None`; tests pass a fake.
+
+`PassageSearchResult`:
+
+| Field | Meaning |
+| --- | --- |
+| `matches` | `tuple[PassageMatch, ...]` |
+| `method` | `"hybrid"` or `"keyword"` (`SEARCH_METHODS`) |
+| `notice` | `None`, or a sentence to show: why the search was keyword-only, or how many passages are not embedded yet |
 
 `PassageMatch` has:
 
@@ -507,17 +526,54 @@ Keyword search over the stored open-access passages, best match first.
 | --- | --- |
 | `chunk` | `StoredChunk`: `pmcid`, `pmcid_version`, `position`, `section_index`, `section_name`, `text`, `token_count`, `licence` |
 | `document` | The `FullTextDocument` the passage comes from |
-| `score` | BM25 relevance, higher is better; compare only within one search |
+| `score` | Higher is better; compare only within one search. BM25 for keyword-only searches, the fused score for hybrid ones |
 
 A presentation layer must show `document.attribution` with any passage text
 it displays, and should show `document.notice_flags` when not empty
 (CONTENT_POLICY.md).
 
 Errors: `InvalidRequestError` (no words in `query`, bad `limit`, unknown
-section), `PaperStorageError`.
+section), `PaperStorageError`. An unavailable model is not an error here.
+
+### `prepare_embedder`
+
+```python
+prepare_embedder(*, download=True) -> EmbedderStatus
+```
+
+**Call it once when an application starts.** It downloads the pinned model
+from Hugging Face if it is not cached yet, checks its size and SHA-256, and
+loads it, so later searches in the same process are hybrid. With
+`download=False` it only loads an already-downloaded model. It never raises
+for an unavailable model.
+
+`EmbedderStatus` has `available` (`bool`), `model_id` (for example
+`BAAI/bge-small-en-v1.5@aa8f8b0`), and `message` (`None` when available,
+otherwise a sentence to show, such as the install command).
+
+The model is cached in `HRI_MODEL_CACHE`, else `data/models`.
+
+### `embed_passages`
+
+```python
+embed_passages(*, database_path=None, embedder=None) -> EmbedPassagesResult
+```
+
+Embeds every stored passage that has no vector from the current model yet,
+downloading the model first if needed. Run it after `fetch_fulltext`; until
+then, new passages are found by keyword only. It logs how many passages were
+longer than the model's 512-token limit (only their first 512 tokens are
+used).
+
+`EmbedPassagesResult` has `model_id`, `embedded` (passages embedded in this
+run), `over_token_limit` (of those, how many exceeded 512 model tokens), and
+`longest_tokens`.
+
+Errors: `EmbedderUnavailableError`, `PaperStorageError`.
 
 ## Not provided yet
 
 Deleting papers, paging inside a list or through passage results, progress
 reporting during `ingest` or `fetch_fulltext`, other citation styles such as
-APA, meaning-based (embedding) passage search, and PubMed abstract text.
+APA, embedding the question and passages with any other model, and PubMed
+abstract text.

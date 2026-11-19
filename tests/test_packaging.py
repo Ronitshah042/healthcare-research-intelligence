@@ -16,11 +16,17 @@ def _requirements() -> list[str]:
 
 
 def _pyproject_dependencies() -> list[str]:
-    # ``tomllib`` needs Python 3.11, so read the one list with a pattern.
+    # ``tomllib`` needs Python 3.11, so read the lists with patterns.
     text = (ROOT / "pyproject.toml").read_text()
     block = re.search(r"^dependencies = \[(.*?)\]", text, re.DOTALL | re.MULTILINE)
     assert block is not None, "pyproject.toml has no dependencies list"
-    return sorted(re.findall(r'"([^"]+)"', block.group(1)))
+    optional = re.findall(r"^\w+ = \[(.*?)\]", text.split(
+        "[project.optional-dependencies]", 1)[-1].split("\n[", 1)[0],
+        re.DOTALL | re.MULTILINE)
+    return sorted(
+        item for found in (block.group(1), *optional)
+        for item in re.findall(r'"([^"]+)"', found)
+    )
 
 
 class PackagingTests(unittest.TestCase):
@@ -30,7 +36,9 @@ class PackagingTests(unittest.TestCase):
     def test_every_requirement_is_pinned_to_an_exact_version(self) -> None:
         for requirement in _requirements():
             with self.subTest(requirement=requirement):
-                self.assertRegex(requirement, r"^[A-Za-z0-9._-]+==[^=<>~!\s]+$")
+                self.assertRegex(
+                    requirement, r"^[A-Za-z0-9._-]+==[^=<>~!\s;]+(; python_version >= '[0-9.]+')?$"
+                )
 
     def test_console_script_points_at_the_cli_entry_point(self) -> None:
         text = (ROOT / "pyproject.toml").read_text()

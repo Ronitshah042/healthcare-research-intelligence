@@ -1,6 +1,10 @@
-# Runtime dependencies, one pinned package per line (package-name==1.2.3).
-# Keep this list identical to `dependencies` in pyproject.toml;
-# tests/test_packaging.py fails if the two files disagree.
+# Dependencies, one pinned package per line (package-name==1.2.3).
+# Keep this list identical to `dependencies` plus `optional-dependencies` in
+# pyproject.toml; tests/test_packaging.py fails if they disagree.
 #
-# There are currently none: the project uses only the Python standard
-# library (Python 3.9 or newer). Any new dependency needs approval first.
+# The core project uses only the Python standard library (Python 3.9 or
+# newer). Any new dependency needs approval first.
+
+# Optional, for meaning-based passage search (approved 2026-11-18). Skipped
+# on Python 3.9, where search stays keyword-only.
+fastembed==0.9.1; python_version >= '3.10'

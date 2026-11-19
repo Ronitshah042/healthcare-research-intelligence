@@ -8,6 +8,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from hri import services
 from hri.fulltext_services import build_attribution
@@ -106,6 +107,12 @@ class FetchTestCase(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.db = Path(self.temp_dir.name) / "hri.sqlite3"
         self.client = FakePmcClient()
+        # Never use a real downloaded model in tests.
+        cache = mock.patch.dict(
+            "os.environ", {"HRI_MODEL_CACHE": str(Path(self.temp_dir.name) / "models")}
+        )
+        cache.start()
+        self.addCleanup(cache.stop)
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
@@ -315,7 +322,7 @@ class PassageSearchServiceTests(FetchTestCase):
 
         matches = services.search_passages(
             "veterans", sections=[" Results ", "results"], database_path=self.db
-        )
+        ).matches
 
         self.assertTrue(matches)
         for match in matches:

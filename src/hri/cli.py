@@ -34,6 +34,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     except services.LicencePolicyError as error:
         return _fail(f"{error} Check HRI_ALLOWED_LICENCES.", _EXIT_FAILED)
+    except services.EmbedderUnavailableError as error:
+        return _fail(error, _EXIT_FAILED)
     except (services.PaperStorageError, services.PubMedError, OSError) as error:
         return _fail(error, _EXIT_FAILED)
     return _EXIT_OK
@@ -154,6 +156,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"passages to show, up to {services.MAX_PASSAGE_RESULTS}",
     )
     passages.set_defaults(handler=_search_passages)
+
+    embed = commands.add_parser(
+        "embed-passages",
+        parents=[database],
+        help="embed stored passages for meaning-based search",
+        description="Download the pinned embedding model once (cached under "
+        "$HRI_MODEL_CACHE, else data/models), then embed every stored passage "
+        "that has no vector yet. Needs the optional embeddings install.",
+    )
+    embed.set_defaults(handler=_embed_passages)
 
     lists = commands.add_parser("lists", help="manage saved lists of papers")
     list_commands = lists.add_subparsers(dest="list_command", required=True)
@@ -337,12 +349,17 @@ def _recheck_fulltext(args: argparse.Namespace) -> None:
 
 
 def _search_passages(args: argparse.Namespace) -> None:
-    matches = services.search_passages(
+    result = services.search_passages(
         args.query,
         limit=args.limit,
         sections=args.sections or (),
         database_path=_db(args),
     )
+    matches = result.matches
+    print(f"Search method: {result.method}")
+    if result.notice:
+        print(result.notice)
+    print()
     if not matches:
         print("No stored passages match.")
         return
@@ -365,6 +382,15 @@ def _search_passages(args: argparse.Namespace) -> None:
         print()
         print(f"   {document.attribution}")
         print()
+
+
+def _embed_passages(args: argparse.Namespace) -> None:
+    result = services.embed_passages(database_path=_db(args))
+    print(f"Embedded {result.embedded} passages with {result.model_id}")
+    print(
+        f"  Longer than the model's limit (cut off): {result.over_token_limit}"
+        f" (longest {result.longest_tokens} tokens)"
+    )
 
 
 def _lists_create(args: argparse.Namespace) -> None:

@@ -8,9 +8,14 @@ version = "0.1.0"
 description = "Research-support prototype for searching and organising PubMed citations."
 readme = "README.md"
 requires-python = ">=3.9"
-# Runtime dependencies. Keep this list identical to requirements.txt;
-# tests/test_packaging.py fails if the two files disagree.
+# Runtime dependencies, then optional ones. requirements.txt must list exactly
+# these, core and optional together; tests/test_packaging.py checks it.
 dependencies = []
+
+[project.optional-dependencies]
+# Meaning-based passage search (docs/DECISIONS.md, Phase 3). fastembed needs
+# Python 3.10+; on this project's Intel Mac also <=3.13 (onnxruntime wheels).
+embeddings = ["fastembed==0.9.1; python_version >= '3.10'"]
 
 [project.scripts]
 hri = "hri.cli:main"

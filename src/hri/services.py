@@ -58,20 +58,29 @@ _EARLIEST_YEAR = 1500
 
 from .fulltext_services import (  # re-exported so callers need one import
     DEFAULT_FULLTEXT_ARTICLES,
-    DEFAULT_PASSAGE_RESULTS,
     MAX_FULLTEXT_ARTICLES,
-    MAX_PASSAGE_RESULTS,
-    SECTION_NAMES,
     FullTextDocument,
     FullTextFetchResult,
     FullTextRecheckResult,
     FullTextRejection,
     FullTextStats,
     LicencePolicyError,
-    PassageMatch,
     fetch_fulltext,
     get_fulltext_stats,
     recheck_fulltext,
+)
+from .retrieval_services import (  # re-exported so callers need one import
+    DEFAULT_PASSAGE_RESULTS,
+    MAX_PASSAGE_RESULTS,
+    SEARCH_METHODS,
+    SECTION_NAMES,
+    EmbedderStatus,
+    EmbedderUnavailableError,
+    EmbedPassagesResult,
+    PassageMatch,
+    PassageSearchResult,
+    embed_passages,
+    prepare_embedder,
     search_passages,
 )
 
@@ -121,6 +130,13 @@ __all__ = [
     "SECTION_NAMES",
     "PassageMatch",
     "search_passages",
+    "SEARCH_METHODS",
+    "EmbedderStatus",
+    "EmbedderUnavailableError",
+    "EmbedPassagesResult",
+    "PassageSearchResult",
+    "embed_passages",
+    "prepare_embedder",
 ]
 
 

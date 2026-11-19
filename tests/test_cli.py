@@ -20,6 +20,12 @@ class CliTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
         self.db = str(Path(self.temp_dir.name) / "hri.sqlite3")
+        # Never use a real downloaded model in tests.
+        patcher = mock.patch.dict(
+            "os.environ", {"HRI_MODEL_CACHE": str(Path(self.temp_dir.name) / "models")}
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
@@ -235,11 +241,13 @@ class FullTextCommandTests(CliTestCase):
         )
 
         self.assertEqual(code, 0)
-        self.assertRegex(out, r"^1\. \[results\] .+ \(PMC12826829\.1, score ")
+        self.assertTrue(out.startswith("Search method: keyword\nKeyword-only search: "))
+        self.assertRegex(out, r"\n1\. \[results\] .+ \(PMC12826829\.1, score ")
         self.assertIn("Licence: CC0", out)
         self.assertNotIn("2. [", out)
         code, out, _ = self.run_cli("search-passages", "zzzz")
-        self.assertEqual((code, out), (0, "No stored passages match.\n"))
+        self.assertEqual(code, 0)
+        self.assertTrue(out.endswith("\n\nNo stored passages match.\n"))
         code, _, err = self.run_cli("search-passages", "***")
         self.assertEqual(code, 2)
         self.assertIn("at least one word", err)

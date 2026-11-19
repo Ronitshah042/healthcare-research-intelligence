@@ -44,3 +44,7 @@ data/hri.sqlite3
 *.egg-info/
 build/
 dist/
+
+# Optional embeddings environment and downloaded models
+.venv-embed/
+data/models/
