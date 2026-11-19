@@ -660,7 +660,9 @@ Runs a question set (JSON, see `eval/questions.json`) against the stored
 passages and writes two files: the Markdown report at `report_path`, and
 `spotcheck-<date>.csv` (next to the set unless `spotcheck_dir` is given),
 a sheet of up to 15 judged claims with empty `your_verdict` and `your_notes`
-columns for a human check.
+columns for a human check. A sheet that already has anything in those two
+columns is never overwritten; the new sheet gets a numbered name
+(`spotcheck-<date>-2.csv`).
 
 - **Retrieval**, per article: recall@1/3/5, precision@1/3/5 and mean
   reciprocal rank for keyword (any-word BM25), semantic, and hybrid search,

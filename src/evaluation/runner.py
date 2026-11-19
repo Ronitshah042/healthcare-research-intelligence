@@ -343,6 +343,7 @@ def render_report(
              f"(+{answers['claims_unjudged']} unrated)"),
             ("Supported / partial / unsupported", f"{_pct(answers['supported'])} / "
              f"{_pct(answers['partial'])} / {_pct(answers['unsupported'])}"),
+            ("Judge agreement", "pending manual spot-check"),
             ("Correct abstention", f"{_pct(answers['correct_abstention'])} "
              f"of {answers['should_abstain']} that should abstain"),
             ("Answered when expected", f"{_pct(answers['answered_when_expected'])} "

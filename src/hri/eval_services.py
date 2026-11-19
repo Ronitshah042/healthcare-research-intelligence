@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+import csv
 from datetime import datetime, timezone
 import json
 import os
@@ -154,9 +155,30 @@ def run_eval(
         run, KNOWN_WEAKNESSES, current=summary, baseline=baseline, note=note))
     spotcheck = None
     if answers:
-        spotcheck = Path(spotcheck_dir or path.parent) / f"spotcheck-{run.started:%Y-%m-%d}.csv"
+        spotcheck = _free_spotcheck_path(
+            Path(spotcheck_dir or path.parent), f"spotcheck-{run.started:%Y-%m-%d}")
         spotcheck.write_text(spotcheck_csv(run))
     return EvalResult(
         report_path=report, spotcheck_path=spotcheck, questions=len(run.results),
         llm_calls=run.llm_calls, retrieval=retrieval_table(run), answers=answer_summary(run),
     )
+
+
+def _free_spotcheck_path(directory: Path, stem: str) -> Path:
+    """The day's sheet, unless a human has started filling it in: then a new name."""
+    candidate, number = directory / f"{stem}.csv", 1
+    while candidate.exists() and _has_human_input(candidate):
+        number += 1
+        candidate = directory / f"{stem}-{number}.csv"
+    return candidate
+
+
+def _has_human_input(path: Path) -> bool:
+    try:
+        with path.open(newline="") as handle:
+            return any(
+                (row.get("your_verdict") or "").strip() or (row.get("your_notes") or "").strip()
+                for row in csv.DictReader(handle)
+            )
+    except (OSError, csv.Error, UnicodeDecodeError):
+        return True  # unreadable: never overwrite it

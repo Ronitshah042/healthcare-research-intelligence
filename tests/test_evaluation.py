@@ -76,7 +76,7 @@ class QuestionSetTests(unittest.TestCase):
         questions = load_question_set(Path(__file__).resolve().parent.parent / "eval" / "questions.json")
         self.assertGreaterEqual(len(questions), 30)
         self.assertTrue(any(q.should_abstain for q in questions))
-        self.assertTrue(any(q.needs_review for q in questions))
+        self.assertTrue(any(not q.should_abstain for q in questions))
 
     def test_rejects_malformed_sets(self) -> None:
         good = {"id": "q1", "question": "Q?", "relevant_pmcids": ["pmc1"]}
@@ -206,6 +206,23 @@ class RunEvalTests(PipelineTestCase):
         self.assertTrue(rows)
         self.assertEqual(rows[0]["your_verdict"], "")
         self.assertIn(rows[0]["judge_verdict"], ("supported", "partial", "unsupported"))
+
+    def test_never_overwrites_a_spot_check_sheet_with_human_verdicts(self) -> None:
+        first = self.run_eval().spotcheck_path
+        again = self.run_eval().spotcheck_path
+        self.assertEqual(again, first)  # untouched sheet: replaced in place
+        rows = list(csv.DictReader(io.StringIO(first.read_text())))
+        rows[0]["your_verdict"] = "supported"
+        with first.open("w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+            writer.writeheader()
+            writer.writerows(rows)
+
+        third = self.run_eval().spotcheck_path
+
+        self.assertEqual(third.name, "spotcheck-2026-11-19-2.csv")
+        self.assertIn("supported", first.read_text())
+        self.assertIn("| Judge agreement | pending manual spot-check |", self.report.read_text())
 
     def test_reuses_cached_answers_and_respects_max_questions(self) -> None:
         self.run_eval()
