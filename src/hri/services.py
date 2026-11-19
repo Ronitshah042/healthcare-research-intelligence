@@ -78,6 +78,12 @@ from .answer_services import (  # re-exported so callers need one import
     Citation,
     ask_question,
 )
+from .eval_services import (  # re-exported
+    DEFAULT_PACE_SECONDS,
+    DEFAULT_REPORT,
+    EvalResult,
+    run_eval,
+)
 from .retrieval_services import (  # re-exported so callers need one import
     DEFAULT_PASSAGE_RESULTS,
     MAX_PASSAGE_RESULTS,
@@ -153,6 +159,10 @@ __all__ = [
     "MAX_EVIDENCE",
     "MAX_QUESTION_LENGTH",
     "ask_question",
+    "EvalResult",
+    "run_eval",
+    "DEFAULT_PACE_SECONDS",
+    "DEFAULT_REPORT",
 ]
 
 

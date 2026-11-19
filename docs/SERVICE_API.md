@@ -50,6 +50,7 @@ from hri import services
 | [`search_passages`](#search_passages) | Hybrid (or keyword-only) search of stored passages | `PassageSearchResult` |
 | [`prepare_embedder`](#prepare_embedder) | Download (once) and load the embedding model | `EmbedderStatus` |
 | [`embed_passages`](#embed_passages) | Embed stored passages that have no vector yet | `EmbedPassagesResult` |
+| [`run_eval`](#run_eval) | Measure retrieval and answer quality on a question set | `EvalResult` |
 | [`ask_question`](#ask_question) | Answer a research question from stored passages, with checked citations | `Answer` |
 
 ## Errors
@@ -154,6 +155,7 @@ Use these to build menus and validate input instead of repeating the values.
 | `SEARCH_METHODS` | `("hybrid", "keyword")` |
 | `DEFAULT_EVIDENCE`, `MAX_EVIDENCE` | `6`, `10` (passages given to the AI model) |
 | `MAX_QUESTION_LENGTH` | `1000` characters |
+| `DEFAULT_PACE_SECONDS`, `DEFAULT_REPORT` | `5.0`, `docs/EVAL_RESULTS.md` (for `run_eval`) |
 | `DISCLAIMER` | The fixed research-aid disclaimer carried by every `Answer` |
 | `SECTION_NAMES` | `("title", "abstract", "introduction", "methods", "results", "discussion", "conclusion", "other")` |
 
@@ -636,12 +638,62 @@ the attribution with any quoted or summarised text.
 
 Configuration (environment variables; see `.env.example`): `GEMINI_API_KEY`,
 `GROQ_API_KEY`, `HRI_GEMINI_MODEL` (default `gemini-3.5-flash-lite`),
-`HRI_GROQ_MODEL` (default `llama-3.3-70b-versatile`), and
+`HRI_GROQ_MODEL` (default `qwen/qwen3.8-27b`), and
 `HRI_LLM_DAILY_REQUEST_CAP` (default 100 requests per UTC day, counting every
 provider attempt).
 
 Errors: `InvalidRequestError` (bad question or `evidence_count`, or a
 `HRI_LLM_DAILY_REQUEST_CAP` that is not a whole number), `PaperStorageError`.
+
+### `run_eval`
+
+```python
+run_eval(
+    question_set, *, database_path=None, max_questions=None, answers=True,
+    report_path="docs/EVAL_RESULTS.md", spotcheck_dir=None, pace_seconds=5.0,
+    judge_prompt_path="eval/judge_prompt.txt", label="run", summary_path=None,
+    baseline_path=None,
+) -> EvalResult
+```
+
+Runs a question set (JSON, see `eval/questions.json`) against the stored
+passages and writes two files: the Markdown report at `report_path`, and
+`spotcheck-<date>.csv` (next to the set unless `spotcheck_dir` is given),
+a sheet of up to 15 judged claims with empty `your_verdict` and `your_notes`
+columns for a human check.
+
+- **Retrieval**, per article: recall@1/3/5, precision@1/3/5 and mean
+  reciprocal rank for keyword (any-word BM25), semantic, and hybrid search,
+  over the questions that have relevant articles. Semantic and hybrid need
+  the embedding model; without it only keyword is scored.
+- **Answers** (unless `answers=False`): each question goes through
+  `ask_question`'s pipeline, then an AI judge on Groq (`GROQ_API_KEY`;
+  `HRI_JUDGE_MODEL`, default `openai/gpt-oss-120b`; prompt in
+  `eval/judge_prompt.txt`) rates every cited claim supported, partial, or
+  unsupported. **A model never judges its own answers**: answers written by
+  the judge model (for example via the Groq fallback) are left unjudged and
+  counted. Without a Groq key the judge is not run. Reported: evidence recall
+  (share of a question's relevant articles among the passages sent to the
+  model), citation validity, verdict shares, correct abstention, answers
+  given when expected, latency of uncached answers, the models that actually
+  wrote the answers, and AI requests used.
+- **Status:** while any question is marked `needs_review`, the report title
+  says "preliminary (questions under review)".
+- **Comparisons:** `summary_path` saves the headline numbers as JSON under
+  `label`; `baseline_path` adds a before/after table against such a file.
+- **Free tier:** answers and judgements are cached and reused, so a rerun
+  costs nothing for unchanged questions; it waits `pace_seconds` after each
+  question that used an AI request; `max_questions` takes the first N; the
+  daily cap (`HRI_LLM_DAILY_REQUEST_CAP`) applies, and questions past it are
+  reported as busy.
+
+`EvalResult` has `report_path`, `spotcheck_path` (`None` without answers),
+`questions`, `llm_calls`, `retrieval` (per method: `questions`,
+`recall@k`, `precision@k`, `MRR`), and `answers` (the summary numbers).
+
+Errors: `InvalidRequestError` (missing or invalid question set or baseline,
+bad `max_questions` or `pace_seconds`), `PaperStorageError`, `OSError`
+(report cannot be written).
 
 ## Not provided yet
 

@@ -48,3 +48,6 @@ dist/
 # Optional embeddings environment and downloaded models
 .venv-embed/
 data/models/
+
+# Evaluation spot-check sheets hold article text: a local working file
+eval/spotcheck-*.csv

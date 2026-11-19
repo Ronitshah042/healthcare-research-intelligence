@@ -185,6 +185,31 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ask.set_defaults(handler=_ask)
 
+    evaluate = commands.add_parser(
+        "eval",
+        parents=[database],
+        help="measure retrieval and answer quality on a question set",
+        description="Run a question set (JSON), write docs/EVAL_RESULTS.md and a "
+        "spot-check CSV next to the set. Uses AI requests for answers and the "
+        "judge, one question every --pace seconds; cached answers are reused.",
+    )
+    evaluate.add_argument("--set", required=True, dest="question_set", metavar="PATH")
+    evaluate.add_argument("--max-questions", type=int, metavar="N")
+    evaluate.add_argument(
+        "--no-answers", action="store_true", help="score retrieval only; no AI requests"
+    )
+    evaluate.add_argument("--report", default=str(services.DEFAULT_REPORT), metavar="PATH")
+    evaluate.add_argument(
+        "--pace", type=float, default=services.DEFAULT_PACE_SECONDS, metavar="SECONDS",
+        help="wait after each question that used AI requests",
+    )
+    evaluate.add_argument("--label", default="run", help="name of this run in summaries")
+    evaluate.add_argument("--summary", metavar="PATH", help="save headline numbers as JSON")
+    evaluate.add_argument(
+        "--baseline", metavar="PATH", help="summary JSON of an earlier run to compare with"
+    )
+    evaluate.set_defaults(handler=_eval)
+
     lists = commands.add_parser("lists", help="manage saved lists of papers")
     list_commands = lists.add_subparsers(dest="list_command", required=True)
     create = list_commands.add_parser("create", parents=[database])
@@ -443,6 +468,26 @@ def _ask(args: argparse.Namespace) -> None:
     if answer.notice:
         print(answer.notice)
     print(answer.disclaimer)
+
+
+def _eval(args: argparse.Namespace) -> None:
+    result = services.run_eval(
+        args.question_set,
+        database_path=_db(args),
+        max_questions=args.max_questions,
+        answers=not args.no_answers,
+        report_path=args.report,
+        pace_seconds=args.pace,
+        label=args.label,
+        summary_path=args.summary,
+        baseline_path=args.baseline,
+    )
+    print(f"Evaluated {result.questions} questions; AI requests used: {result.llm_calls}")
+    for method, values in result.retrieval.items():
+        print(f"  {method:<8} recall@5 {values['recall@5']:.0%}  MRR {values['MRR']:.2f}")
+    print(f"Report: {result.report_path}")
+    if result.spotcheck_path:
+        print(f"Spot-check sheet: {result.spotcheck_path}")
 
 
 def _lists_create(args: argparse.Namespace) -> None:
