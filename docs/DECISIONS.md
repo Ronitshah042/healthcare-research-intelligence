@@ -787,6 +787,95 @@ synonyms such as "heart attack" and "myocardial infarction" do not match.
   `hri/fulltext_services.py`. `src/retrieval/` stays empty until there is
   ranking logic (such as hybrid fusion) that is not storage.
 
+## Phase 3B: meaning-based (embedding) search
+
+### Dependency and Python versions
+
+**Decision (approved by the owner on 2026-11-18):** `fastembed==0.9.1`
+(ONNX Runtime, no PyTorch) as the optional extra `.[embeddings]`, pinned in
+`pyproject.toml` and `requirements.txt` with the marker
+`python_version >= '3.10'`.
+
+**Why optional:** fastembed 0.9.1 needs Python 3.10+, and ONNX Runtime stopped
+publishing Intel-Mac builds after 1.23.2 (Python 3.10 to 3.13). The project's
+`python3` is 3.15 and the compatibility target is 3.9, so the core stays
+standard-library-only and falls back to keyword search without fastembed.
+The embedding environment on the owner's Mac is a Homebrew Python 3.13.18
+virtual environment, `.venv-embed` (ignored by Git).
+
+Installed and checked on 2026-11-18: fastembed 0.9.1, onnxruntime 1.23.2,
+numpy 2.5.5, tokenizers 0.23.3, huggingface_hub 1.33.0. Only fastembed is
+pinned; the others are whatever pip resolved.
+
+### Model
+
+Candidates compared (sizes from Hugging Face, memory estimated):
+
+| Model | Download | Dimensions | Approx. memory | Max input |
+| --- | --- | --- | --- | --- |
+| **BAAI/bge-small-en-v1.5** (chosen) | 67.4 MB | 384 | ~250 MB | 512 tokens |
+| sentence-transformers/all-MiniLM-L6-v2 | 91.3 MB | 384 | ~280 MB | 256 tokens |
+| BAAI/bge-base-en-v1.5 | 218.8 MB | 768 | ~600 MB | 512 tokens |
+
+**Decision:** BAAI/bge-small-en-v1.5: near bge-base retrieval quality at a
+third of the size. MiniLM was rejected because 256 tokens would cut most of
+our ~400-token passages in half.
+
+| Pinned value | |
+| --- | --- |
+| Repository (fastembed's ONNX export) | `Qdrant/bge-small-en-v1.5-onnx-Q` |
+| Revision | `aa8f8b060edb00e03bfdd08813a2949946c8ba55` |
+| Model file | `model_optimized.onnx`, 66,465,124 bytes |
+| SHA-256 | `51f1bd0addd6e859e42c2c8021a5e5461385bb676a649f4b269aa445449f2431` |
+| Other files | `config.json`, `special_tokens_map.json`, `tokenizer.json`, `tokenizer_config.json` (about 0.7 MB) |
+| Licence | MIT |
+
+The values live in `src/retrieval/embeddings.py`. A model file whose size or
+hash differs is deleted and the model reported unavailable.
+
+### Hosts
+
+Hugging Face is contacted **only to download the pinned model files**, by
+`retrieval.embeddings.prepare` (the `embed-passages` command and
+`prepare_embedder`), never by a search and never with user data. Observed on
+2026-11-18:
+
+- `huggingface.co`: file listing and the small files, then a redirect for the
+  model file;
+- `us.aws.cdn.hf.co`: the model file itself (Hugging Face's file CDN; the
+  `*.cdn.hf.co` name may differ by region).
+
+`HF_HUB_DISABLE_TELEMETRY=1` and `HF_HUB_DISABLE_XET=1` are set before the
+library loads. Without them, huggingface_hub 1.33 also requested
+`/api/agent-harnesses` (to tag requests with the calling AI tool) and fetched
+the model through Xet storage hosts (`cas-server.xethub.hf.co`).
+
+### Query and passage embedding
+
+Passages use fastembed's `passage_embed`; questions use `query_embed` with
+BGE's instruction `Represent this sentence for searching relevant passages: `
+in front, because fastembed 0.9.1 adds no instruction for this model.
+
+### Long passages
+
+Measured with the model's tokenizer on the 106 stored live-check passages:
+**5 (4.7%) exceed 512 tokens; the longest is 523**, so at most 11 tokens are
+cut off. The chunker's approximate count is about 19% lower than the model's
+count. `embed_passages` logs this every run; if it grows, lower the chunk
+target.
+
+### Fusion and fallback
+
+- Reciprocal rank fusion (k = 60) of the top 50 keyword and top 50 vector
+  matches. No score tuning needed.
+- `search_passages` never downloads: it uses a model only if already
+  prepared, and otherwise runs keyword-only with a `notice` saying why.
+  `prepare_embedder()` is the start-up hook that downloads once.
+- Vectors are stored as float32 blobs in `chunk_embeddings` (schema 6), keyed
+  by model and revision, and deleted by trigger with their passage.
+- shortcut: similarity is computed in pure Python against every vector, fine
+  to about 50,000 passages; past that, add a vector index.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.

@@ -60,8 +60,13 @@ Dependency direction, lowest layer first:
 | `export.py` | CSV and plain-citation rendering |
 | `errors.py` | `InvalidRequestError`, shared by the service modules |
 | `services.py` | UI-agnostic functions returning dataclasses; see `docs/SERVICE_API.md` |
-| `fulltext_services.py` | Full-text fetch, recheck, stats, and passage search; re-exported by `services` |
+| `fulltext_services.py` | Full-text fetch, recheck, and stats; re-exported by `services` |
+| `retrieval_services.py` | Passage search (hybrid or keyword), embedding, model preparation; re-exported by `services` |
 | `cli.py` | `hri` argparse commands; imports only `services` |
+
+`src/retrieval` sits between them: `embeddings.py` (the pinned model, the
+optional `fastembed` adapter, vector encoding) and `hybrid.py` (vector search
+and reciprocal rank fusion). It may import `ingestion`, never `hri`.
 
 Public names are exported from `src/ingestion/__init__.py`; add new ones there.
 
@@ -91,6 +96,10 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
 - The PMC client has a fixed HTTPS allowlist: `eutils.ncbi.nlm.nih.gov`,
   `pmc.ncbi.nlm.nih.gov` (ID converter), and `pmc-oa-opendata.s3.amazonaws.com`.
   `tool`, `email`, and the API key are sent to NCBI hosts only, never to S3.
+- Hugging Face is contacted only by `retrieval.embeddings.prepare`, to download
+  the pinned model revision; never for searches, and never with user data.
+  Changing the model, revision, or file hash needs the owner's approval and an
+  update to DECISIONS.md and CONTENT_POLICY.md.
 - Do not put NCBI `<ERROR>` text, API keys, or request URLs in exceptions or logs.
 - The rate-limit scheduler is shared per process and keeps only a digest of the
   API key. Never hold its lock during HTTP calls. Every retry takes a new slot.
@@ -119,7 +128,10 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
   substitute `ArticleDate` or history dates.
 
 ## Code conventions
-- Standard library only. Adding any dependency needs approval.
+- Standard library only in the core. The one approved dependency is the
+  optional `fastembed==0.9.1` (`.[embeddings]`, Python 3.10+), imported only
+  inside `retrieval/embeddings.py`; everything must work without it, falling
+  back to keyword search. Adding any other dependency needs approval.
 - Stay compatible with Python 3.9 until a minimum version is chosen: use
   `from __future__ import annotations`, and no `dataclass(slots=True)`.
 - Use frozen dataclasses for records and specific exception classes for errors.
@@ -133,6 +145,9 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
 - Inject `transport`, `clock`, and `sleeper` into `PubMedClient` and `PmcClient`;
   use a fake client for pipeline and service tests and a temporary directory for
   storage tests. PMC tests use the recorded fixtures in `tests/fixtures/pmc/`.
+- Embedding tests use `FakeEmbedder` (`tests/test_retrieval.py`) and set
+  `HRI_MODEL_CACHE` to a temporary folder; they never import a real model or
+  download anything.
 - Reset shared limiter state with `PubMedClient._reset_process_rate_limiters_for_tests()`.
 - Add a regression test with every bug fix.
 

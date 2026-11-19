@@ -654,3 +654,45 @@ Keyword search finds passages that use the same words as the question.
 Meaning-based (embedding) search turns text into lists of numbers so that
 passages with similar meaning sit close together, even when they use different
 words. Hybrid search combines both. This phase builds only the keyword half.
+
+## Phase 3B: meaning-based (embedding) search
+
+### What is an embedding?
+
+An embedding model turns a piece of text into a list of numbers (here 384 of
+them), called a vector. Texts with similar meaning get vectors that point in
+similar directions, even when they share no words: "heart attack" and
+"myocardial infarction" end up close together. Comparing two vectors is a
+simple sum of products (cosine similarity); 1 means "same direction".
+
+### Why are questions and passages embedded differently?
+
+BGE models were trained to match a short question with a longer passage that
+answers it. They work best when the question starts with an instruction,
+"Represent this sentence for searching relevant passages: ", and the passage
+does not. fastembed's `query_embed` and `passage_embed` keep the two apart,
+but for this model fastembed adds no instruction itself, so the project adds
+it to questions.
+
+### What is reciprocal rank fusion?
+
+Keyword scores (BM25) and similarity scores are on different scales, so they
+cannot simply be added. Reciprocal rank fusion ignores the scores and uses
+positions instead: a passage gets `1 / (60 + rank)` from each list it appears
+in. Being near the top of both lists beats being first in only one. It needs
+no tuning and is the usual way to build hybrid search.
+
+### Why does the 512-token limit matter?
+
+The model reads at most 512 tokens (word pieces, so medical terms often count
+as several). Anything after that is cut off before embedding, so the vector
+describes only the start of a long passage. `hri embed-passages` counts how
+often this happens, using the model's own tokenizer, so the passage size can
+be tuned if it is common. Keyword search always sees the whole passage.
+
+### Pinning a model
+
+A model name alone can point to different files over time. Pinning the
+repository revision (a Git commit hash) and checking the downloaded file's
+SHA-256 makes every install use exactly the same model, and refuses a file
+that was altered or corrupted.

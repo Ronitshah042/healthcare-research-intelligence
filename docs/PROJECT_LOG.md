@@ -795,3 +795,39 @@ OK
 
 Not done: meaning-based search, paging through passage results, and phrase
 search.
+
+## Phase 3B: meaning-based (embedding) search (2026-11-18)
+
+Approved: optional `fastembed==0.9.1`, model BAAI/bge-small-en-v1.5 at a
+pinned revision, Hugging Face for the model download only.
+
+- **Install:** `pip install -e '.[embeddings]'` on Python 3.10 to 3.13. On
+  the owner's Intel Mac: Homebrew Python 3.13.18 in `.venv-embed`. The core
+  still needs only the standard library and runs on 3.9 and 3.15.
+- **New code:** `src/retrieval/embeddings.py` (pinned model, download with
+  size and SHA-256 check, offline loading, `FastEmbedder`),
+  `src/retrieval/hybrid.py` (vector search, reciprocal rank fusion),
+  `src/hri/retrieval_services.py` (`prepare_embedder`, `embed_passages`,
+  `search_passages`, moved from `fulltext_services`).
+- **Storage:** schema version 6 adds `chunk_embeddings`, deleted with passages.
+- **CLI:** `hri embed-passages`; `hri search-passages` now prints the method
+  used and any fallback notice.
+- **Breaking change:** `search_passages` returns `PassageSearchResult`
+  (`matches`, `method`, `notice`) instead of a tuple.
+- **Tests:** `FakeEmbedder` only; download, hash failure, and download
+  failure use fake `fastembed` and `huggingface_hub` modules.
+
+**Live check (2026-11-18), scratch copy of the database:**
+
+- Model download: 21 s first time; contacts only `huggingface.co` and
+  `us.aws.cdn.hf.co` once telemetry and Xet are disabled.
+- `embed_passages`: 106 passages in 34 s; 5 exceeded 512 tokens (longest 523).
+- Model load 1.7 s; each hybrid search about 0.04 s.
+- "does metformin protect against dementia" finds the metformin cognition
+  passages, which keyword-only search (every word required) does not.
+
+Full suite: 323 tests OK on Python 3.15.2, 3.9.6 (no fastembed), and 3.13.18
+with fastembed installed (no download, no model used).
+
+Not done: a vector index for large collections, pinning fastembed's own
+dependencies, and paging through passage results.

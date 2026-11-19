@@ -52,7 +52,9 @@ docs/
 ## Setup
 
 Requirements: Python 3.9 or newer. The project has no third-party runtime
-dependencies (`requirements.txt` and `pyproject.toml` both list none).
+dependencies in its core. Meaning-based passage search is optional and needs
+`fastembed` (pinned, Python 3.10 to 3.13 on Intel Macs):
+`pip install -e '.[embeddings]'`. Without it, passage search is keyword-only.
 
 ```bash
 git clone https://github.com/Ronitshah042/healthcare-research-intelligence.git
@@ -109,7 +111,10 @@ hri fetch-fulltext --from-db --max 20       # for papers already stored
 hri fetch-fulltext --query "metformin dementia" --max 20
 hri recheck-fulltext                        # remove articles retracted since
 
-# Keyword search of the stored full-text passages, with attribution
+# Optional: download the embedding model once and embed stored passages
+hri embed-passages
+
+# Search the stored passages (hybrid when embedded, else keyword), with attribution
 hri search-passages "metformin dementia" --section results --limit 5
 ```
 
@@ -127,11 +132,16 @@ not in the open-access subset. Rejected articles leave no text behind. PubMed
 abstracts are still never stored. The rules are in
 [docs/CONTENT_POLICY.md](docs/CONTENT_POLICY.md).
 
-`hri search-passages` finds stored passages that contain every word of the
-query (ignoring case and accents, with English stemming), best match first by
-BM25, and prints each with its article's licence and attribution. `--section`
-(repeatable) limits results to sections such as `methods` or `results`.
-Meaning-based (embedding) search is not built yet.
+`hri search-passages` prints the best-matching stored passages, each with its
+article's licence and attribution. `--section` (repeatable) limits results to
+sections such as `methods` or `results`. It combines two rankings: passages
+containing every query word (BM25, ignoring case, accents and word endings),
+and passages closest in meaning (embeddings from the pinned
+BAAI/bge-small-en-v1.5 model). Without the optional embeddings install, or
+before `hri embed-passages` has run, it is keyword-only and says so.
+`hri embed-passages` downloads the model (about 67 MB) from Hugging Face once,
+checks its SHA-256, caches it in `data/models` (or `HRI_MODEL_CACHE`), and
+reports how many passages were longer than the model's 512-token limit.
 
 The database is `data/hri.sqlite3` in the current folder (ignored by Git).
 Set `HRI_DB_PATH` or pass `--db PATH` to use another file; `--db` wins.
@@ -154,10 +164,10 @@ licences and terms will be used.
 
 **Status:** Phase 3 complete — PubMed ingestion, local search, saved lists,
 and export, plus licensed open-access full text from PubMed Central parsed
-into sections and passages, and keyword (BM25) search over those passages,
-all usable from the `hri` command line through a UI-agnostic service layer.
-Meaning-based (embedding) search, generating answers, and any user interface
-or web API are not built yet.
+into sections and passages, and hybrid search over those passages (BM25
+keyword ranking fused with optional embedding similarity), all usable from
+the `hri` command line through a UI-agnostic service layer. Generating
+answers, and any user interface or web API, are not built yet.
 
 The project now provides validated PubMed citation search through NCBI
 E-utilities, including title, title/abstract, author, DOI, and PMID search,

@@ -143,3 +143,21 @@ remove an article's entries when its text is deleted, so rejected or retracted
 articles stop appearing at once. Every passage returned carries its document,
 and its `attribution` must be shown with the passage (section 8). The command
 line always prints it.
+
+## 10. Embedding model download
+
+Meaning-based search stores one vector per passage, made from that passage's
+text, in `chunk_embeddings`; vectors are deleted with their passage. The
+embedding model is the only file downloaded from outside NCBI and PMC:
+
+| Item | Value |
+| --- | --- |
+| Model | BAAI/bge-small-en-v1.5 (MIT), via `Qdrant/bge-small-en-v1.5-onnx-Q` |
+| Revision | `aa8f8b060edb00e03bfdd08813a2949946c8ba55` |
+| Model file | `model_optimized.onnx`, 66,465,124 bytes, SHA-256 `51f1bd0addd6e859e42c2c8021a5e5461385bb676a649f4b269aa445449f2431` |
+| Hosts | `huggingface.co`, and its file CDN `*.cdn.hf.co` (observed: `us.aws.cdn.hf.co`) |
+| When | Once, by `hri embed-passages` or `prepare_embedder()`; cached in `HRI_MODEL_CACHE` or `data/models` (ignored by Git) |
+
+Hugging Face is never contacted for a search, and no query, passage, or
+identifier is ever sent to it. Changing the model, revision, or hash needs the
+owner's approval.
