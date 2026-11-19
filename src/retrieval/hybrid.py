@@ -61,9 +61,16 @@ def hybrid_search(
     """
     keyword = store.search(query, limit=CANDIDATES, sections=sections)
     meaning = vector_search(store, embedder, query, limit=CANDIDATES, sections=sections)
+    return fuse(keyword, meaning, limit=limit)
+
+
+def fuse(
+    *rankings: tuple[PassageMatch, ...], limit: int
+) -> tuple[PassageMatch, ...]:
+    """Reciprocal rank fusion of rankings, best first; ``score`` is the fused score."""
     fused: dict[tuple[str, int], float] = {}
     matches: dict[tuple[str, int], PassageMatch] = {}
-    for ranking in (keyword, meaning):
+    for ranking in rankings:
         for rank, match in enumerate(ranking, start=1):
             key = (match.chunk.pmcid, match.chunk.position)
             fused[key] = fused.get(key, 0.0) + 1.0 / (RRF_K + rank)

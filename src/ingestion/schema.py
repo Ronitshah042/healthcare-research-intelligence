@@ -16,7 +16,8 @@ from .pubmed import PUBMED_SOURCE_NAME
 #            in step by triggers.
 # Version 6: ``chunk_embeddings``, one vector per passage and model, deleted
 #            with its passage.
-SCHEMA_VERSION = 6
+# Version 7: ``answer_cache`` and ``llm_usage`` for AI answers.
+SCHEMA_VERSION = 7
 REJECTION_REASONS = (
     "licence", "retracted", "not_open_access", "current_version_unavailable",
 )
@@ -55,6 +56,8 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
         _create_chunk_index(connection)
     if version < 6:
         _create_chunk_embeddings(connection)
+    if version < 7:
+        _create_answer_tables(connection)
     connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
 
@@ -217,3 +220,22 @@ def _create_chunk_embeddings(connection: sqlite3.Connection) -> None:
             END""",
     ):
         connection.execute(statement)
+
+
+def _create_answer_tables(connection: sqlite3.Connection) -> None:
+    # Model output only, keyed by a hash; never the prompt or any API key.
+    connection.execute(
+        """CREATE TABLE IF NOT EXISTS answer_cache (
+            cache_key TEXT PRIMARY KEY,
+            reply_text TEXT NOT NULL,
+            provider TEXT NOT NULL,
+            model TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )"""
+    )
+    connection.execute(
+        """CREATE TABLE IF NOT EXISTS llm_usage (
+            day TEXT PRIMARY KEY,
+            requests INTEGER NOT NULL
+        )"""
+    )

@@ -222,6 +222,17 @@ class PassageSearchTests(unittest.TestCase):
         for match in self.store.search("NEAR(adhd", limit=20):
             self.assertIn("near", match.chunk.text.casefold())
 
+    def test_any_word_mode_ranks_passages_with_more_words_first(self) -> None:
+        self.assertEqual(self.store.search("adhd veterans", limit=20), ())
+
+        matches = self.store.search("adhd veterans", limit=50, match_all=False)
+
+        self.assertEqual({m.document.pmcid for m in matches},
+                         {"PMC10009402", "PMC12826829"})
+        for match in matches:
+            text = match.chunk.text.casefold()
+            self.assertTrue("adhd" in text or "veteran" in text)
+
     def test_rejects_empty_queries_and_bad_limits(self) -> None:
         for query in ("", "   ", "*:()"):
             with self.subTest(query=query):

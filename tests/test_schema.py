@@ -172,6 +172,22 @@ class SchemaTests(unittest.TestCase):
         store.reject("PMC10009402", "retracted", recorded_at="2026-11-18T00:00:00Z")
         self.assertEqual(store.embeddings("m"), [])
 
+    def test_upgrades_version_6_by_adding_the_answer_tables(self) -> None:
+        PaperStore(self.path)
+        self._execute(
+            "DROP TABLE answer_cache", "DROP TABLE llm_usage",
+            """INSERT INTO papers (pmid, title, authors_json, abstract_available)
+            VALUES ('42', 'Kept paper', '[]', 1)""",
+            "PRAGMA user_version = 6",
+        )
+
+        store = PaperStore(self.path)
+
+        tables, version = self._tables_and_version()
+        self.assertLessEqual({"answer_cache", "llm_usage"}, tables)
+        self.assertEqual(version, SCHEMA_VERSION)
+        self.assertEqual(store.get(pmid="42").title, "Kept paper")
+
     def test_opening_an_up_to_date_database_changes_nothing(self) -> None:
         PaperStore(self.path)
         self._execute(

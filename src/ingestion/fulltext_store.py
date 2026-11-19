@@ -262,8 +262,12 @@ class FullTextStore:
         *,
         limit: int,
         sections: tuple[str, ...] = (),
+        match_all: bool = True,
     ) -> tuple[PassageMatch, ...]:
         """Return the passages containing every word of ``query``, best first.
+
+        With ``match_all=False``, passages containing any of the words match;
+        BM25 still ranks those with more, and rarer, words first.
 
         Words are matched after Porter stemming, ignoring case and accents.
         Each word is quoted, so FTS5 operators and syntax in ``query`` are
@@ -286,7 +290,10 @@ class FullTextStore:
                 JOIN documents ON documents.id = chunks.document_id
                 WHERE chunks_fts MATCH ?{section_filter}
                 ORDER BY rank, chunks.id LIMIT ?""",
-            (" ".join(f'"{word}"' for word in words), *sections, limit),
+            (
+                (" " if match_all else " OR ").join(f'"{word}"' for word in words),
+                *sections, limit,
+            ),
         )
         # SQLite's bm25() is negative, lower meaning more relevant.
         return tuple(_to_match(row, -row["rank"]) for row in rows)
