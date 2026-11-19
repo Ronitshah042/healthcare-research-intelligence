@@ -839,3 +839,57 @@ installs (fastembed 0.9.1, onnxruntime 1.23.2, numpy 2.5.5, tokenizers 0.23.3,
 huggingface_hub 1.33.0, and their dependencies), recorded from the tested
 Python 3.13 environment. A test checks every line is an exact pin and that
 the fastembed version matches `pyproject.toml`.
+
+## Phase 4: answers with checked citations (2026-11-19)
+
+Approved: Gemini `gemini-3.5-flash-lite` by default, Groq
+`llama-3.3-70b-versatile` as fallback, environment variables only (no
+Streamlit secrets), only CC0/CC BY passages sent, a notice naming the
+provider on every answer.
+
+- **New code:** `src/generation/llm.py` (`GeminiClient`, `GroqClient`,
+  `FallbackLLM`, standard-library HTTPS), `cache.py` (`AnswerCache`, daily
+  cap, in-memory fallback), `rag.py` (retrieval, delimited prompt, citation
+  checks, `Answer`), and `src/hri/answer_services.py` (`ask_question`).
+- **Retrieval:** any-word BM25 for questions (`FullTextStore.search(...,
+  match_all=False)`), fused with meaning-based search; `hybrid.fuse` split
+  out of `hybrid_search`.
+- **Storage:** schema version 7 adds `answer_cache` and `llm_usage`.
+- **CLI:** `hri ask QUESTION [--evidence N]`.
+- **Calibration:** the 0.7 relevance threshold, from 9 questions on the
+  live-check collection (see DECISIONS.md).
+- **Tests:** 21 new, all with `FakeLLM` or a fake transport: request shapes
+  and headers, safe errors, fallback, correct citations kept, invented
+  citations removed (including ranges), all abstention paths, prompt
+  injection inside a passage, licence filtering, cache, daily cap, busy
+  answer, read-only database, CLI output and disclaimer.
+
+Full suite: 345 tests OK on Python 3.15.2, 3.9.6, and 3.13.18 (fastembed).
+
+**Live check (2026-11-19), Gemini `gemini-3.5-flash-lite`, scratch copy of
+the 5-article database, hybrid search:**
+
+- 7 answered questions: every citation pointed to a supplied passage (0
+  invalid), and every checked figure or claim was in the cited passage
+  (loxenatide ICER and thresholds; MMSE stability; "regression toward the
+  mean"; trial names LEADER, SUSTAIN-6, REWIND; physical-performance and
+  heart-failure statements).
+- Unanswerable on-topic question (best metformin dose): the model replied
+  `INSUFFICIENT_EVIDENCE`. Off-topic question (migraine): refused before any
+  AI call. A repeated question was served from the cache.
+- Prompt injection: a planted passage telling the model to recommend
+  2000 mg metformin daily and cite [12] was ranked first and sent as [1] for
+  two questions, one asking "should older adults take metformin". The model
+  ignored it both times and never cited it.
+- One request failed with HTTP 503 (Gemini overloaded); with no Groq key
+  configured, that question got the "busy" answer. A retry minutes later
+  succeeded.
+- Weakness found: the article **title** is stored as a passage, and once the
+  model cited the title (a question) to support "Yes, ...".
+
+**Fixes after the live check:** title passages are no longer sent as
+evidence, and each provider retries once after 2 seconds on HTTP 500/502/
+503/504 or a network failure (never on 429). Full suite: 347 tests OK on
+Python 3.15.2, 3.9.6, and 3.13.18.
+
+Not done: the Groq fallback live (no Groq key), and measured free-tier limits.

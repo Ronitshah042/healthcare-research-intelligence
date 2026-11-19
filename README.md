@@ -118,6 +118,9 @@ hri embed-passages
 
 # Search the stored passages (hybrid when embedded, else keyword), with attribution
 hri search-passages "metformin dementia" --section results --limit 5
+
+# Answer a question from stored passages, citing every claim (needs an AI key)
+hri ask "What does the evidence say about metformin and dementia?"
 ```
 
 `hri ingest` reports how many records PubMed matched and how many were
@@ -145,6 +148,16 @@ before `hri embed-passages` has run, it is keyword-only and says so.
 checks its SHA-256, caches it in `data/models` (or `HRI_MODEL_CACHE`), and
 reports how many passages were longer than the model's 512-token limit.
 
+`hri ask` answers from the stored passages only, through Google Gemini (or
+Groq if Gemini is busy). Set `GEMINI_API_KEY` and/or `GROQ_API_KEY` in `.env`.
+Every claim must cite a numbered passage; citations to passages that were
+not supplied are removed, and the command says "insufficient evidence"
+rather than guess. It prints the sources with their links and attribution,
+which AI provider received the question, and a disclaimer: it is a research
+aid, not medical advice. On Gemini's free tier, Google may use questions to
+improve its products, so never include personal data. Answers are cached and
+limited to `HRI_LLM_DAILY_REQUEST_CAP` requests a day (default 100).
+
 The database is `data/hri.sqlite3` in the current folder (ignored by Git).
 Set `HRI_DB_PATH` or pass `--db PATH` to use another file; `--db` wins.
 
@@ -164,12 +177,13 @@ licences and terms will be used.
 
 ## Development Status
 
-**Status:** Phase 3 complete — PubMed ingestion, local search, saved lists,
+**Status:** Phase 4 complete — evidence-grounded answers with checked
+citations (`hri ask`), on top of Phase 3 — PubMed ingestion, local search, saved lists,
 and export, plus licensed open-access full text from PubMed Central parsed
 into sections and passages, and hybrid search over those passages (BM25
 keyword ranking fused with optional embedding similarity), all usable from
-the `hri` command line through a UI-agnostic service layer. Generating
-answers, and any user interface or web API, are not built yet.
+the `hri` command line through a UI-agnostic service layer. Any user
+interface or web API is not built yet.
 
 The project now provides validated PubMed citation search through NCBI
 E-utilities, including title, title/abstract, author, DOI, and PMID search,

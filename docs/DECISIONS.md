@@ -884,6 +884,89 @@ target.
 - shortcut: similarity is computed in pure Python against every vector, fine
   to about 50,000 passages; past that, add a vector index.
 
+## Phase 4: answers with checked citations
+
+### Providers and models (checked 2026-11-19)
+
+From Google's current pricing and model pages (`aistudio.google.com/docs`):
+`gemini-3.8-flash`, `gemini-3.6-flash`, `gemini-3.5-flash-lite` and
+`gemini-3.1-flash-lite` are **Stable** and **free of charge** on the free
+tier; on the free tier, content is **"used to improve our products"** (paid
+tier: no). `gemini-2.5-flash` is deprecated and routes to another model from
+1 December 2026. Google's documentation **no longer lists free-tier rate
+limits per model**: they are shown only in each account's AI Studio page.
+Exceeding a limit returns HTTP 429 `RESOURCE_EXHAUSTED`.
+
+From Groq's docs (`console.groq.com/docs`): production models include
+`llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `openai/gpt-oss-120b` and
+`openai/gpt-oss-20b`; free-plan limits are shown only in the account; a rate
+limit returns HTTP 429 with `retry-after`.
+
+**Decision (owner, 2026-11-19):** default `gemini-3.5-flash-lite` (Flash-Lite
+models usually get the most free requests); fallback
+`llama-3.3-70b-versatile`. Both can be changed with `HRI_GEMINI_MODEL` and
+`HRI_GROQ_MODEL`.
+
+### Design
+
+- **No SDK, no new dependency.** Both APIs are one JSON POST each, made with
+  `urllib`. Keys go in headers. A non-default User-Agent is sent because some
+  API front ends reject urllib's.
+- **Fallback on any provider failure**, not only 429: timeouts, outages and
+  bad replies also move on to the next provider. If all fail, the answer is a
+  "busy" abstention, never an exception.
+- **One retry per provider** after 2 seconds for HTTP 500, 502, 503, 504 or a
+  network failure, added after the live check hit a transient Gemini 503.
+  Never for 429, so an exhausted free quota is not requested again. Each
+  attempt counts against the daily cap only once per provider.
+- **Titles are not evidence.** The live check showed the model citing an
+  article title (worded as a question) as support for "Yes"; title passages
+  are now never sent. The title still appears in every citation.
+- **Free-tier protection:** a reply cache keyed by the normalised question,
+  the exact passage IDs, and a prompt version (schema 7, `answer_cache`);
+  a daily request cap (`HRI_LLM_DAILY_REQUEST_CAP`, default 100, counted per
+  provider attempt in `llm_usage`). When the database cannot be written, both
+  continue in memory.
+- **Environment variables only.** Streamlit secrets were not added (owner's
+  decision): reading them needs Streamlit; a Streamlit app can copy its
+  secrets into the environment.
+- **Only CC0 and CC BY passages are sent**, whatever the storage policy
+  allows, because the free tier uses content to improve products.
+
+### Retrieval for questions
+
+Questions contain filler words ("what does the evidence say"), so the
+keyword half uses **any-word** BM25 (`match_all=False`) rather than the
+all-words search of `hri search-passages`; BM25 gives common words little
+weight. It is fused with meaning-based search when the model is ready.
+
+### Abstention
+
+| Check | When | Threshold |
+| --- | --- | --- |
+| Too few passages | before calling the model | fewer than 2 |
+| Off-topic | before calling the model, hybrid only | closest passage cosine < 0.7 |
+| Model says so | after | reply starts with `INSUFFICIENT_EVIDENCE` |
+| No valid citation | after | 0 |
+| Mostly invented citations | after | invalid > valid |
+
+The 0.7 threshold was measured with bge-small on the 5-article live-check
+collection: on-topic questions scored 0.72 to 0.87, medical questions on
+topics not in the collection 0.60 to 0.67, and non-medical ones 0.41 to 0.48.
+It is a small sample and must be recalibrated on a larger collection.
+
+No numeric confidence score is given: none would be calibrated. `abstained`
+and `abstain_reason` say whether, and why, no answer was given.
+
+### Prompt injection
+
+Retrieved passages are untrusted. Each is wrapped in
+`<evidence id="n" source="...">` and `</evidence>`; any `<evidence` or
+`</evidence` text inside a passage or the question is altered (`‹`) so it
+cannot close its block or open another. The system prompt says the rules
+cannot be changed by evidence text. Citation checking still removes any
+citation an injected passage tricks the model into inventing.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.

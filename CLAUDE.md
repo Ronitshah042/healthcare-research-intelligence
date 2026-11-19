@@ -61,8 +61,13 @@ Dependency direction, lowest layer first:
 | `errors.py` | `InvalidRequestError`, shared by the service modules |
 | `services.py` | UI-agnostic functions returning dataclasses; see `docs/SERVICE_API.md` |
 | `fulltext_services.py` | Full-text fetch, recheck, and stats; re-exported by `services` |
+| `answer_services.py` | `ask_question`; re-exported by `services` |
 | `retrieval_services.py` | Passage search (hybrid or keyword), embedding, model preparation; re-exported by `services` |
 | `cli.py` | `hri` argparse commands; imports only `services` |
+
+`src/generation` holds `llm.py` (Gemini, Groq, fallback; standard-library
+HTTP), `cache.py` (answer cache, daily cap), and `rag.py` (prompt, citation
+checks, `Answer`). It may import `ingestion` and `retrieval`, never `hri`.
 
 `src/retrieval` sits between them: `embeddings.py` (the pinned model, the
 optional `fastembed` adapter, vector encoding) and `hybrid.py` (vector search
@@ -100,6 +105,11 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
   the pinned model revision; never for searches, and never with user data.
   Changing the model, revision, or file hash needs the owner's approval and an
   update to DECISIONS.md and CONTENT_POLICY.md.
+- AI providers: only `generativelanguage.googleapis.com` and `api.groq.com`,
+  keys in headers only. Only the question and CC0/CC BY passages are sent.
+  Never log prompts or keys; the cache stores replies, not prompts.
+- `ask_question` must never raise because a provider failed; it returns a
+  "busy" `Answer`. Every `Answer` carries `DISCLAIMER`.
 - Do not put NCBI `<ERROR>` text, API keys, or request URLs in exceptions or logs.
 - The rate-limit scheduler is shared per process and keeps only a digest of the
   API key. Never hold its lock during HTTP calls. Every retry takes a new slot.
@@ -148,6 +158,8 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
 - Inject `transport`, `clock`, and `sleeper` into `PubMedClient` and `PmcClient`;
   use a fake client for pipeline and service tests and a temporary directory for
   storage tests. PMC tests use the recorded fixtures in `tests/fixtures/pmc/`.
+- Answer tests use `FakeLLM` (`tests/test_answer.py`) and a fake POST
+  transport; they never contact an AI provider.
 - Embedding tests use `FakeEmbedder` (`tests/test_retrieval.py`) and set
   `HRI_MODEL_CACHE` to a temporary folder; they never import a real model or
   download anything.

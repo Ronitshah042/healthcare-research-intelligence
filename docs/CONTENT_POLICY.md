@@ -161,3 +161,29 @@ embedding model is the only file downloaded from outside NCBI and PMC:
 Hugging Face is never contacted for a search, and no query, passage, or
 identifier is ever sent to it. Changing the model, revision, or hash needs the
 owner's approval.
+
+## 11. AI answers
+
+`hri ask` (the `ask_question` service) sends text to an AI provider:
+
+| Sent | Not sent |
+| --- | --- |
+| The user's question | API keys of other services, identifiers of the user, saved lists |
+| Up to 10 stored passages, **CC0 or CC BY only**, with their PMCID version and section | Passages under any other licence, even if `HRI_ALLOWED_LICENCES` allowed storing them |
+
+| Provider | Host (HTTPS only) | Request |
+| --- | --- | --- |
+| Google Gemini API (default) | `generativelanguage.googleapis.com` | `POST /v1beta/models/<model>:generateContent`, key in the `x-goog-api-key` header |
+| Groq (fallback) | `api.groq.com` | `POST /openai/v1/chat/completions`, key in the `Authorization` header |
+
+- On Gemini's **free tier, Google states that prompts and responses are used
+  to improve its products**; the paid tier states they are not. Every answer
+  carries a notice saying which provider received the question. Users must
+  not put personal or patient data in questions.
+- CC BY requires credit: every citation in an answer carries the passage's
+  `attribution`, which any display must show.
+- Keys come only from environment variables and never appear in URLs, logs,
+  exceptions, or the database. The answer cache stores the model's reply,
+  keyed by a hash of the question and passage IDs; it never stores prompts.
+- Answers are a research aid, not medical advice; every `Answer` carries the
+  fixed disclaimer, and the model is told not to give medical advice.

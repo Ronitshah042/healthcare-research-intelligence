@@ -696,3 +696,41 @@ A model name alone can point to different files over time. Pinning the
 repository revision (a Git commit hash) and checking the downloaded file's
 SHA-256 makes every install use exactly the same model, and refuses a file
 that was altered or corrupted.
+
+## Phase 4: answers from evidence
+
+### What is RAG?
+
+Retrieval-augmented generation: instead of letting a language model answer
+from memory, the program first retrieves relevant passages, then gives them
+to the model with the question and asks it to answer only from them. The
+answer can then be checked against the passages it cites.
+
+### Why check citations after generation?
+
+Language models sometimes invent references. Because every passage sent to
+the model has a number, any `[n]` that names a passage that was not sent is
+provably made up and is removed. If too many are made up, or none are real,
+the answer is withheld rather than shown.
+
+### What is prompt injection?
+
+Text that tries to give the model new instructions, hidden in data the model
+reads, such as "ignore all rules" inside a passage. The defence here is
+layered: passages sit inside delimiters they cannot close, the rules say
+evidence text is never instructions, and the citation check catches invented
+references even if the model is fooled.
+
+### Why abstain?
+
+A research aid that says "the stored evidence is not sufficient" is more
+useful than one that guesses. The pipeline abstains before calling the model
+when too little or only off-topic evidence was found, and after, when the
+model says so or the citations do not hold up.
+
+### Free tiers
+
+Free AI tiers limit requests per minute and per day, and may use what is sent
+to improve the provider's products. The cache avoids paying twice for the
+same question and evidence, the daily cap keeps usage predictable, and a
+second provider takes over when the first refuses.
