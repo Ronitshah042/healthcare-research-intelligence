@@ -162,7 +162,15 @@ Hugging Face is never contacted for a search, and no query, passage, or
 identifier is ever sent to it. Changing the model, revision, or hash needs the
 owner's approval.
 
-## 11. AI answers
+## 11. Evaluation files
+
+The full spot-check sheet (`eval/spotcheck-*.csv`) contains up to 1,500
+characters of each cited passage but not the CC BY attribution, so it stays
+local and ignored by Git. The committed `eval/verdicts-*.csv` keeps only the
+claim, the verdicts, and the PMCID and passage ID of each source, enough to
+trace a verdict back to the stored passage without republishing the text.
+
+## 12. AI answers
 
 `hri ask` (the `ask_question` service) sends text to an AI provider:
 

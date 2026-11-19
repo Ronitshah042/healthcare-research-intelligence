@@ -81,7 +81,9 @@ from .answer_services import (  # re-exported so callers need one import
 from .eval_services import (  # re-exported
     DEFAULT_PACE_SECONDS,
     DEFAULT_REPORT,
+    MAX_NO_CACHE_QUESTIONS,
     EvalResult,
+    export_verdicts,
     run_eval,
 )
 from .retrieval_services import (  # re-exported so callers need one import
@@ -163,6 +165,8 @@ __all__ = [
     "run_eval",
     "DEFAULT_PACE_SECONDS",
     "DEFAULT_REPORT",
+    "MAX_NO_CACHE_QUESTIONS",
+    "export_verdicts",
 ]
 
 

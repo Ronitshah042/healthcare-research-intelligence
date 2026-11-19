@@ -50,6 +50,7 @@ from hri import services
 | [`search_passages`](#search_passages) | Hybrid (or keyword-only) search of stored passages | `PassageSearchResult` |
 | [`prepare_embedder`](#prepare_embedder) | Download (once) and load the embedding model | `EmbedderStatus` |
 | [`embed_passages`](#embed_passages) | Embed stored passages that have no vector yet | `EmbedPassagesResult` |
+| [`export_verdicts`](#export_verdicts) | Copy a filled spot-check sheet without article text | `Path` |
 | [`run_eval`](#run_eval) | Measure retrieval and answer quality on a question set | `EvalResult` |
 | [`ask_question`](#ask_question) | Answer a research question from stored passages, with checked citations | `Answer` |
 
@@ -156,6 +157,7 @@ Use these to build menus and validate input instead of repeating the values.
 | `DEFAULT_EVIDENCE`, `MAX_EVIDENCE` | `6`, `10` (passages given to the AI model) |
 | `MAX_QUESTION_LENGTH` | `1000` characters |
 | `DEFAULT_PACE_SECONDS`, `DEFAULT_REPORT` | `5.0`, `docs/EVAL_RESULTS.md` (for `run_eval`) |
+| `MAX_NO_CACHE_QUESTIONS` | `10`: the most questions `run_eval(no_cache=True)` accepts |
 | `DISCLAIMER` | The fixed research-aid disclaimer carried by every `Answer` |
 | `SECTION_NAMES` | `("title", "abstract", "introduction", "methods", "results", "discussion", "conclusion", "other")` |
 
@@ -645,6 +647,22 @@ provider attempt).
 Errors: `InvalidRequestError` (bad question or `evidence_count`, or a
 `HRI_LLM_DAILY_REQUEST_CAP` that is not a whole number), `PaperStorageError`.
 
+### `export_verdicts`
+
+```python
+export_verdicts(sheet_path, output_path=None) -> Path
+```
+
+Writes a verdict-only copy of a filled spot-check sheet, by default
+`verdicts-<date>.csv` beside it, with columns `question_id`, `claim`,
+`cited_pmcids`, `cited_passage_ids` (for example `PMC13756269.1:p4`: the
+stored article version and the passage's position), `judge_verdict`,
+`your_verdict`, `your_notes`. It contains no article text, so it can be
+committed; the full sheet stays local.
+
+Errors: `InvalidRequestError` (unreadable sheet, missing columns, or an
+output path equal to the sheet).
+
 ### `run_eval`
 
 ```python
@@ -652,7 +670,7 @@ run_eval(
     question_set, *, database_path=None, max_questions=None, answers=True,
     report_path="docs/EVAL_RESULTS.md", spotcheck_dir=None, pace_seconds=5.0,
     judge_prompt_path="eval/judge_prompt.txt", label="run", summary_path=None,
-    baseline_path=None, note=None,
+    baseline_path=None, note=None, no_cache=False,
 ) -> EvalResult
 ```
 
@@ -684,6 +702,15 @@ columns is never overwritten; the new sheet gets a numbered name
 - **Comparisons:** `summary_path` saves the headline numbers as JSON under
   `label`; `baseline_path` adds a before/after table against such a file,
   and `note` is printed under it as the decision.
+- **Judge agreement:** read from every `verdicts-*.csv` beside the question
+  set (see `export_verdicts`): the share of claims the owner rated where the
+  judge's verdict is the same. "pending manual spot-check" until one exists.
+- **Response time:** a run that waited for the model records its median and
+  p90 in `results/latency.json` beside the set; a fully cached run reports
+  that last measurement with its date. `no_cache=True` ignores cached answers
+  (replies are still stored) to measure response time for real; it uses the
+  first 5 questions unless `max_questions` is given, at most
+  `MAX_NO_CACHE_QUESTIONS`.
 - **Free tier:** answers and judgements are cached and reused, so a rerun
   costs nothing for unchanged questions; it waits `pace_seconds` after each
   question that used an AI request; `max_questions` takes the first N; the

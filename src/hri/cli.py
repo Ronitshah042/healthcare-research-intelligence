@@ -209,7 +209,23 @@ def build_parser() -> argparse.ArgumentParser:
         "--baseline", metavar="PATH", help="summary JSON of an earlier run to compare with"
     )
     evaluate.add_argument("--note", help="decision text shown under the comparison")
+    evaluate.add_argument(
+        "--no-cache", action="store_true",
+        help="ignore cached answers to measure real response time "
+        f"(at most {services.MAX_NO_CACHE_QUESTIONS} questions; default 5)",
+    )
     evaluate.set_defaults(handler=_eval)
+
+    verdicts = commands.add_parser(
+        "eval-verdicts",
+        help="export a filled spot-check sheet without article text",
+        description="Write verdicts-<date>.csv beside the sheet: question, claim, "
+        "cited PMCIDs and passage IDs, judge verdict, your verdict and notes. "
+        "This file can be committed; hri eval reads it for judge agreement.",
+    )
+    verdicts.add_argument("sheet", help="spot-check sheet, e.g. eval/spotcheck-2026-11-19.csv")
+    verdicts.add_argument("--output", metavar="PATH")
+    verdicts.set_defaults(handler=_eval_verdicts)
 
     lists = commands.add_parser("lists", help="manage saved lists of papers")
     list_commands = lists.add_subparsers(dest="list_command", required=True)
@@ -483,6 +499,7 @@ def _eval(args: argparse.Namespace) -> None:
         summary_path=args.summary,
         baseline_path=args.baseline,
         note=args.note,
+        no_cache=args.no_cache,
     )
     print(f"Evaluated {result.questions} questions; AI requests used: {result.llm_calls}")
     for method, values in result.retrieval.items():
@@ -490,6 +507,11 @@ def _eval(args: argparse.Namespace) -> None:
     print(f"Report: {result.report_path}")
     if result.spotcheck_path:
         print(f"Spot-check sheet: {result.spotcheck_path}")
+
+
+def _eval_verdicts(args: argparse.Namespace) -> None:
+    output = services.export_verdicts(args.sheet, args.output)
+    print(f"Verdicts without article text: {output}")
 
 
 def _lists_create(args: argparse.Namespace) -> None:

@@ -107,6 +107,7 @@ def run_evaluation(
     cache: AnswerCache,
     judge_prompt: str,
     question_set: str,
+    answer_cache=None,
     database: str,
     pace_seconds: float,
     clock: Callable[[], float],
@@ -138,7 +139,8 @@ def run_evaluation(
             calls = cache.requests_today()
             started = clock()
             result.answer = answer_question(
-                entry.question, store=store, llm=answer_llm, cache=cache, embedder=embedder,
+                entry.question, store=store, llm=answer_llm,
+                cache=answer_cache or cache, embedder=embedder,
             )
             result.latency_seconds = clock() - started
             if judge_llm is not None and result.answer.model in judge_llm.model.split("+"):
@@ -213,6 +215,7 @@ def answer_summary(run: EvalRun) -> dict[str, float | int | None]:
         "should_answer": len(should_not),
         "answered_when_expected": metrics.rate(
             sum(not r.answer.abstained for r in should_not), len(should_not)),
+        "latency_measured": len(fresh),
         "latency_median": metrics.percentile(fresh, 0.5),
         "latency_p90": metrics.percentile(fresh, 0.9),
         "llm_calls": run.llm_calls,
@@ -287,6 +290,8 @@ def render_report(
     current: dict | None = None,
     baseline: dict | None = None,
     note: str | None = None,
+    agreement: dict | None = None,
+    latency_record: dict | None = None,
 ) -> str:
     """The Markdown report for ``docs/EVAL_RESULTS.md``."""
     retrieval = retrieval_table(run)
@@ -343,13 +348,12 @@ def render_report(
              f"(+{answers['claims_unjudged']} unrated)"),
             ("Supported / partial / unsupported", f"{_pct(answers['supported'])} / "
              f"{_pct(answers['partial'])} / {_pct(answers['unsupported'])}"),
-            ("Judge agreement", "pending manual spot-check"),
+            ("Judge agreement", _agreement(agreement)),
             ("Correct abstention", f"{_pct(answers['correct_abstention'])} "
              f"of {answers['should_abstain']} that should abstain"),
             ("Answered when expected", f"{_pct(answers['answered_when_expected'])} "
              f"of {answers['should_answer']} answerable"),
-            ("Latency, uncached (median / p90)", f"{_secs(answers['latency_median'])} / "
-             f"{_secs(answers['latency_p90'])}"),
+            ("Response time, uncached", _latency(answers, latency_record, run)),
             ("AI requests (answers + judge)", str(answers["llm_calls"])),
         ]
         lines += [_row(["Measure", "Value"]), _row(["---", "---"])]
@@ -410,8 +414,8 @@ def spotcheck_csv(run: EvalRun, limit: int = SPOTCHECK_CLAIMS) -> str:
     out = io.StringIO()
     writer = csv.writer(out)
     writer.writerow(["question_id", "question", "claim", "cited", "cited_articles",
-                     "cited_passages", "judge_verdict", "judge_reason",
-                     "your_verdict", "your_notes"])
+                     "cited_passage_ids", "cited_passages", "judge_verdict",
+                     "judge_reason", "your_verdict", "your_notes"])
     for result, verdict in picked:
         evidence = result.answer.evidence
         cited = [evidence[n - 1] for n in verdict.cited if 1 <= n <= len(evidence)]
@@ -419,10 +423,16 @@ def spotcheck_csv(run: EvalRun, limit: int = SPOTCHECK_CLAIMS) -> str:
             result.question.id, result.question.question, verdict.claim,
             " ".join(f"[{n}]" for n in verdict.cited),
             " ".join(f"{m.chunk.pmcid_version}/{m.chunk.section_name}" for m in cited),
+            " ".join(passage_id(m) for m in cited),
             "\n---\n".join(m.chunk.text[:1500] for m in cited),
             verdict.verdict, verdict.reason, "", "",
         ])
     return out.getvalue()
+
+
+def passage_id(match: PassageMatch) -> str:
+    """Stable passage reference: article version and position, e.g. PMC1.1:p4."""
+    return f"{match.chunk.pmcid_version}:p{match.chunk.position}"
 
 
 def _rankings(
@@ -465,6 +475,24 @@ def _interpret(retrieval: dict, answers: dict) -> list[str]:
                      "answers, but still an AI; the spot-check sheet is the human check "
                      "of its verdicts.")
     return lines or ["No results."]
+
+
+def _agreement(agreement: dict | None) -> str:
+    if not agreement or not agreement.get("rated"):
+        return "pending manual spot-check"
+    return (f"{_pct(agreement['rate'])} ({agreement['agreed']} of {agreement['rated']} "
+            "claims; owner's spot-check, exact verdict match)")
+
+
+def _latency(answers: dict, record: dict | None, run: EvalRun) -> str:
+    if answers.get("latency_median") is not None:
+        return (f"median {_secs(answers['latency_median'])}, p90 {_secs(answers['latency_p90'])} "
+                f"(uncached run, {run.started:%Y-%m-%d}, {answers['latency_measured']} answers)")
+    if record:
+        return (f"median {record['median_seconds']:.1f} s, p90 {record['p90_seconds']:.1f} s "
+                f"(uncached run, {record['date']}, {record['answers_measured']} answers; "
+                "this run was fully cached)")
+    return "not measured yet (run with --no-cache)"
 
 
 def _row(cells: Sequence[str]) -> str:

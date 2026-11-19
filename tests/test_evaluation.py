@@ -13,6 +13,7 @@ import unittest
 from evaluation import metrics
 from evaluation.judge import build_judge_input, extract_claims, judge_answer, parse_verdicts
 from evaluation.runner import load_question_set
+from evaluation.verdicts import VERDICT_COLUMNS, export_verdicts, judge_agreement
 from generation import rag
 from generation.cache import AnswerCache
 from hri import cli, services
@@ -152,6 +153,36 @@ class JudgeTests(PipelineTestCase):
         self.assertEqual(user.count("</evidence>"), 1)
 
 
+class VerdictExportTests(unittest.TestCase):
+    sheet = (
+        "question_id,question,claim,cited,cited_articles,cited_passage_ids,cited_passages,"
+        "judge_verdict,judge_reason,your_verdict,your_notes\n"
+        'q01,Q?,Claim one [1].,[1],PMC1.1/results,PMC1.1:p4,"SECRET ARTICLE TEXT",'
+        "supported,ok, Supported , fine\n"
+        'q02,Q?,Claim two [1][2].,[1] [2],x,PMC2.3:p1 PMC2.3:p7 PMC5.1:p0,"MORE TEXT",'
+        "partial,over,unsupported,\n"
+        "q03,Q?,Claim three [1].,[1],x,PMC3.1:p2,TEXT,supported,ok,,\n"
+    )
+
+    def test_export_keeps_ids_and_verdicts_but_no_article_text(self) -> None:
+        rows = list(csv.DictReader(io.StringIO(export_verdicts(self.sheet))))
+
+        self.assertEqual(list(rows[0]), list(VERDICT_COLUMNS))
+        self.assertEqual(rows[0]["cited_passage_ids"], "PMC1.1:p4")
+        self.assertEqual(rows[1]["cited_pmcids"], "PMC2 PMC5")
+        self.assertEqual((rows[0]["your_verdict"], rows[0]["your_notes"]), ("supported", "fine"))
+        text = export_verdicts(self.sheet)
+        self.assertNotIn("SECRET ARTICLE TEXT", text)
+        self.assertNotIn("MORE TEXT", text)
+        with self.assertRaises(ValueError):
+            export_verdicts("question_id,claim\nq1,x\n")
+
+    def test_agreement_counts_only_claims_rated_by_both(self) -> None:
+        agreement = judge_agreement([export_verdicts(self.sheet)])
+        self.assertEqual(agreement, {"rated": 2, "agreed": 1, "rate": 0.5})
+        self.assertEqual(judge_agreement([])["rate"], None)
+
+
 class RunEvalTests(PipelineTestCase):
     def setUp(self) -> None:
         super().setUp()
@@ -223,6 +254,48 @@ class RunEvalTests(PipelineTestCase):
         self.assertEqual(third.name, "spotcheck-2026-11-19-2.csv")
         self.assertIn("supported", first.read_text())
         self.assertIn("| Judge agreement | pending manual spot-check |", self.report.read_text())
+
+    def test_verdict_files_beside_the_set_give_judge_agreement(self) -> None:
+        sheet = self.run_eval().spotcheck_path
+        rows = list(csv.DictReader(io.StringIO(sheet.read_text())))
+        self.assertTrue(all(":p" in row["cited_passage_ids"] for row in rows))
+        rows[0]["your_verdict"] = rows[0]["judge_verdict"]
+        with sheet.open("w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+            writer.writeheader()
+            writer.writerows(rows)
+
+        exported = services.export_verdicts(sheet)
+        self.run_eval()
+
+        self.assertEqual(exported.name, "verdicts-2026-11-19.csv")
+        self.assertNotIn(rows[0]["cited_passages"][:40], exported.read_text())
+        self.assertIn("| Judge agreement | 100% (1 of 1 claims;", self.report.read_text())
+        with self.assertRaises(services.InvalidRequestError):
+            services.export_verdicts(sheet, sheet)
+
+    def test_cached_runs_report_the_last_measured_response_time(self) -> None:
+        self.run_eval()  # uncached: measures and records response time
+        record = json.loads((self.set_path.parent / "results" / "latency.json").read_text())
+        self.assertEqual((record["date"], record["answers_measured"]), ("2026-11-19", 2))
+
+        self.run_eval()  # fully cached
+
+        report = self.report.read_text()
+        self.assertIn("(uncached run, 2026-11-19, 2 answers; this run was fully cached)", report)
+        self.assertNotIn("n/a / n/a", report)
+
+    def test_no_cache_ignores_cached_answers_within_a_limit(self) -> None:
+        self.run_eval()
+        answer_llm = FakeLLM("Fresh answer [1].")
+
+        result = self.run_eval(answer_llm=answer_llm, no_cache=True)
+
+        self.assertEqual(result.questions, 3)  # the default is 5; this set has 3
+        self.assertEqual(len(answer_llm.prompts), 2)  # x1 abstains before any call
+        self.assertIn("(uncached run, 2026-11-19, 2 answers)", self.report.read_text())
+        with self.assertRaises(services.InvalidRequestError):
+            self.run_eval(no_cache=True, max_questions=services.MAX_NO_CACHE_QUESTIONS + 1)
 
     def test_reuses_cached_answers_and_respects_max_questions(self) -> None:
         self.run_eval()

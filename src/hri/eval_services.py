@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import time
 
+from evaluation.verdicts import export_verdicts as _export_verdicts, judge_agreement
 from evaluation.runner import (
     EvalRun,
     answer_summary,
@@ -43,6 +44,9 @@ JUDGE_MAX_OUTPUT_TOKENS = 4096
 DEFAULT_PACE_SECONDS = 5.0
 DEFAULT_REPORT = Path("docs") / "EVAL_RESULTS.md"
 DEFAULT_JUDGE_PROMPT = Path("eval") / "judge_prompt.txt"
+# --no-cache spends real requests: a small default and a hard limit.
+DEFAULT_NO_CACHE_QUESTIONS = 5
+MAX_NO_CACHE_QUESTIONS = 10
 KNOWN_WEAKNESSES = (
     "The starter questions were written by the developer from the stored "
     "abstracts, so their wording favours retrieval; real users' questions will "
@@ -62,7 +66,10 @@ KNOWN_WEAKNESSES = (
     "unhelpful passage still counts as found.",
 )
 
-__all__ = ["DEFAULT_PACE_SECONDS", "DEFAULT_REPORT", "EvalResult", "run_eval"]
+__all__ = [
+    "DEFAULT_PACE_SECONDS", "DEFAULT_REPORT", "MAX_NO_CACHE_QUESTIONS",
+    "EvalResult", "run_eval", "export_verdicts",
+]
 
 
 @dataclass(frozen=True)
@@ -91,6 +98,7 @@ def run_eval(
     summary_path: str | Path | None = None,
     baseline_path: str | Path | None = None,
     note: str | None = None,
+    no_cache: bool = False,
     answer_llm: LLMClient | None = None,
     judge_llm: LLMClient | None = None,
     embedder: Embedder | None = None,
@@ -98,15 +106,26 @@ def run_eval(
     clock: Callable[[], float] = time.monotonic,
     now: datetime | None = None,
 ) -> EvalResult:
-    """Run a question set, write the Markdown report and the spot-check CSV."""
+    """Run a question set, write the Markdown report and the spot-check CSV.
+
+    ``no_cache`` ignores cached answers (to measure real response time); it
+    applies to at most ``MAX_NO_CACHE_QUESTIONS`` questions, 5 by default.
+    """
     path = Path(question_set)
     try:
         questions = load_question_set(path)
     except (OSError, ValueError) as error:
         raise InvalidRequestError(f"Cannot use question set {path}: {error}") from None
+    if no_cache and max_questions is None:
+        max_questions = DEFAULT_NO_CACHE_QUESTIONS
     if max_questions is not None:
         if isinstance(max_questions, bool) or not isinstance(max_questions, int) or max_questions < 1:
             raise InvalidRequestError("max_questions must be a positive whole number.")
+        if no_cache and max_questions > MAX_NO_CACHE_QUESTIONS:
+            raise InvalidRequestError(
+                f"With no_cache, max_questions can be at most {MAX_NO_CACHE_QUESTIONS} "
+                "to protect free-tier limits."
+            )
         questions = questions[:max_questions]
     if not (isinstance(pace_seconds, (int, float)) and 0 <= pace_seconds <= 120):
         raise InvalidRequestError("pace_seconds must be between 0 and 120.")
@@ -135,6 +154,7 @@ def run_eval(
     run = run_evaluation(
         questions, store=store, embedder=embedder, answer_llm=answer_client,
         judge_llm=judge_client, cache=cache,
+        answer_cache=_NoReuse(cache) if no_cache else None,
         judge_prompt=Path(judge_prompt_path).read_text() if answers else "",
         question_set=str(path), database=str(database), pace_seconds=pace_seconds,
         clock=clock, sleeper=sleeper, now=now or datetime.now(timezone.utc),
@@ -151,8 +171,23 @@ def run_eval(
         Path(summary_path).write_text(json.dumps(summary, indent=2) + "\n")
     report = Path(report_path)
     report.parent.mkdir(parents=True, exist_ok=True)
+    results_dir = path.parent / "results"
+    latency_path = results_dir / "latency.json"
+    if summary["answers"].get("latency_median") is not None:
+        results_dir.mkdir(parents=True, exist_ok=True)
+        latency_path.write_text(json.dumps({
+            "median_seconds": round(summary["answers"]["latency_median"], 2),
+            "p90_seconds": round(summary["answers"]["latency_p90"], 2),
+            "answers_measured": summary["answers"]["latency_measured"],
+            "date": f"{run.started:%Y-%m-%d}",
+            "answer_models": summary["answer_models"],
+        }, indent=2) + "\n")
+    latency_record = _read_json(latency_path)
+    agreement = judge_agreement(
+        p.read_text() for p in sorted(path.parent.glob("verdicts-*.csv")))
     report.write_text(render_report(
-        run, KNOWN_WEAKNESSES, current=summary, baseline=baseline, note=note))
+        run, KNOWN_WEAKNESSES, current=summary, baseline=baseline, note=note,
+        agreement=agreement, latency_record=latency_record))
     spotcheck = None
     if answers:
         spotcheck = _free_spotcheck_path(
@@ -162,6 +197,45 @@ def run_eval(
         report_path=report, spotcheck_path=spotcheck, questions=len(run.results),
         llm_calls=run.llm_calls, retrieval=retrieval_table(run), answers=answer_summary(run),
     )
+
+
+def export_verdicts(sheet_path: str | Path, output_path: str | Path | None = None) -> Path:
+    """Write the verdict-only copy of a spot-check sheet; returns its path.
+
+    The default output is ``verdicts-<date>.csv`` beside the sheet, without
+    any article text, so it can be committed.
+    """
+    sheet = Path(sheet_path)
+    try:
+        text = _export_verdicts(sheet.read_text())
+    except (OSError, ValueError, csv.Error) as error:
+        raise InvalidRequestError(f"Cannot export {sheet}: {error}") from None
+    output = Path(output_path) if output_path else sheet.with_name(
+        sheet.name.replace("spotcheck-", "verdicts-", 1))
+    if output.resolve() == sheet.resolve():
+        raise InvalidRequestError("The export must not overwrite the spot-check sheet.")
+    output.write_text(text)
+    return output
+
+
+class _NoReuse:
+    """Answer cache that stores replies but never returns one."""
+
+    def __init__(self, cache: AnswerCache) -> None:
+        self._cache = cache
+
+    def get(self, key: str):
+        return None
+
+    def put(self, key: str, reply) -> None:
+        self._cache.put(key, reply)
+
+
+def _read_json(path: Path) -> dict | None:
+    try:
+        return json.loads(path.read_text())
+    except (OSError, ValueError):
+        return None
 
 
 def _free_spotcheck_path(directory: Path, stem: str) -> Path:
