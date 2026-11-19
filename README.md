@@ -54,7 +54,9 @@ docs/
 Requirements: Python 3.9 or newer. The project has no third-party runtime
 dependencies in its core. Meaning-based passage search is optional and needs
 `fastembed` (pinned, Python 3.10 to 3.13 on Intel Macs):
-`pip install -e '.[embeddings]'`. Without it, passage search is keyword-only.
+`pip install -e '.[embeddings]' -c constraints-embeddings.txt` (the constraints
+file pins fastembed's own dependencies; tested on Python 3.13). Without it,
+passage search is keyword-only.
 
 ```bash
 git clone https://github.com/Ronitshah042/healthcare-research-intelligence.git

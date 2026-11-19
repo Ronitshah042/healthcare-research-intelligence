@@ -115,6 +115,9 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
   result field, or error means updating `docs/SERVICE_API.md` in the same change.
 - No UI code or UI design in this repository.
 - `requirements.txt` and `pyproject.toml` must list the same dependencies.
+  `constraints-embeddings.txt` pins every package the embeddings extra installs
+  and must carry the same fastembed version; regenerate it with `pip freeze`
+  from a tested Python 3.13 environment.
 - Changing the database layout means a new step in `schema.py` and a higher
   `SCHEMA_VERSION`, with a test that upgrades the previous layout.
 

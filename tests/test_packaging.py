@@ -40,6 +40,21 @@ class PackagingTests(unittest.TestCase):
                     requirement, r"^[A-Za-z0-9._-]+==[^=<>~!\s;]+(; python_version >= '[0-9.]+')?$"
                 )
 
+    def test_embedding_constraints_are_pinned_and_match_the_extra(self) -> None:
+        lines = [
+            line.strip()
+            for line in (ROOT / "constraints-embeddings.txt").read_text().splitlines()
+            if line.strip() and not line.startswith("#")
+        ]
+        for line in lines:
+            with self.subTest(line=line):
+                self.assertRegex(line, r"^[A-Za-z0-9._-]+==[^=<>~!\s;]+$")
+        pins = {line.split("==")[0].lower(): line for line in lines}
+        fastembed = next(r for r in _requirements() if r.startswith("fastembed=="))
+        self.assertEqual(pins["fastembed"], fastembed.split(";")[0])
+        for package in ("onnxruntime", "numpy", "tokenizers", "huggingface_hub"):
+            self.assertIn(package, pins)
+
     def test_console_script_points_at_the_cli_entry_point(self) -> None:
         text = (ROOT / "pyproject.toml").read_text()
         self.assertIn('hri = "hri.cli:main"', text)

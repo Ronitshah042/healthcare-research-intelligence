@@ -829,5 +829,13 @@ pinned revision, Hugging Face for the model download only.
 Full suite: 323 tests OK on Python 3.15.2, 3.9.6 (no fastembed), and 3.13.18
 with fastembed installed (no download, no model used).
 
-Not done: a vector index for large collections, pinning fastembed's own
-dependencies, and paging through passage results.
+Not done: a vector index for large collections, and paging through passage
+results.
+
+### Follow-up: pinned embedding dependencies (2026-11-19)
+
+`constraints-embeddings.txt` pins all 32 packages the embeddings extra
+installs (fastembed 0.9.1, onnxruntime 1.23.2, numpy 2.5.5, tokenizers 0.23.3,
+huggingface_hub 1.33.0, and their dependencies), recorded from the tested
+Python 3.13 environment. A test checks every line is an exact pin and that
+the fastembed version matches `pyproject.toml`.

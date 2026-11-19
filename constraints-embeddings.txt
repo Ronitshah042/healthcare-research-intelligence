@@ -1,0 +1,43 @@
+# Exact versions of fastembed and everything it installs, for the optional
+# embeddings extra. Use as constraints, so they apply only to that install:
+#
+#   pip install -e '.[embeddings]' -c constraints-embeddings.txt
+#
+# Recorded on 2026-11-19 from a working Python 3.13.18 environment on an
+# Intel Mac (`pip freeze --exclude-editable`). Other Python versions may need
+# different versions (numpy 2.5 needs Python 3.11+, for example).
+# The fastembed pin must match pyproject.toml; tests/test_packaging.py checks.
+# To update: install in a fresh Python 3.13 venv, run the full test suite and
+# `hri embed-passages`, then regenerate this list.
+anyio==4.16.0
+certifi==2026.10.23
+charset-normalizer==3.5.2
+click==8.5.1
+coloredlogs==15.0.1
+fastembed==0.9.1
+filelock==4.2.12
+flatbuffers==25.12.19
+fsspec==2026.9.0
+h11==0.16.0
+hf-xet==1.8.0
+httpcore==1.0.9
+httpx==0.28.1
+huggingface_hub==1.33.0
+humanfriendly==10.0
+idna==3.20
+loguru==0.7.3
+mmh3==5.3.1
+mpmath==1.3.0
+numpy==2.5.5
+onnxruntime==1.23.2
+packaging==26.3
+pillow==13.0.0
+protobuf==7.36.2
+py_rust_stemmers==0.1.8
+PyYAML==6.0.3
+requests==2.34.2
+sympy==1.14.0
+tokenizers==0.23.3
+tqdm==4.70.1
+typing_extensions==4.16.0
+urllib3==2.8.0

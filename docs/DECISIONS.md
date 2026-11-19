@@ -804,8 +804,16 @@ The embedding environment on the owner's Mac is a Homebrew Python 3.13.18
 virtual environment, `.venv-embed` (ignored by Git).
 
 Installed and checked on 2026-11-18: fastembed 0.9.1, onnxruntime 1.23.2,
-numpy 2.5.5, tokenizers 0.23.3, huggingface_hub 1.33.0. Only fastembed is
-pinned; the others are whatever pip resolved.
+numpy 2.5.5, tokenizers 0.23.3, huggingface_hub 1.33.0.
+
+**Dependency pins (2026-11-19):** every package the extra installs is pinned
+in `constraints-embeddings.txt`, applied with
+`pip install -e '.[embeddings]' -c constraints-embeddings.txt`. Constraints
+rather than install requirements, so the pins never force anything on an
+install without the extra and `requirements.txt` stays the list of direct
+dependencies. The list was taken from the tested Python 3.13 environment and
+is valid there; other Python versions may need different versions (numpy 2.5
+needs 3.11+). Hashes are not pinned.
 
 ### Model
 
