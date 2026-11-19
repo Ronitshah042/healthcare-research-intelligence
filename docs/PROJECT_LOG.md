@@ -943,3 +943,14 @@ Not done: the Groq fallback live (no Groq key), and measured free-tier limits.
 - Both false abstentions came from evidence selection: q13's key results
   passage was not among the 6 sent, and q22's 6 passages all came from one
   of its two relevant articles. Article-level retrieval scores hide this.
+
+### Experiment: three passages per article (2026-11-19, rejected)
+
+Committed as `4b5e952`, evaluated with the same set and settings against
+`eval-baseline-v1`, then reverted. Supported claims fell from 97.5% to 96.2%
+and evidence recall rose only from 92.8% to 93.8%; q22 was not fixed. The
+before/after table and decision are in `docs/EVAL_RESULTS.md`, the run
+summaries in `eval/results/`. `hri eval` gained `--note` for recording such
+decisions. The experiment used 41 AI requests (Gemini answers and Groq
+judge); regenerating the report afterwards used none.
+

@@ -1015,6 +1015,31 @@ citation an injected passage tricks the model into inventing.
 - **Spot-check sheets are not committed**: they hold article text without the
   attribution lines CC BY requires.
 
+### Experiment: at most three passages per article (rejected)
+
+**Rule (owner, 2026-11-19):** keep a change only if recall and citation
+scores do not get worse against `eval-baseline-v1`, with the same question
+set and settings.
+
+| Measure | Baseline | Three per article |
+| --- | --- | --- |
+| Evidence recall | 92.8% | 93.8% |
+| Citation validity | 100% | 100% |
+| Claims supported (judge) | 97.5% | 96.2% |
+| Claims partial / unsupported | 2.5% / 0% | 3.8% / 0% |
+| Answered when expected | 91% | 91% |
+
+**Decision:** rejected and reverted (commits `4b5e952`, revert after it):
+support fell, and the target question q22 still lacked its second relevant
+article because the freed places went to unrelated articles further down the
+passage ranking. Capping passages does not by itself bring in the next
+*relevant* article.
+
+**Next ideas, not yet tried:** choose evidence by article first (the best
+passage from each of the top-ranked articles, then fill), and score
+retrieval per passage so misses like q13 (right article, wrong passage) show
+in the numbers.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.
