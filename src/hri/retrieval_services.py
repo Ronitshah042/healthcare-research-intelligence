@@ -107,6 +107,12 @@ def prepare_embedder(*, download: bool = True) -> EmbedderStatus:
     return EmbedderStatus(True, MODEL_ID, None)
 
 
+def loaded_embedder() -> tuple[Embedder | None, str | None]:
+    """Return the already-downloaded model, or ``None`` and why. Never downloads."""
+    status = prepare_embedder(download=False)
+    return _LOADED.get(model_cache_dir()), status.message
+
+
 def embed_passages(
     *,
     database_path: str | Path | None = None,
@@ -177,9 +183,7 @@ def search_passages(
     store = FullTextStore(resolve_database_path(database_path))
     notice = None
     if embedder is None:
-        status = prepare_embedder(download=False)
-        embedder = _LOADED.get(model_cache_dir())
-        notice = status.message
+        embedder, notice = loaded_embedder()
     with as_invalid_request():
         if embedder is None:
             matches = store.search(query, limit=limit, sections=wanted)

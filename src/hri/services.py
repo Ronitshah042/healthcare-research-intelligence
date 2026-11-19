@@ -69,6 +69,15 @@ from .fulltext_services import (  # re-exported so callers need one import
     get_fulltext_stats,
     recheck_fulltext,
 )
+from .answer_services import (  # re-exported so callers need one import
+    DEFAULT_EVIDENCE,
+    DISCLAIMER,
+    MAX_EVIDENCE,
+    MAX_QUESTION_LENGTH,
+    Answer,
+    Citation,
+    ask_question,
+)
 from .retrieval_services import (  # re-exported so callers need one import
     DEFAULT_PASSAGE_RESULTS,
     MAX_PASSAGE_RESULTS,
@@ -137,6 +146,13 @@ __all__ = [
     "PassageSearchResult",
     "embed_passages",
     "prepare_embedder",
+    "Answer",
+    "Citation",
+    "DISCLAIMER",
+    "DEFAULT_EVIDENCE",
+    "MAX_EVIDENCE",
+    "MAX_QUESTION_LENGTH",
+    "ask_question",
 ]
 
 

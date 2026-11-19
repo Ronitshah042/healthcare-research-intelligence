@@ -50,6 +50,7 @@ from hri import services
 | [`search_passages`](#search_passages) | Hybrid (or keyword-only) search of stored passages | `PassageSearchResult` |
 | [`prepare_embedder`](#prepare_embedder) | Download (once) and load the embedding model | `EmbedderStatus` |
 | [`embed_passages`](#embed_passages) | Embed stored passages that have no vector yet | `EmbedPassagesResult` |
+| [`ask_question`](#ask_question) | Answer a research question from stored passages, with checked citations | `Answer` |
 
 ## Errors
 
@@ -151,6 +152,9 @@ Use these to build menus and validate input instead of repeating the values.
 | `DEFAULT_FULLTEXT_ARTICLES`, `MAX_FULLTEXT_ARTICLES` | `20`, `200` |
 | `DEFAULT_PASSAGE_RESULTS`, `MAX_PASSAGE_RESULTS` | `10`, `50` |
 | `SEARCH_METHODS` | `("hybrid", "keyword")` |
+| `DEFAULT_EVIDENCE`, `MAX_EVIDENCE` | `6`, `10` (passages given to the AI model) |
+| `MAX_QUESTION_LENGTH` | `1000` characters |
+| `DISCLAIMER` | The fixed research-aid disclaimer carried by every `Answer` |
 | `SECTION_NAMES` | `("title", "abstract", "introduction", "methods", "results", "discussion", "conclusion", "other")` |
 
 ## Functions
@@ -570,6 +574,74 @@ run), `over_token_limit` (of those, how many exceeded 512 model tokens), and
 `longest_tokens`.
 
 Errors: `EmbedderUnavailableError`, `PaperStorageError`.
+
+### `ask_question`
+
+```python
+ask_question(
+    question, *, evidence_count=6, database_path=None, llm=None, embedder=None
+) -> Answer
+```
+
+Answers a research question using **only** stored open-access passages, and
+checks every citation. Steps:
+
+1. Retrieve passages: keyword search for any of the question's words (BM25),
+   fused with meaning-based search when the embedding model is ready. Only
+   CC0 and CC BY passages are kept, whatever `HRI_ALLOWED_LICENCES` allows,
+   and article titles are never used as evidence.
+   The best `evidence_count` are numbered 1 to n.
+2. Abstain without calling any AI provider when fewer than 2 passages are
+   found, or (hybrid search) the closest passage's similarity is below 0.7.
+3. Otherwise send the question and the numbered passages to the AI provider
+   (Gemini, then Groq if Gemini fails), unless the same question with the
+   same passages was answered before (cache). Each passage is wrapped in
+   `<evidence>` delimiters it cannot close, and the model is told to ignore
+   any instructions inside it.
+4. Check the reply: citations `[n]` to a passage that was not supplied are
+   removed and counted. The answer abstains if no valid citation remains, if
+   invented citations outnumber valid ones, or if the model reports the
+   evidence insufficient.
+
+It **never raises because of an AI provider**: rate limits, outages, missing
+keys, and the daily request cap all give an abstained answer with
+`abstain_reason="busy"` and a `notice` explaining why.
+
+| Input | Rules |
+| --- | --- |
+| `question` | Non-empty text, at most 1000 characters. It is sent to the AI provider, so it must not contain personal data. |
+| `evidence_count` | 2 to 10. |
+| `llm`, `embedder` | Leave as `None`. Tests pass fakes. |
+
+`Answer`:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `question` | `str` | As asked, trimmed. |
+| `text` | `str` | The answer with `[n]` citations, or the reason no answer was given. |
+| `abstained` | `bool` | `True` when no evidence-based answer was given. |
+| `abstain_reason` | `str \| None` | `insufficient_evidence`, `low_relevance`, `no_valid_citations`, `too_many_invalid_citations`, `model_insufficient`, or `busy`. |
+| `citations` | `tuple[Citation, ...]` | Each valid citation once, in order of first use. |
+| `evidence` | `tuple[PassageMatch, ...]` | The passages given to the model; `evidence[n - 1]` is `[n]`. |
+| `invalid_citations` | `int` | Citations removed because they named no supplied passage. |
+| `provider`, `model` | `str \| None` | Which AI produced the text, if any. |
+| `cached` | `bool` | The model reply came from the cache. |
+| `search_method` | `str` | `"hybrid"` or `"keyword"`. |
+| `notice` | `str \| None` | Who received the question and passages (and, for Gemini's free tier, that Google may use them to improve its products), or why AI was not used. **Show it.** |
+| `disclaimer` | `str` | Always `DISCLAIMER`. **Show it with every answer.** |
+
+`Citation` has `number`, `pmcid`, `pmcid_version`, `pmid`, `doi`, `title`,
+`section`, `link` (the PMC article page), `licence`, and `attribution`. Show
+the attribution with any quoted or summarised text.
+
+Configuration (environment variables; see `.env.example`): `GEMINI_API_KEY`,
+`GROQ_API_KEY`, `HRI_GEMINI_MODEL` (default `gemini-3.5-flash-lite`),
+`HRI_GROQ_MODEL` (default `llama-3.3-70b-versatile`), and
+`HRI_LLM_DAILY_REQUEST_CAP` (default 100 requests per UTC day, counting every
+provider attempt).
+
+Errors: `InvalidRequestError` (bad question or `evidence_count`, or a
+`HRI_LLM_DAILY_REQUEST_CAP` that is not a whole number), `PaperStorageError`.
 
 ## Not provided yet
 

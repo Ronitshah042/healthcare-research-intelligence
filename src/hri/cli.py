@@ -167,6 +167,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     embed.set_defaults(handler=_embed_passages)
 
+    ask = commands.add_parser(
+        "ask",
+        parents=[database],
+        help="answer a research question from stored passages, with citations",
+        description="Answer QUESTION using only stored open-access passages. "
+        "The question and the passages are sent to the configured AI provider "
+        "(GEMINI_API_KEY, else GROQ_API_KEY). Research aid, not medical advice.",
+    )
+    ask.add_argument("question")
+    ask.add_argument(
+        "--evidence",
+        type=int,
+        default=services.DEFAULT_EVIDENCE,
+        dest="evidence_count",
+        help=f"passages to give the model, 2 to {services.MAX_EVIDENCE}",
+    )
+    ask.set_defaults(handler=_ask)
+
     lists = commands.add_parser("lists", help="manage saved lists of papers")
     list_commands = lists.add_subparsers(dest="list_command", required=True)
     create = list_commands.add_parser("create", parents=[database])
@@ -391,6 +409,40 @@ def _embed_passages(args: argparse.Namespace) -> None:
         f"  Longer than the model's limit (cut off): {result.over_token_limit}"
         f" (longest {result.longest_tokens} tokens)"
     )
+
+
+def _ask(args: argparse.Namespace) -> None:
+    answer = services.ask_question(
+        args.question, evidence_count=args.evidence_count, database_path=_db(args)
+    )
+    print(answer.text)
+    if answer.abstained:
+        print(f"\n(No answer given: {answer.abstain_reason.replace('_', ' ')}.)")
+    if answer.citations:
+        print("\nSources:")
+        for citation in answer.citations:
+            identifiers = " | ".join(
+                part for part in (
+                    f"PMID {citation.pmid}" if citation.pmid else None,
+                    f"DOI {citation.doi}" if citation.doi else None,
+                    citation.pmcid_version,
+                ) if part
+            )
+            print(f"[{citation.number}] {citation.title} ({citation.section})")
+            print(f"    {identifiers}")
+            print(f"    {citation.link}")
+            print(f"    {citation.attribution}")
+    details = [f"search: {answer.search_method}"]
+    if answer.provider:
+        details.append(f"model: {answer.provider} {answer.model}")
+    if answer.cached:
+        details.append("cached answer")
+    if answer.invalid_citations:
+        details.append(f"{answer.invalid_citations} invalid citations removed")
+    print("\n" + "; ".join(details))
+    if answer.notice:
+        print(answer.notice)
+    print(answer.disclaimer)
 
 
 def _lists_create(args: argparse.Namespace) -> None:
