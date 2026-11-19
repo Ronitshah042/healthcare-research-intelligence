@@ -165,7 +165,9 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
   use a fake client for pipeline and service tests and a temporary directory for
   storage tests. PMC tests use the recorded fixtures in `tests/fixtures/pmc/`.
 - Evaluation tests (`tests/test_evaluation.py`) use fixed data, `FakeLLM`
-  and `FakeEmbedder`; spot-check CSVs hold article text and stay uncommitted.
+  and `FakeEmbedder`. Spot-check sheets (`eval/spotcheck-*.csv`) hold
+  article text and stay uncommitted; commit only `eval/verdicts-*.csv`
+  (`hri eval-verdicts`), which has passage IDs instead of text.
 - Answer tests use `FakeLLM` (`tests/test_answer.py`) and a fake POST
   transport; they never contact an AI provider.
 - Embedding tests use `FakeEmbedder` (`tests/test_retrieval.py`) and set

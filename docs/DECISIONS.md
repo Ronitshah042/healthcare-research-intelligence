@@ -1060,6 +1060,20 @@ in the numbers.
   reviewed report: it was measured with the earlier relevance labels. It is
   recorded above and in commit `3269555`.
 
+### Spot-check verdicts and response time (owner, 2026-11-19)
+
+- **Verdict-only export** (`hri eval-verdicts`): question, claim, cited
+  PMCIDs, passage IDs (`<PMCID>.<version>:p<position>`, stable for a stored
+  version), judge verdict, the owner's verdict and notes. Committed; the full
+  sheet with article text stays local (CONTENT_POLICY.md section 11).
+- **Judge agreement** is the exact-match share of claims both rated, read
+  from every `eval/verdicts-*.csv`; "pending manual spot-check" until the
+  owner rates one.
+- **Response time:** a fully cached run shows the last real measurement
+  with its date (`eval/results/latency.json`, seeded with the first run:
+  median 3.6 s, p90 18.9 s, 28 answers) instead of "n/a". `--no-cache`
+  measures it again, limited to 10 questions (default 5).
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.

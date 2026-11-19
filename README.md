@@ -167,7 +167,12 @@ validity, an AI judge's rating of each cited claim (prompt in
 `eval/judge_prompt.txt`), correct abstention, latency, and AI requests used.
 It reuses cached answers, waits `--pace` seconds after each question that
 used the AI, and writes a spot-check sheet (`eval/spotcheck-<date>.csv`, not
-committed) for checking the judge by hand. Latest results:
+committed: it holds article text) for checking the judge by hand. After
+filling in your verdicts, `hri eval-verdicts eval/spotcheck-<date>.csv`
+writes `eval/verdicts-<date>.csv` with only claims, verdicts and passage
+IDs; commit that, and `hri eval` reports the judge's agreement with you.
+`hri eval --no-cache --max-questions 5` measures real response time (at
+most 10 questions, to save free-tier requests). Latest results:
 [docs/EVAL_RESULTS.md](docs/EVAL_RESULTS.md).
 
 The database is `data/hri.sqlite3` in the current folder (ignored by Git).

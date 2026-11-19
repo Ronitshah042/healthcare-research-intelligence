@@ -1,6 +1,6 @@
 {
   "label": "baseline-v1-reviewed",
-  "date": "2026-11-19 12:38 UTC",
+  "date": "2026-11-19 12:43 UTC",
   "question_set": "eval/questions.json",
   "questions": 32,
   "answer_models": {
@@ -55,6 +55,7 @@
     "correct_abstention": 1.0,
     "should_answer": 23,
     "answered_when_expected": 0.9130434782608695,
+    "latency_measured": 0,
     "latency_median": null,
     "latency_p90": null,
     "llm_calls": 0

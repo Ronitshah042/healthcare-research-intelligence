@@ -971,3 +971,17 @@ Answers unchanged: evidence recall 93%, citation validity 100%, judge 98%
 supported / 2% partial / 0% unsupported, correct abstention 100%, answered
 when expected 91%. Judge agreement: pending the owner's spot-check.
 `hri eval` no longer overwrites a spot-check sheet that has human input.
+
+### Verdict export and response time (2026-11-19)
+
+- `hri eval-verdicts` / `export_verdicts` writes `eval/verdicts-<date>.csv`
+  without article text; the full sheet now has a `cited_passage_ids` column.
+  `eval/verdicts-2026-11-19.csv` is committed with the owner's columns still
+  empty; judge agreement shows "pending manual spot-check" until they are
+  filled and re-exported.
+- Response time in a cached report: "median 3.6 s, p90 18.9 s (uncached run,
+  2026-11-19, 28 answers; this run was fully cached)", from
+  `eval/results/latency.json`.
+- `hri eval --no-cache` (at most 10 questions, default 5).
+- CONTENT_POLICY.md gains section 11, "Evaluation files"; "AI answers" is
+  now section 12.
