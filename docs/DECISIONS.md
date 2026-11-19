@@ -1040,6 +1040,26 @@ passage from each of the top-ranked articles, then fill), and score
 retrieval per passage so misses like q13 (right article, wrong passage) show
 in the numbers.
 
+### Question review (owner, 2026-11-19)
+
+- **Relevance rule:** an article counts as relevant only if it contains
+  evidence that helps answer the question, not if it merely mentions the
+  topic.
+- q20 keeps PMC13280743 (Mendelian randomization reports cardiovascular
+  benefit for GLP-1 receptor agonists and metformin). q21 excludes it: its
+  SGLT2 results come from genetic proxies of SGLT2 inhibition, not from
+  people using the drug; PMC13606989 is excluded too (SGLT2 only a
+  covariate). q22 keeps PMC13776795 (hyperkalemia linked to in-hospital
+  death). q23 drops PMC13773823, which says trials should assess muscle
+  mass, strength and function but not how. q24, q26, q28 and q31 should
+  abstain.
+- With every question reviewed, the report is no longer marked preliminary.
+  Judge agreement stays "pending manual spot-check" until the owner's
+  verdicts are recorded.
+- The before/after table of the rejected experiment is not repeated in the
+  reviewed report: it was measured with the earlier relevance labels. It is
+  recorded above and in commit `3269555`.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.

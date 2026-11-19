@@ -953,3 +953,21 @@ before/after table and decision are in `docs/EVAL_RESULTS.md`, the run
 summaries in `eval/results/`. `hri eval` gained `--note` for recording such
 decisions. The experiment used 41 AI requests (Gemini answers and Groq
 judge); regenerating the report afterwards used none.
+
+### Reviewed question set (2026-11-19)
+
+The owner reviewed the 8 `needs_review` questions; decisions and the
+deciding sentences are in DECISIONS.md. Rerun with the same settings used
+no AI requests (all answers and verdicts cached). Report no longer
+preliminary; summary in `eval/results/baseline-v1-reviewed.json`.
+
+| Retrieval (23 answerable) | Recall@1 | Recall@5 | MRR |
+| --- | --- | --- | --- |
+| keyword | 90% | 96% | 0.98 |
+| semantic | 86% | 99% | 0.96 |
+| hybrid | 88% | 98% | 0.98 |
+
+Answers unchanged: evidence recall 93%, citation validity 100%, judge 98%
+supported / 2% partial / 0% unsupported, correct abstention 100%, answered
+when expected 91%. Judge agreement: pending the owner's spot-check.
+`hri eval` no longer overwrites a spot-check sheet that has human input.
