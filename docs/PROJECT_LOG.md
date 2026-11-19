@@ -953,4 +953,3 @@ before/after table and decision are in `docs/EVAL_RESULTS.md`, the run
 summaries in `eval/results/`. `hri eval` gained `--note` for recording such
 decisions. The experiment used 41 AI requests (Gemini answers and Groq
 judge); regenerating the report afterwards used none.
-
