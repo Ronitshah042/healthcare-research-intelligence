@@ -89,6 +89,19 @@ Streamlit Community Cloud (streamlit_app.py)
 | **Gemini free tier uses prompts to improve Google's products** | Visitors' questions leave the app | Only CC0/CC BY passages and the question are sent; every answer names the provider; the UI should tell visitors not to enter personal data |
 | Public repository, public app | Anyone can read the bundle | It holds only openly licensed text and citation metadata, with attribution |
 
+## Pinned versions
+
+`requirements.txt` pins only fastembed and Streamlit. Everything they install
+is pinned for the cloud platform (Linux, Python 3.12) in
+`constraints-deploy.txt`, which CI and the bundle workflow install with, so
+the tested set and the bundle's build environment match. Streamlit Cloud
+itself installs from `requirements.txt` alone, so a new release of a
+sub-package could reach the app first. If a deployment breaks after such a
+release, add the line `-c constraints-deploy.txt` to the top of
+`requirements.txt` (this breaks local installs on Intel Macs, where
+onnxruntime 1.32 does not exist). Regenerate the file with the command in its
+header whenever `requirements.txt` changes.
+
 ## Security notes
 
 - Secrets live only in Streamlit's Secrets box and GitHub's repository

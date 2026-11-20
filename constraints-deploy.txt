@@ -1,0 +1,58 @@
+# Exact versions of everything the deployed app installs, resolved for the
+# Streamlit Community Cloud platform: Linux x86_64, Python 3.12, from
+# requirements.txt (fastembed + streamlit) on 2026-11-20 with
+#   pip install --dry-run --report ... --only-binary=:all: \
+#     --platform manylinux_2_28_x86_64 --python-version 3.12 -r requirements.txt
+# CI's Python 3.12 job and the bundle workflow install with -c this file, so
+# the bundle is built with the same versions. Not used by requirements.txt:
+# these versions (onnxruntime 1.32) do not exist for Intel Macs. The fastembed
+# pin must match pyproject.toml; tests/test_packaging.py checks.
+
+altair==6.3.0
+anyio==4.16.0
+attrs==26.1.0
+certifi==2026.10.23
+charset-normalizer==3.5.2
+click==8.5.1
+fastembed==0.9.1
+filelock==4.2.12
+flatbuffers==25.12.19
+fsspec==2026.9.0
+h11==0.16.0
+hf-xet==1.8.0
+httpcore==1.0.9
+httpx==0.28.1
+huggingface_hub==1.33.0
+idna==3.20
+itsdangerous==2.2.0
+Jinja2==3.1.6
+jsonschema==4.26.0
+jsonschema-specifications==2025.9.1
+loguru==0.7.3
+MarkupSafe==3.0.4
+mmh3==5.3.1
+narwhals==2.29.0
+numpy==2.5.5
+onnxruntime==1.32.0
+packaging==26.3
+pandas==3.1.1
+pillow==13.0.0
+protobuf==7.36.2
+py_rust_stemmers==0.1.8
+pyarrow==26.0.1
+pydeck==0.9.3
+python-dateutil==4.0.0
+python-multipart==0.0.34
+PyYAML==6.0.3
+referencing==0.37.0
+requests==2.34.2
+rpds-py==2026.9.1
+starlette==1.10.0
+streamlit==1.67.0
+tokenizers==0.23.3
+tqdm==4.70.1
+typing_extensions==4.16.0
+tzdata==2026.6
+urllib3==2.8.0
+uvicorn==0.54.0
+websockets==17.4

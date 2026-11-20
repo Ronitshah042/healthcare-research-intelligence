@@ -40,6 +40,17 @@ class PackagingTests(unittest.TestCase):
                     requirement, r"^[A-Za-z0-9._-]+==[^=<>~!\s;]+(; python_version >= '[0-9.]+')?$"
                 )
 
+    def test_deploy_constraints_pin_the_runtime_versions(self) -> None:
+        lines = [line.strip() for line in (ROOT / "constraints-deploy.txt").read_text().splitlines()
+                 if line.strip() and not line.startswith("#")]
+        for line in lines:
+            with self.subTest(line=line):
+                self.assertRegex(line, r"^[A-Za-z0-9._-]+==[^=<>~!\s;]+$")
+        pins = {line.split("==")[0].lower(): line for line in lines}
+        for requirement in _requirements():
+            self.assertEqual(pins[requirement.split("==")[0].lower()], requirement.split(";")[0])
+        self.assertNotIn("torch", pins)
+
     def test_embedding_constraints_are_pinned_and_match_the_extra(self) -> None:
         lines = [
             line.strip()
