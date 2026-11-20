@@ -12,17 +12,16 @@ A provider without a key is skipped.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
 import json
 import os
 import socket
 import time
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from typing import Protocol
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
-
 
 DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
 # llama-3.3-70b-versatile is listed by Groq but not available to free keys

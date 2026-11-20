@@ -6,7 +6,6 @@ import sqlite3
 
 from .pubmed import PUBMED_SOURCE_NAME
 
-
 # Version 1: the ``papers`` table, including ``source_name``.
 # Version 2: saved lists (``saved_lists`` and ``saved_list_items``).
 # Version 3: ``papers.citation_json`` for formal citation details.

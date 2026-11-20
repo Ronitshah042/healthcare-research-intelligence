@@ -6,17 +6,20 @@ Nothing is sent to any AI provider.
 
 from __future__ import annotations
 
-from dataclasses import replace
-from io import BytesIO
 import json
 import os
-from pathlib import Path
 import re
 import stat
 import tempfile
 import unittest
+from dataclasses import replace
+from io import BytesIO
+from pathlib import Path
 from unittest import mock
 from urllib.error import HTTPError
+
+from test_fulltext_store import CVD_DOCUMENT, DOCUMENT
+from test_retrieval import FakeEmbedder
 
 from generation import rag
 from generation.cache import AnswerCache
@@ -33,9 +36,6 @@ from hri import cli, retrieval_services, services
 from ingestion.chunking import chunk_sections
 from ingestion.fulltext import ArticleSection
 from ingestion.fulltext_store import FullTextStore
-
-from test_fulltext_store import CVD_DOCUMENT, DOCUMENT
-from test_retrieval import FakeEmbedder
 
 
 class FakeLLM:

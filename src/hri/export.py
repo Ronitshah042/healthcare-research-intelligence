@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
 import csv
+from collections.abc import Callable, Iterable
 from io import StringIO
 
 from ingestion import StoredPaper
-
 
 # ``citations`` is Vancouver (NLM) style; ``plain`` is a simple readable layout.
 EXPORT_FORMATS = ("csv", "citations", "plain")

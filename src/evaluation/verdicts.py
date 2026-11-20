@@ -13,7 +13,6 @@ from collections.abc import Iterable
 
 from .judge import VERDICTS
 
-
 VERDICT_COLUMNS = (
     "question_id", "claim", "cited_pmcids", "cited_passage_ids",
     "judge_verdict", "your_verdict", "your_notes",

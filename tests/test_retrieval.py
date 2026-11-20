@@ -6,13 +6,15 @@ Only ``FakeEmbedder`` is used: no network access and no model download.
 from __future__ import annotations
 
 import hashlib
-from pathlib import Path
 import sys
 import tempfile
 import types
 import unittest
-from unittest import mock
 import zlib
+from pathlib import Path
+from unittest import mock
+
+from test_fulltext_store import CVD_DOCUMENT, DOCUMENT
 
 from hri import retrieval_services, services
 from ingestion.chunking import chunk_sections
@@ -21,9 +23,6 @@ from ingestion.fulltext_store import FullTextStore
 from retrieval import embeddings
 from retrieval.embeddings import EmbedderUnavailableError, from_blob, to_blob, unit
 from retrieval.hybrid import hybrid_search, vector_search
-
-from test_fulltext_store import CVD_DOCUMENT, DOCUMENT
-
 
 # Words the fake model treats as meaning the same thing.
 SYNONYMS = {"heart": "cardiac", "myocardial": "cardiac", "infarction": "attack"}

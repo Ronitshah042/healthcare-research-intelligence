@@ -7,10 +7,9 @@ anything.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 from xml.etree import ElementTree
-
 
 SECTION_NAMES = (
     "title", "abstract", "introduction", "methods", "results", "discussion",

@@ -9,7 +9,6 @@ from pathlib import Path
 from ingestion.schema import SCHEMA_VERSION, SchemaVersionError, ensure_schema
 from ingestion.storage import PaperStorageError, PaperStore
 
-
 _PAPERS_BEFORE_SOURCE_NAME = """CREATE TABLE papers (
     id INTEGER PRIMARY KEY, pmid TEXT UNIQUE, doi TEXT UNIQUE,
     title TEXT NOT NULL, authors_json TEXT NOT NULL, journal TEXT,
@@ -121,9 +120,10 @@ class SchemaTests(unittest.TestCase):
             )
 
     def test_upgrades_version_4_by_indexing_stored_passages(self) -> None:
+        from test_fulltext_store import DOCUMENT
+
         from ingestion.chunking import chunk_sections
         from ingestion.fulltext import ArticleSection
-        from test_fulltext_store import DOCUMENT
         from ingestion.fulltext_store import FullTextStore
 
         section = (ArticleSection("results", None, ("Mortality fell sharply.",)),)
@@ -147,9 +147,10 @@ class SchemaTests(unittest.TestCase):
         self.assertEqual(store.search("mortality", limit=5), ())
 
     def test_upgrades_version_5_by_adding_passage_embeddings(self) -> None:
+        from test_fulltext_store import DOCUMENT
+
         from ingestion.chunking import chunk_sections
         from ingestion.fulltext import ArticleSection
-        from test_fulltext_store import DOCUMENT
         from ingestion.fulltext_store import FullTextStore
 
         section = (ArticleSection("results", None, ("Mortality fell.",)),)

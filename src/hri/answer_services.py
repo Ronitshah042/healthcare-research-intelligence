@@ -11,14 +11,19 @@ from pathlib import Path
 
 from generation.cache import DEFAULT_DAILY_REQUEST_CAP, AnswerCache
 from generation.llm import FallbackLLM, LLMClient, build_default_llm
-from generation.rag import DEFAULT_EVIDENCE, DISCLAIMER, Answer, Citation, answer_question
+from generation.rag import (
+    DEFAULT_EVIDENCE,
+    DISCLAIMER,
+    Answer,
+    Citation,
+    answer_question,
+)
 from ingestion.fulltext_store import FullTextStore
 from retrieval.embeddings import Embedder
 
 from .config import resolve_database_path
 from .errors import InvalidRequestError
 from .retrieval_services import loaded_embedder
-
 
 MAX_QUESTION_LENGTH = 1000
 MAX_EVIDENCE = 10

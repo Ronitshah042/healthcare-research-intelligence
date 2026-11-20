@@ -6,7 +6,6 @@ purpose, but they must agree on which spellings mean the same paper.
 
 from __future__ import annotations
 
-
 _DOI_PREFIXES = (
     "https://doi.org/", "http://doi.org/", "https://dx.doi.org/",
     "http://dx.doi.org/", "doi:",

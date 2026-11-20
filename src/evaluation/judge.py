@@ -6,15 +6,14 @@ versioned with the results. Judge replies are cached like answers.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
 import re
+from dataclasses import dataclass
 
 from generation.cache import AnswerCache
 from generation.llm import LLMClient, LLMError, LLMRateLimitedError
 from generation.rag import Answer, neutralise
-
 
 VERDICTS = ("supported", "partial", "unsupported")
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+|\n+")

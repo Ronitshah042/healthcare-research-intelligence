@@ -5,18 +5,16 @@ The contract is in ``docs/SERVICE_API.md``.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
 import csv
-from datetime import datetime, timezone
 import json
 import os
-from pathlib import Path
 import time
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
 
-from evaluation.verdicts import export_verdicts as _export_verdicts, judge_agreement
 from evaluation.runner import (
-    EvalRun,
     answer_summary,
     load_question_set,
     render_report,
@@ -25,6 +23,8 @@ from evaluation.runner import (
     run_summary,
     spotcheck_csv,
 )
+from evaluation.verdicts import export_verdicts as _export_verdicts
+from evaluation.verdicts import judge_agreement
 from generation.cache import AnswerCache
 from generation.llm import FallbackLLM, GroqClient, LLMClient, build_default_llm
 from ingestion.fulltext_store import FullTextStore
@@ -34,7 +34,6 @@ from .answer_services import daily_request_cap
 from .config import resolve_database_path
 from .errors import InvalidRequestError
 from .retrieval_services import loaded_embedder
-
 
 # On Groq, so the judge is never the Gemini model that writes the answers.
 # A different family from both answer models (Gemini, and Qwen on Groq).

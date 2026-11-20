@@ -6,10 +6,10 @@ citation check -> ``Answer``. Retrieved text is treated as untrusted data.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
 import re
+from dataclasses import dataclass
 
 from ingestion.fulltext_store import FullTextStore, PassageMatch
 from ingestion.licence_policy import LicencePolicy
@@ -19,7 +19,6 @@ from retrieval.hybrid import CANDIDATES, fuse, vector_search
 
 from .cache import AnswerCache
 from .llm import LLMClient, LLMError, LLMReply
-
 
 DISCLAIMER = (
     "Research aid only, not medical advice. This summary of the cited studies "

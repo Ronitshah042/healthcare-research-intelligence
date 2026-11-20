@@ -6,10 +6,10 @@ and the rules in ``docs/CONTENT_POLICY.md``.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import logging
 from pathlib import Path
 
 from ingestion import PaperStore, PubMedClientConfig
@@ -32,7 +32,6 @@ from ingestion.pmc_client import (
 
 from .config import resolve_database_path
 from .errors import InvalidRequestError, as_invalid_request
-
 
 LOGGER = logging.getLogger(__name__)
 DEFAULT_FULLTEXT_ARTICLES = 20

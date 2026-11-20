@@ -13,7 +13,6 @@ from ingestion.fulltext_store import FullTextDocument, FullTextStore
 from ingestion.pipeline import StandardisedPaper
 from ingestion.storage import PaperStore
 
-
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "pmc"
 DOCUMENT = FullTextDocument(
     pmcid="PMC10009402",

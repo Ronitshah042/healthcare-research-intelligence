@@ -7,12 +7,11 @@ boundary and break at sentence ends where possible.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
-import re
 
 from .fulltext import ArticleSection
-
 
 TARGET_TOKENS = 400
 MAX_TOKENS = 500

@@ -9,7 +9,6 @@ from ingestion.fulltext import (
     parse_article,
 )
 
-
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "pmc"
 
 

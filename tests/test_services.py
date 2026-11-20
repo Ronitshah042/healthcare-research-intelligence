@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import csv
-from datetime import date
-from io import StringIO
 import tempfile
 import unittest
+from datetime import date
+from io import StringIO
 from pathlib import Path
 from unittest import mock
 

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
-from datetime import datetime, timezone
 import json
 import tempfile
 import unittest
+from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -16,7 +16,6 @@ from ingestion import PaperStore, StandardisedPaper
 from ingestion.fulltext_store import FullTextStore
 from ingestion.licence_policy import LicencePolicy
 from ingestion.pmc_client import ArticleIds, CloudMetadata, PmcRequestValidationError
-
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "pmc"
 NOW = datetime(2026, 11, 17, 9, 30, tzinfo=timezone.utc)

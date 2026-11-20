@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import unittest
+from dataclasses import dataclass, field
 
 from ingestion.metadata import PaperMetadata
 from ingestion.pipeline import (
@@ -12,8 +12,8 @@ from ingestion.pipeline import (
     SearchRequestValidationError,
 )
 from ingestion.pubmed import (
-    CitationDetails,
     PUBMED_ATTRIBUTION,
+    CitationDetails,
     PubMedSearchPage,
     PubMedSearchRecord,
     SearchMode,

@@ -15,23 +15,22 @@ the PubMed client's rate limiting, retries, and error redaction.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
 import json
 import re
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
 from urllib.parse import urlencode, urlsplit
 from xml.etree import ElementTree
 
 from .http import Clock, FetchErrors, HttpFetcher, HttpTransport, Sleeper
 from .identifiers import strip_doi_prefix, strip_pmid_leading_zeros
 from .pubmed import (
+    PubMedError,
     _normalise_plain_text_query,
     _raise_for_api_error,
-    PubMedError,
     ncbi_rate_limit_scope,
 )
 from .pubmed_config import PubMedClientConfig
-
 
 EUTILS_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
 ID_CONVERTER_URL = "https://pmc.ncbi.nlm.nih.gov/tools/idconv/api/v1/articles/"

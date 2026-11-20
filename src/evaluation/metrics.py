@@ -6,8 +6,8 @@ the order in which distinct articles first appear.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
 import math
+from collections.abc import Iterable, Sequence
 
 
 def article_ranking(article_ids: Iterable[str]) -> list[str]:

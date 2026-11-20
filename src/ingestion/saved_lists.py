@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import sqlite3
 from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
-import sqlite3
 
 from .storage import (
     PaperIdentityConflictError,
@@ -14,7 +14,6 @@ from .storage import (
     StoredPaper,
     _validate_lookup,
 )
-
 
 MAX_LIST_NAME_LENGTH = 100
 

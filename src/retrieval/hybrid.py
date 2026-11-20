@@ -8,7 +8,6 @@ from ingestion.fulltext_store import FullTextStore, PassageMatch
 
 from .embeddings import Embedder, from_blob
 
-
 # Candidates taken from each ranking before fusing.
 CANDIDATES = 50
 # Reciprocal rank fusion constant; 60 is the value from the original paper.

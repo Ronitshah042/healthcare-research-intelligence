@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from io import BytesIO
 import json
 import unittest
+from io import BytesIO
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlsplit
@@ -20,7 +20,6 @@ from ingestion.pmc_client import (
 )
 from ingestion.pubmed import PubMedClient
 from ingestion.pubmed_config import PubMedClientConfig
-
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "pmc"
 

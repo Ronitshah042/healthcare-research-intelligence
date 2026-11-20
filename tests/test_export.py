@@ -15,7 +15,6 @@ from hri.export import (
 )
 from ingestion import PUBMED_ATTRIBUTION, CitationDetails, StoredPaper
 
-
 PAPER = StoredPaper(
     pmid="33301246",
     doi="10.1056/nejmoa2034577",

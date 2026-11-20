@@ -3,22 +3,26 @@
 from __future__ import annotations
 
 import csv
-from datetime import datetime, timezone
 import io
 import json
-from pathlib import Path
 import tempfile
 import unittest
-
-from evaluation import metrics
-from evaluation.judge import build_judge_input, extract_claims, judge_answer, parse_verdicts
-from evaluation.runner import load_question_set
-from evaluation.verdicts import VERDICT_COLUMNS, export_verdicts, judge_agreement
-from generation import rag
-from generation.cache import AnswerCache
-from hri import cli, services
+from datetime import datetime, timezone
+from pathlib import Path
 
 from test_answer import FakeLLM, PipelineTestCase
+
+from evaluation import metrics
+from evaluation.judge import (
+    build_judge_input,
+    extract_claims,
+    judge_answer,
+    parse_verdicts,
+)
+from evaluation.runner import load_question_set
+from evaluation.verdicts import VERDICT_COLUMNS, export_verdicts, judge_agreement
+from generation.cache import AnswerCache
+from hri import cli, services
 
 
 class MetricTests(unittest.TestCase):

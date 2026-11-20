@@ -6,7 +6,6 @@ from collections.abc import Mapping
 from os import environ
 from pathlib import Path
 
-
 DATABASE_PATH_VARIABLE = "HRI_DB_PATH"
 # Relative to the current working directory; SQLite files are ignored by Git.
 DEFAULT_DATABASE_PATH = Path("data") / "hri.sqlite3"

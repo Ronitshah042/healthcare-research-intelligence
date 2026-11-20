@@ -6,16 +6,15 @@ caller supplies the exception types and a service name for the messages.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
 import logging
 import math
 import socket
 import ssl
+from collections.abc import Callable
+from dataclasses import dataclass
 from threading import Lock
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-
 
 LOGGER = logging.getLogger(__name__)
 RETRYABLE_HTTP_STATUS_CODES = frozenset({408, 429, 500, 502, 503, 504})

@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-from contextlib import redirect_stderr, redirect_stdout
 import csv
-from io import StringIO
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 from pathlib import Path
 from unittest import mock
 
+from test_services import FakePubMedClient, _record
+
 from hri import cli, services
 from ingestion import PUBMED_ATTRIBUTION, PubMedTransportError
-
-from test_services import FakePubMedClient, _record
 
 
 class CliTestCase(unittest.TestCase):

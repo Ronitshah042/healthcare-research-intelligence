@@ -12,7 +12,6 @@ from ingestion.chunking import (
 )
 from ingestion.fulltext import ArticleSection, parse_article
 
-
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "pmc"
 
 

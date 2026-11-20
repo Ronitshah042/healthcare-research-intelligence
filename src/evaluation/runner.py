@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
 import csv
-from dataclasses import dataclass, field
-from datetime import datetime
 import io
 import json
-from pathlib import Path
 import re
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
 
 from generation.cache import AnswerCache
 from generation.llm import LLMClient, LLMRateLimitedError
@@ -20,7 +20,6 @@ from retrieval.hybrid import CANDIDATES, fuse, vector_search
 
 from . import metrics
 from .judge import ClaimVerdict, extract_claims, judge_answer
-
 
 K_VALUES = (1, 3, 5)
 METHODS = ("keyword", "semantic", "hybrid")

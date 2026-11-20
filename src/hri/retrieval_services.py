@@ -7,9 +7,9 @@ used, search falls back to keyword-only and says why in ``notice``.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
-import logging
 from pathlib import Path
 
 from ingestion.fulltext import SECTION_NAMES
@@ -28,7 +28,6 @@ from retrieval.hybrid import hybrid_search
 
 from .config import resolve_database_path
 from .errors import InvalidRequestError, as_invalid_request
-
 
 LOGGER = logging.getLogger(__name__)
 DEFAULT_PASSAGE_RESULTS = 10

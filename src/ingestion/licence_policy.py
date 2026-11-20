@@ -6,7 +6,6 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from os import environ
 
-
 ALLOWED_LICENCES_VARIABLE = "HRI_ALLOWED_LICENCES"
 DEFAULT_ALLOWED_LICENCES = ("CC0", "CC BY")
 

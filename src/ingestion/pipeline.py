@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
-import re
 
 from .identifiers import strip_doi_prefix, strip_pmid_leading_zeros
 from .metadata import PaperMetadata
 from .pubmed import (
-    CitationDetails,
     PUBMED_ATTRIBUTION,
     PUBMED_SOURCE_NAME,
+    CitationDetails,
     PubMedAttribution,
     PubMedClient,
     PubMedSearchPage,

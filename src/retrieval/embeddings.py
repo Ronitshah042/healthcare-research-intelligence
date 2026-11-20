@@ -10,15 +10,14 @@ Only ``prepare`` downloads, from Hugging Face; loading for search is offline.
 
 from __future__ import annotations
 
-from array import array
 import hashlib
 import math
 import os
-from pathlib import Path
 import shutil
 import sys
+from array import array
+from pathlib import Path
 from typing import Iterable, Protocol
-
 
 MODEL_NAME = "BAAI/bge-small-en-v1.5"
 MODEL_REPOSITORY = "Qdrant/bge-small-en-v1.5-onnx-Q"
