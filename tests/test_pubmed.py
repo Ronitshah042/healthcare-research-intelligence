@@ -2,25 +2,24 @@
 
 from __future__ import annotations
 
-from io import BytesIO
 import socket
 import ssl
-from threading import Event, Thread
 import unittest
+from io import BytesIO
+from threading import Event, Thread
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlsplit
 
 from ingestion.metadata import PaperMetadata
 from ingestion.pubmed import (
-    CitationDetails,
     PUBMED_ATTRIBUTION,
+    CitationDetails,
     PubMedClient,
     PubMedHttpError,
     PubMedRequestValidationError,
     PubMedResponseError,
     PubMedTimeoutError,
     PubMedTransportError,
-    SearchMode,
 )
 from ingestion.pubmed_config import PubMedClientConfig, PubMedConfigurationError
 
@@ -287,7 +286,20 @@ class PubMedClientTests(unittest.TestCase):
         self._client(transport).search_title("COVID-19: a clinician's guide")
 
         term = _parameters(transport.calls[0][0])["term"][0]
-        self.assertIn("COVID-19: a clinician's guide", term)
+        self.assertEqual(term, "COVID-19[ti] AND a[ti] AND clinician's[ti] AND guide[ti]")
+
+    def test_every_word_is_searched_in_the_field(self) -> None:
+        transport = FakeTransport([_esearch_response(0)])
+
+        self._client(transport).search_title_abstract(
+            "SGLT2 inhibitor heart failure", publication_year=2020, publication_year_end=2027
+        )
+
+        self.assertEqual(
+            _parameters(transport.calls[0][0])["term"][0],
+            "SGLT2[tiab] AND inhibitor[tiab] AND heart[tiab] AND failure[tiab]"
+            " AND 2020:2027[pdat]",
+        )
 
     def test_doi_and_pmid_lookups_validate_identifier_inputs(self) -> None:
         invalid_lookups = (
@@ -332,7 +344,7 @@ class PubMedClientTests(unittest.TestCase):
         self._client(transport).lookup_pmid("00123")
 
         self.assertEqual(
-            _parameters(transport.calls[0][0])["term"], ["(123)[pmid]"]
+            _parameters(transport.calls[0][0])["term"], ["123[pmid]"]
         )
 
     def test_doi_lookup_retains_a_year_filter(self) -> None:
@@ -603,7 +615,7 @@ class PubMedClientTests(unittest.TestCase):
 
         self.assertEqual(
             _parameters(transport.calls[0][0])["term"][0],
-            "(Lovelace A)[au] AND 2024[pdat]",
+            '"Lovelace A"[au] AND 2024[pdat]',
         )
 
     def test_rejects_non_text_search_input(self) -> None:

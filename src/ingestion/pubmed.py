@@ -2,24 +2,26 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import date
-from enum import Enum
 import hashlib
 import logging
 import re
+from dataclasses import dataclass
+from datetime import date
+from enum import Enum
 from urllib.parse import urlencode
 from xml.etree import ElementTree
 
 from .http import (
+    Clock,
     FetchErrors,
     HttpFetcher,
+    HttpTransport,
+    Sleeper,
     reset_process_rate_limiters_for_tests,
 )
 from .identifiers import strip_doi_prefix, strip_pmid_leading_zeros
 from .metadata import MetadataValidationError, PaperMetadata, normalise_paper_metadata
 from .pubmed_config import PubMedClientConfig
-
 
 LOGGER = logging.getLogger(__name__)
 PUBMED_RECORD_URL = "https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
@@ -548,14 +550,17 @@ def _build_search_term(
 ) -> str:
     if search_mode is SearchMode.DOI:
         term = f'"{query_value}"[aid]'
+    elif search_mode is SearchMode.AUTHOR:
+        # One name: keep its parts together ("Polack FP").
+        term = f'"{query_value}"[au]'
+    elif search_mode is SearchMode.PMID:
+        term = f"{query_value}[pmid]"
     else:
-        field_tag = {
-            SearchMode.TITLE: "ti",
-            SearchMode.TITLE_ABSTRACT: "tiab",
-            SearchMode.AUTHOR: "au",
-            SearchMode.PMID: "pmid",
-        }[search_mode]
-        term = f"({query_value})[{field_tag}]"
+        # Every word in the field. "(a b c)[tiab]" does not mean that: PubMed
+        # maps the first word to all fields and needs the rest as one phrase.
+        field_tag = "ti" if search_mode is SearchMode.TITLE else "tiab"
+        words = [word.strip(",;:") for word in query_value.split()]
+        term = " AND ".join(f"{word}[{field_tag}]" for word in words if word)
     if year_filter is not None:
         term = f"{term} AND {year_filter.search_expression}"
     return term

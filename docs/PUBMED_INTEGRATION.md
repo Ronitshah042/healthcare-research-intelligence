@@ -88,6 +88,14 @@ including them in requests is not the whole registration process.
 | `lookup_doi(...)` | `[aid]` | None. |
 | `lookup_pmid(...)` | `[pmid]` | None. |
 
+Title and title/abstract searches require **every word** in the field: the
+term is `word1[tiab] AND word2[tiab] ...` (edge commas, semicolons and colons
+are dropped from each word). Author searches keep the name together as a
+phrase, `"Polack FP"[au]`; PMID lookups are `123[pmid]`. Until 2026-11-20 the
+term was `(word1 word2 ...)[tiab]`, which PubMed reads as the first word in
+all fields plus the remaining words as one exact phrase, so most multi-word
+searches returned too few or no results.
+
 Whitespace-only input returns an empty result without an HTTP request. The
 input is URL encoded, and the service uses ESearch with `usehistory=y` then a
 single batched EFetch request for the requested page. Results expose the total
