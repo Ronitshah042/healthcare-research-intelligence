@@ -281,4 +281,3 @@ def _sha256(path: Path) -> str:
 def bundle_directory() -> Path:
     """``HRI_BUNDLE_DIR``, else ``data/bundle``."""
     return Path(os.environ.get("HRI_BUNDLE_DIR", "").strip() or Path("data") / "bundle")
-
