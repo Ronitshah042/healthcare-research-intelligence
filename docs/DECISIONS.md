@@ -1189,6 +1189,21 @@ evaluation answers had the marker anywhere but the start, so no result
 changes. One request first came back "busy", most likely Groq's per-minute
 token limit after two quick requests; it succeeded a minute later.
 
+### Off-topic threshold rechecked on the deployed bundle (2026-11-20)
+
+Best cosine similarity per question (bge-small), on the 96-article bundle:
+on-topic questions written from its titles 0.81 to 0.92; medical questions on
+topics it does not cover 0.64 to 0.735 (vitamin D and COVID-19 0.735,
+acupuncture 0.724, both terms mentioned in some articles); non-medical 0.47
+to 0.56. On the evaluation database, set 1's answerable questions reach as
+low as 0.73 (q08) while its should-abstain questions reach 0.79 (library
+papers without stored text). **Decision: keep 0.7.** Raising it to 0.75 would
+refuse q08, an answerable question, and no threshold separates the two
+groups; the model's INSUFFICIENT_EVIDENCE judgement, which declined all nine
+should-abstain questions in set 1, remains the main guard. Set 2's scores show
+the same overlap (answerable from 0.717, should-abstain up to 0.825) but were
+only reported, not used for the decision, to keep it held out.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.

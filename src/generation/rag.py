@@ -32,8 +32,10 @@ INSUFFICIENT_TEXT = (
 DEFAULT_EVIDENCE = 6
 MIN_EVIDENCE = 2
 # Cosine similarity of the closest passage; below this, nothing is on topic.
-# shortcut: calibrated on 9 questions over 5 articles with bge-small (on-topic
-# 0.72-0.87, off-topic medical 0.60-0.67); recalibrate on a larger collection.
+# A coarse first gate only: on-topic and off-topic scores overlap (see
+# DECISIONS.md, "Off-topic threshold rechecked"), so the model's own
+# INSUFFICIENT_EVIDENCE judgement is the main guard. Rechecked 2026-11-20 on
+# the 96-article bundle and set 1; raising it to 0.75 would refuse q08 (0.73).
 MIN_SIMILARITY = 0.7
 # Bump when the prompt changes, so cached answers to the old prompt are unused.
 PROMPT_VERSION = "1"
