@@ -31,10 +31,6 @@ INSUFFICIENT_TEXT = (
     "The stored evidence is not sufficient to answer this question reliably."
 )
 DEFAULT_EVIDENCE = 6
-# Articles first: the best passage of each of the top ARTICLE_SEEDS articles is
-# always sent, so one article cannot crowd out the others; then fill by rank.
-# Chosen so every reachable relevant article of the evaluation set is seeded.
-ARTICLE_SEEDS = 4
 MIN_EVIDENCE = 2
 # Cosine similarity of the closest passage; below this, nothing is on topic.
 # shortcut: calibrated on 9 questions over 5 articles with bge-small (on-topic
@@ -161,30 +157,8 @@ def retrieve(
         ranked = fuse(keyword, meaning, limit=CANDIDATES)
         method = "hybrid"
         similarity = meaning[0].score if meaning else 0.0
-    return select_evidence(ranked, count), method, similarity
-
-
-def select_evidence(
-    ranked: tuple[PassageMatch, ...], count: int
-) -> tuple[PassageMatch, ...]:
-    """Best passage of each top article first, then the next best by rank.
-
-    The result keeps rank order, so the best passage is still [1].
-    """
-    usable = [match for match in ranked if is_usable_evidence(match)]
-    chosen: set[int] = set()
-    articles: set[str] = set()
-    for index, match in enumerate(usable):
-        if len(articles) == min(ARTICLE_SEEDS, count):
-            break
-        if match.chunk.pmcid not in articles:
-            articles.add(match.chunk.pmcid)
-            chosen.add(index)
-    for index in range(len(usable)):
-        if len(chosen) == count:
-            break
-        chosen.add(index)
-    return tuple(usable[index] for index in sorted(chosen))
+    sendable = tuple(match for match in ranked if is_usable_evidence(match))
+    return sendable[:count], method, similarity
 
 
 def is_usable_evidence(match: PassageMatch) -> bool:
