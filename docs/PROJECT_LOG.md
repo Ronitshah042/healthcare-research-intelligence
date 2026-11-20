@@ -996,3 +996,10 @@ decision in `docs/EVAL_RESULTS.md`; summary `eval/results/articles-first.json`.
 Its uncached response time (median 6.4 s, p90 11.7 s, 15 answers) was
 measured on the experiment's code, so the report keeps the current
 system's last measurement (median 3.6 s, 2026-11-19).
+
+### Second, held-out question set (2026-11-20)
+
+`eval/questions-set2.json`: 25 answerable questions (4 multi-article), 4
+about library papers without stored text, 3 off-topic, all marked
+`needs_review`, each note naming the passage that holds the expected
+answer. Not yet run; held out for confirming decisions (see DECISIONS.md).

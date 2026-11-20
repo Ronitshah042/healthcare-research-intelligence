@@ -79,6 +79,14 @@ class QuestionSetTests(unittest.TestCase):
         self.assertTrue(any(q.should_abstain for q in questions))
         self.assertTrue(any(not q.should_abstain for q in questions))
 
+    def test_the_held_out_second_set_is_valid_and_distinct(self) -> None:
+        folder = Path(__file__).resolve().parent.parent / "eval"
+        first = load_question_set(folder / "questions.json")
+        second = load_question_set(folder / "questions-set2.json")
+        self.assertGreaterEqual(len(second), 30)
+        self.assertFalse({q.id for q in first} & {q.id for q in second})
+        self.assertFalse({q.question for q in first} & {q.question for q in second})
+
     def test_rejects_malformed_sets(self) -> None:
         good = {"id": "q1", "question": "Q?", "relevant_pmcids": ["pmc1"]}
         self.assertEqual(load_question_set(self.write(

@@ -1100,6 +1100,22 @@ article only when its best passage is nearly as relevant as the top one (a
 relevance gap rule), and should be judged on a larger, separately written
 question set to avoid tuning on this one.
 
+### Second, held-out question set (2026-11-20)
+
+`eval/questions-set2.json`, 32 questions, written to be less favourable to
+the system than set 1: from the articles' body text rather than their
+abstracts (except three review articles), in different or everyday wording
+("high potassium", "incretin-based injections"), with relevant articles
+chosen by reading the text and no search run while writing. It includes four
+multi-article questions, four about library papers without stored text, and
+three off-topic questions. It was still written by the developer, so it is
+not fully independent; questions written by another person would be better.
+
+**Rule:** set 2 is held out. It is used only to confirm a decision (for
+example, a change that passed on set 1), never to choose settings. Set 1
+remains the development set. Until the owner reviews it, its results are
+preliminary.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.
