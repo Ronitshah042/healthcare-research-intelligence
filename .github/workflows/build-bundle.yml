@@ -1,0 +1,49 @@
+# Rebuild the read-only data bundle and publish it as the assets of the
+# release tagged "data-bundle" (docs/DEPLOYMENT.md). Weekly and on demand.
+name: Build data bundle
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"   # Mondays 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write   # to upload release assets
+
+concurrency:
+  group: build-bundle
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PUBMED_NCBI_TOOL: ${{ secrets.PUBMED_NCBI_TOOL }}
+      PUBMED_NCBI_EMAIL: ${{ secrets.PUBMED_NCBI_EMAIL }}
+      PUBMED_NCBI_API_KEY: ${{ secrets.PUBMED_NCBI_API_KEY }}
+      HRI_MODEL_CACHE: ${{ github.workspace }}/model-cache
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Reuse the downloaded embedding model
+        uses: actions/cache@v4
+        with:
+          path: model-cache
+          key: bge-small-en-v1.5-aa8f8b0
+      - name: Tests first
+        run: PYTHONPATH=src python -m unittest discover -s tests
+      - name: Build (ingest, full text, retraction re-check, embed, package)
+        run: PYTHONPATH=src python -m hri build-bundle --topics topics.json --output dist
+      - name: Publish to the data-bundle release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view data-bundle >/dev/null 2>&1 || \
+            gh release create data-bundle --title "Data bundle" --latest=false \
+              --notes "Read-only data bundle for the deployed app. Rebuilt by the Build data bundle workflow; see hri-bundle.manifest.json for date, counts and licences."
+          gh release upload data-bundle dist/hri-bundle.sqlite3 dist/hri-bundle.manifest.json --clobber

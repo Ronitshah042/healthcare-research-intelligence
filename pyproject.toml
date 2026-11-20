@@ -5,20 +5,45 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "healthcare-research-intelligence"
 version = "0.1.0"
-description = "Research-support prototype for searching and organising PubMed citations."
+description = "Research aid: PubMed citations, licensed open-access full text, hybrid search, and cited answers."
 readme = "README.md"
 requires-python = ">=3.9"
-# Runtime dependencies, then optional ones. requirements.txt must list exactly
-# these, core and optional together; tests/test_packaging.py checks it.
+# The core needs only the standard library. requirements.txt must list exactly
+# the embeddings and app extras (the Streamlit Cloud runtime), and
+# requirements-dev.txt the api and dev extras; tests/test_packaging.py checks.
 dependencies = []
 
 [project.optional-dependencies]
 # Meaning-based passage search (docs/DECISIONS.md, Phase 3). fastembed needs
 # Python 3.10+; on this project's Intel Mac also <=3.13 (onnxruntime wheels).
 embeddings = ["fastembed==0.9.1; python_version >= '3.10'"]
+# The deployed Streamlit app (Phase 6). No PyTorch anywhere.
+app = ["streamlit==1.67.0; python_version >= '3.11'"]
+# The documented REST interface, not deployed (docs/API.md).
+api = [
+    "fastapi==0.165.0; python_version >= '3.11'",
+    "pydantic==2.14.4; python_version >= '3.11'",
+    "uvicorn==0.54.0; python_version >= '3.11'",
+]
+# Lint and the API tests' HTTP client.
+dev = ["ruff==0.17.6", "httpx==0.28.1"]
 
 [project.scripts]
 hri = "hri.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.ruff]
+target-version = "py39"
+extend-exclude = [".venv-embed"]
+
+[tool.ruff.lint]
+# Listed explicitly so new ruff versions do not change the rule set: syntax and
+# runtime errors (E4, E7, E9), pyflakes (F: undefined names, unused imports),
+# and import order (I). Line length is not enforced.
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# Re-exports are grouped after the module's own constants on purpose.
+"src/hri/services.py" = ["E402"]

@@ -4,37 +4,37 @@ import re
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def _requirements() -> list[str]:
-    lines = (ROOT / "requirements.txt").read_text().splitlines()
+def _requirements(name: str = "requirements.txt") -> list[str]:
+    lines = (ROOT / name).read_text().splitlines()
     return sorted(
         line.strip() for line in lines if line.strip() and not line.startswith("#")
     )
 
 
-def _pyproject_dependencies() -> list[str]:
+def _extras(*names: str) -> list[str]:
     # ``tomllib`` needs Python 3.11, so read the lists with patterns.
     text = (ROOT / "pyproject.toml").read_text()
-    block = re.search(r"^dependencies = \[(.*?)\]", text, re.DOTALL | re.MULTILINE)
-    assert block is not None, "pyproject.toml has no dependencies list"
-    optional = re.findall(r"^\w+ = \[(.*?)\]", text.split(
-        "[project.optional-dependencies]", 1)[-1].split("\n[", 1)[0],
-        re.DOTALL | re.MULTILINE)
-    return sorted(
-        item for found in (block.group(1), *optional)
-        for item in re.findall(r'"([^"]+)"', found)
-    )
+    core = re.search(r"^dependencies = \[(.*?)\]", text, re.DOTALL | re.MULTILINE)
+    assert core is not None and not core.group(1).strip(), "the core must stay dependency-free"
+    section = text.split("[project.optional-dependencies]", 1)[-1].split("\n[", 1)[0]
+    extras = dict(re.findall(r"^(\w+) = \[(.*?)\]", section, re.DOTALL | re.MULTILINE))
+    return sorted(item for name in names for item in re.findall(r'"([^"]+)"', extras[name]))
 
 
 class PackagingTests(unittest.TestCase):
-    def test_requirements_and_pyproject_list_the_same_dependencies(self) -> None:
-        self.assertEqual(_requirements(), _pyproject_dependencies())
+    def test_requirement_files_match_the_pyproject_extras(self) -> None:
+        self.assertEqual(_requirements(), _extras("embeddings", "app"))
+        self.assertEqual(_requirements("requirements-dev.txt"), _extras("api", "dev"))
+
+    def test_the_runtime_has_no_pytorch(self) -> None:
+        for name in ("requirements.txt", "requirements-dev.txt"):
+            self.assertFalse([r for r in _requirements(name) if r.startswith("torch")])
 
     def test_every_requirement_is_pinned_to_an_exact_version(self) -> None:
-        for requirement in _requirements():
+        for requirement in _requirements() + _requirements("requirements-dev.txt"):
             with self.subTest(requirement=requirement):
                 self.assertRegex(
                     requirement, r"^[A-Za-z0-9._-]+==[^=<>~!\s;]+(; python_version >= '[0-9.]+')?$"

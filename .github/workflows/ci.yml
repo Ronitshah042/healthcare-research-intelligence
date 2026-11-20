@@ -1,0 +1,46 @@
+# Lint and the full test suite on every push and pull request.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff==0.17.6
+      - run: ruff check src tests streamlit_app.py
+
+  core-python-3-9:
+    # The core must keep working with the standard library alone.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - name: Tests (optional extras absent, their tests skip)
+        run: PYTHONPATH=src python -m unittest discover -s tests
+
+  full-python-3-12:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Tests (embeddings, API and app extras installed)
+        env:
+          # Tests never download the model or call AI providers.
+          HRI_MODEL_CACHE: ${{ runner.temp }}/models
+        run: PYTHONPATH=src python -m unittest discover -s tests
