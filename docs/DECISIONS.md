@@ -1175,6 +1175,20 @@ preliminary.
   a release asset and for Streamlit's memory; 302 passages (12.6%) exceed the
   embedding model's 512 tokens.
 
+### Groq fallback tested; "insufficient evidence" marker on any line (2026-11-20)
+
+Three real questions answered by `qwen/qwen3.8-27b` alone (Gemini switched
+off), on a copy of the evaluation database: two answers matched their
+passages (all citations valid, figures correct, including a number needed
+to treat that the article states). The third, an unanswerable dose question,
+was answered honestly but with `INSUFFICIENT_EVIDENCE` on the **last** line,
+so the pipeline, which only checked the first line, labelled it answered.
+Now any line starting with the marker counts; the explanation is the text
+after it, else before it, without citations. None of the 65 cached
+evaluation answers had the marker anywhere but the start, so no result
+changes. One request first came back "busy", most likely Groq's per-minute
+token limit after two quick requests; it succeeded a minute later.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.

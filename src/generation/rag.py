@@ -197,8 +197,8 @@ def check_reply(
         question=question, evidence=evidence, provider=reply.provider,
         model=reply.model, cached=cached, search_method=method, notice=notice,
     )
-    if reply.text.lstrip().upper().startswith(INSUFFICIENT_MARKER):
-        explanation = reply.text.lstrip()[len(INSUFFICIENT_MARKER):].strip(" :\n")
+    explanation = _insufficient_explanation(reply.text)
+    if explanation is not None:
         return Answer(
             text=explanation or INSUFFICIENT_TEXT, abstained=True,
             abstain_reason="model_insufficient", citations=(), invalid_citations=0,
@@ -255,6 +255,27 @@ def _numbers(group: str) -> list[int]:
         else:
             numbers.extend(bounds)
     return numbers
+
+
+def _insufficient_explanation(text: str) -> str | None:
+    """The model's reason when it declared the evidence insufficient, else None.
+
+    The prompt asks for the marker on the first line, but some models (seen
+    with Qwen on Groq) explain first and put it last; any line that starts
+    with the marker counts. The explanation is what follows the marker, or
+    failing that what precedes it, without citations.
+    """
+    lines = text.strip().splitlines()
+    for index, line in enumerate(lines):
+        cleaned = line.strip().strip("*_#").strip()
+        if cleaned.upper().startswith(INSUFFICIENT_MARKER):
+            after = "\n".join(
+                [cleaned[len(INSUFFICIENT_MARKER):]] + lines[index + 1:]
+            ).lstrip(" :.\n").strip()
+            before = "\n".join(lines[:index]).strip()
+            plain = _CITATION.sub("", after or before)
+            return re.sub(r"[ \t]+([.,;:])", r"\1", plain).strip()
+    return None
 
 
 def neutralise(text: str) -> str:

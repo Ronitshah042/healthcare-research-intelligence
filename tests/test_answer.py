@@ -269,6 +269,21 @@ class AnswerTests(PipelineTestCase):
                          (True, "model_insufficient"))
         self.assertEqual(answer.text, "No passage reports dosage.")
 
+    def test_the_insufficient_marker_counts_on_any_line(self) -> None:
+        replies = (
+            ("The passages give one dose only [1].\n\nINSUFFICIENT_EVIDENCE\n"
+             "No dose comparison is reported.", "No dose comparison is reported."),
+            ("No passage compares doses [2].\n**INSUFFICIENT_EVIDENCE**",
+             "No passage compares doses."),
+        )
+        for reply, expected in replies:
+            with self.subTest(reply=reply[:30]):
+                answer = self.ask(FakeLLM(reply), question=f"metformin dose {reply[:12]}")
+                self.assertEqual((answer.abstained, answer.abstain_reason),
+                                 (True, "model_insufficient"))
+                self.assertEqual(answer.text, expected)
+                self.assertEqual(answer.citations, ())
+
     def test_abstains_without_calling_the_model_when_evidence_is_weak(self) -> None:
         llm = FakeLLM("should not be used [1]")
         few = self.ask(llm, question="students", evidence_count=2,
