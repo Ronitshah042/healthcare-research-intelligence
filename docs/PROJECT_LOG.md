@@ -985,3 +985,14 @@ when expected 91%. Judge agreement: pending the owner's spot-check.
 - `hri eval --no-cache` (at most 10 questions, default 5).
 - CONTENT_POLICY.md gains section 11, "Evaluation files"; "AI answers" is
   now section 12.
+
+### Experiment: evidence by article first (2026-11-20, rejected)
+
+Committed as `34affa1`, evaluated against `baseline-v1-reviewed` with the
+same set and settings (28 AI requests), reverted in `98f8b66`. Evidence
+recall 93.5% to 97.8% and q22 answered, but supported claims 97.5% to 95.6%
+and single-article answers cited less. Details in DECISIONS.md; table and
+decision in `docs/EVAL_RESULTS.md`; summary `eval/results/articles-first.json`.
+Its uncached response time (median 6.4 s, p90 11.7 s, 15 answers) was
+measured on the experiment's code, so the report keeps the current
+system's last measurement (median 3.6 s, 2026-11-19).

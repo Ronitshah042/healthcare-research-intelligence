@@ -1,0 +1,63 @@
+{
+  "label": "articles-first",
+  "date": "2026-11-20 07:56 UTC",
+  "question_set": "eval/questions.json",
+  "questions": 32,
+  "answer_models": {
+    "Gemini gemini-3.5-flash-lite": 28
+  },
+  "judge_model": "Groq openai/gpt-oss-120b",
+  "retrieval": {
+    "keyword": {
+      "questions": 23,
+      "recall@1": 0.9021739130434783,
+      "precision@1": 0.9565217391304348,
+      "recall@3": 0.9456521739130435,
+      "precision@3": 0.3623188405797101,
+      "recall@5": 0.9565217391304348,
+      "precision@5": 0.22608695652173913,
+      "MRR": 0.9782608695652174
+    },
+    "semantic": {
+      "questions": 23,
+      "recall@1": 0.8586956521739131,
+      "precision@1": 0.9130434782608695,
+      "recall@3": 0.9782608695652174,
+      "precision@3": 0.3768115942028985,
+      "recall@5": 0.9891304347826086,
+      "precision@5": 0.23478260869565218,
+      "MRR": 0.9565217391304348
+    },
+    "hybrid": {
+      "questions": 23,
+      "recall@1": 0.8804347826086957,
+      "precision@1": 0.9565217391304348,
+      "recall@3": 0.9456521739130435,
+      "precision@3": 0.3623188405797101,
+      "recall@5": 0.9782608695652174,
+      "precision@5": 0.23478260869565218,
+      "MRR": 0.9782608695652174
+    }
+  },
+  "answers": {
+    "questions": 32,
+    "busy": 0,
+    "evidence_recall": 0.9782608695652174,
+    "citations_valid": 171,
+    "citations_invalid": 0,
+    "citation_validity": 1.0,
+    "claims_judged": 113,
+    "claims_unjudged": 0,
+    "supported": 0.9557522123893806,
+    "partial": 0.04424778761061947,
+    "unsupported": 0.0,
+    "should_abstain": 9,
+    "correct_abstention": 1.0,
+    "should_answer": 23,
+    "answered_when_expected": 0.9565217391304348,
+    "latency_measured": 15,
+    "latency_median": 6.418996790001984,
+    "latency_p90": 11.749551337998128,
+    "llm_calls": 28
+  }
+}

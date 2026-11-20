@@ -1074,6 +1074,32 @@ in the numbers.
   median 3.6 s, p90 18.9 s, 28 answers) instead of "n/a". `--no-cache`
   measures it again, limited to 10 questions (default 5).
 
+### Experiment: evidence by article first (rejected, 2026-11-20)
+
+Best passage from each of the top four articles always sent, then the
+remaining two places filled by rank (commit `34affa1`). Four was chosen from
+the evaluation set itself (q20's relevant articles rank 1 to 4, q22's second
+article ranks 4), so the experiment was tuned on the data that judged it.
+
+| Measure | Baseline (reviewed) | Articles first |
+| --- | --- | --- |
+| Evidence recall | 93.5% | 97.8% |
+| Answered when expected | 91.3% | 95.7% (q22 answered) |
+| Citation validity | 100% | 100% |
+| Claims supported / partial / unsupported | 97.5% / 2.5% / 0% | 95.6% / 4.4% / 0% |
+| Citations in answers | 211 | 171 |
+
+**Decision:** rejected and reverted under the owner's rule, because the
+supported rate fell. The cost came from single-article questions: the
+seeded places went to less relevant articles, so answers cited the main
+article less (q02 from 4 citations to 1).
+
+**What the two experiments show:** forcing variety helps multi-article
+questions and hurts single-article ones. A next attempt would seed an extra
+article only when its best passage is nearly as relevant as the top one (a
+relevance gap rule), and should be judged on a larger, separately written
+question set to avoid tuning on this one.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.
