@@ -6,13 +6,14 @@ example a read-only deployed bundle), they fall back to process memory.
 
 from __future__ import annotations
 
+import sqlite3
 from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
-import sqlite3
+from threading import Lock
 
 from generation.llm import LLMError, LLMReply
-
+from ingestion.storage import read_only_from_environment
 
 DEFAULT_DAILY_REQUEST_CAP = 100
 
@@ -21,15 +22,27 @@ class DailyCapReachedError(LLMError):
     """The configured number of AI requests for today has been used."""
 
 
+# Shared by every AnswerCache in the process, per database path, so the cache
+# and the daily cap hold across calls when the database cannot be written
+# (for example the deployed read-only bundle). They reset when the process
+# restarts.
+_MEMORY: dict[str, dict[str, LLMReply]] = {}
+_USAGE: dict[str, dict[str, int]] = {}
+# Streamlit serves visitors from several threads: check and count atomically.
+_COUNT_LOCK = Lock()
+
+
 class AnswerCache:
     """Cached model replies and per-day request counts."""
 
-    def __init__(self, database_path: str | Path, *, daily_cap: int) -> None:
+    def __init__(
+        self, database_path: str | Path, *, daily_cap: int, read_only: bool | None = None
+    ) -> None:
         self._path = str(database_path)
         self.daily_cap = daily_cap
-        self._memory: dict[str, LLMReply] = {}
-        self._usage: dict[str, int] = {}
-        self.in_memory = False
+        self._memory = _MEMORY.setdefault(self._path, {})
+        self._usage = _USAGE.setdefault(self._path, {})
+        self.in_memory = read_only_from_environment() if read_only is None else read_only
 
     def get(self, key: str) -> LLMReply | None:
         if self.in_memory:
@@ -57,6 +70,10 @@ class AnswerCache:
 
     def count_request(self) -> None:
         """Record one AI request today, or raise if the cap is already used."""
+        with _COUNT_LOCK:
+            self._count_request()
+
+    def _count_request(self) -> None:
         day = _now().date().isoformat()
         if self.requests_today() >= self.daily_cap:
             raise DailyCapReachedError("Today's AI request limit has been reached.")

@@ -2,24 +2,33 @@
 
 from __future__ import annotations
 
+import json
+import os
+import re
+import sqlite3
 from contextlib import closing
 from dataclasses import asdict, dataclass, replace
 from difflib import SequenceMatcher
-import json
 from pathlib import Path
-import re
-import sqlite3
+from urllib.parse import quote
 
 from .identifiers import strip_doi_prefix, strip_pmid_leading_zeros
 from .pipeline import StandardisedPaper
 from .pubmed import (
-    CitationDetails,
     PUBMED_ATTRIBUTION,
     PUBMED_RECORD_URL,
     PUBMED_SOURCE_NAME,
+    CitationDetails,
     PubMedAttribution,
 )
-from .schema import SchemaVersionError, ensure_schema
+from .schema import SCHEMA_VERSION, SchemaVersionError, ensure_schema
+
+READ_ONLY_VARIABLE = "HRI_DB_READ_ONLY"
+
+
+def read_only_from_environment() -> bool:
+    """True when ``HRI_DB_READ_ONLY`` is 1/true/yes: open databases without writing."""
+    return os.environ.get(READ_ONLY_VARIABLE, "").strip().lower() in {"1", "true", "yes"}
 
 
 _BOOLEAN_TOKEN_PATTERN = re.compile(
@@ -153,8 +162,12 @@ class _BooleanParser:
 class PaperStore:
     """Save and retrieve citation metadata in a local SQLite database."""
 
-    def __init__(self, database_path: str | Path) -> None:
+    def __init__(self, database_path: str | Path, *, read_only: bool | None = None) -> None:
         self._database_path = Path(database_path)
+        self.read_only = read_only_from_environment() if read_only is None else read_only
+        if self.read_only:
+            self._check_read_only_database()
+            return
         try:
             self._database_path.parent.mkdir(parents=True, exist_ok=True)
             with closing(self._connect()) as connection, connection:
@@ -376,12 +389,41 @@ class PaperStore:
             abstract_unavailable=total - with_abstract,
         )
 
+    def _check_read_only_database(self) -> None:
+        # A read-only bundle is never upgraded: it must match this code exactly.
+        if not self._database_path.is_file():
+            raise PaperStorageError("The read-only database file does not exist.")
+        wal = self._database_path.with_name(self._database_path.name + "-wal")
+        if wal.exists() and wal.stat().st_size > 0:
+            # Read-only connections ignore the WAL file and would see stale data.
+            raise PaperStorageError(
+                "The database has unmerged changes in its -wal file; build bundles "
+                "with journal_mode=DELETE (hri build-bundle does)."
+            )
+        try:
+            with closing(self._connect()) as connection:
+                version = connection.execute("PRAGMA user_version").fetchone()[0]
+        except sqlite3.Error as error:
+            raise PaperStorageError("Could not open the read-only database.") from error
+        if version != SCHEMA_VERSION:
+            raise PaperStorageError(
+                f"The read-only database has layout version {version}; "
+                f"this code needs version {SCHEMA_VERSION}. Rebuild the bundle."
+            )
+
     def _connect(self) -> sqlite3.Connection:
-        # ``timeout`` is SQLite's busy timeout: a second writer waits this
-        # long for the first to finish instead of failing at once.
-        connection = sqlite3.connect(
-            self._database_path, timeout=BUSY_TIMEOUT_SECONDS
-        )
+        if self.read_only:
+            # immutable=1: no locks and no side files; the bundle never changes.
+            connection = sqlite3.connect(
+                f"file:{quote(str(self._database_path.resolve()))}?mode=ro&immutable=1",
+                uri=True,
+            )
+        else:
+            # ``timeout`` is SQLite's busy timeout: a second writer waits this
+            # long for the first to finish instead of failing at once.
+            connection = sqlite3.connect(
+                self._database_path, timeout=BUSY_TIMEOUT_SECONDS
+            )
         connection.row_factory = sqlite3.Row
         connection.create_function(
             "casefold", 1,

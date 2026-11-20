@@ -7,12 +7,11 @@ This module contains no business logic. Everything it does goes through
 from __future__ import annotations
 
 import argparse
+import sys
 from collections.abc import Sequence
 from pathlib import Path
-import sys
 
 from . import services
-
 
 _EXIT_OK = 0
 _EXIT_FAILED = 1
@@ -226,6 +225,20 @@ def build_parser() -> argparse.ArgumentParser:
     verdicts.add_argument("sheet", help="spot-check sheet, e.g. eval/spotcheck-2026-11-19.csv")
     verdicts.add_argument("--output", metavar="PATH")
     verdicts.set_defaults(handler=_eval_verdicts)
+
+    bundle = commands.add_parser(
+        "build-bundle",
+        help="build the read-only data bundle for deployment",
+        description="For each topic in TOPICS (JSON): ingest PubMed citations and "
+        "fetch CC0/CC BY open-access full text; then re-check retractions, embed "
+        "passages, and write a compacted read-only SQLite bundle plus a manifest. "
+        "Needs PubMed settings and the embeddings install.",
+    )
+    bundle.add_argument("--topics", default="topics.json", metavar="PATH")
+    bundle.add_argument("--output", default="dist", metavar="DIR")
+    bundle.add_argument("--work-db", metavar="PATH",
+                        help="working database (default DIR/build.sqlite3)")
+    bundle.set_defaults(handler=_build_bundle)
 
     lists = commands.add_parser("lists", help="manage saved lists of papers")
     list_commands = lists.add_subparsers(dest="list_command", required=True)
@@ -512,6 +525,17 @@ def _eval(args: argparse.Namespace) -> None:
 def _eval_verdicts(args: argparse.Namespace) -> None:
     output = services.export_verdicts(args.sheet, args.output)
     print(f"Verdicts without article text: {output}")
+
+
+def _build_bundle(args: argparse.Namespace) -> None:
+    result = services.build_bundle(args.topics, output_dir=args.output,
+                                   work_database=args.work_db)
+    counts = result.manifest["counts"]
+    print(f"Bundle: {result.bundle_path} ({result.size_bytes / 1_000_000:.1f} MB)")
+    print(f"  {counts['papers']} citations, {counts['articles']} articles, "
+          f"{counts['passages']} passages, {counts['vectors']} vectors")
+    print(f"  Licences: {result.manifest['licences']}")
+    print(f"Manifest: {result.manifest_path}")
 
 
 def _lists_create(args: argparse.Namespace) -> None:

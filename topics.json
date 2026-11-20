@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "description": "Topics for the deployed data bundle (hri build-bundle). Each topic ingests up to max_citations PubMed citations and considers up to max_fulltext open-access candidates, storing only CC0/CC BY ones (about 60%), for about 100 articles in total (approved 2026-11-20).",
+  "topics": [
+    {"name": "GLP-1 receptor agonists and the heart", "query": "GLP-1 receptor agonist cardiovascular outcomes", "max_citations": 40, "max_fulltext": 35, "year_from": 2020},
+    {"name": "SGLT2 inhibitors and heart failure", "query": "SGLT2 inhibitor heart failure", "max_citations": 40, "max_fulltext": 35, "year_from": 2020},
+    {"name": "Metformin, ageing and cognition", "query": "metformin cognitive function older adults", "max_citations": 40, "max_fulltext": 35, "year_from": 2018},
+    {"name": "Type 2 diabetes cardiovascular risk", "query": "type 2 diabetes cardiovascular risk", "max_citations": 40, "max_fulltext": 35, "year_from": 2020},
+    {"name": "Heart failure hospital outcomes", "query": "heart failure hospitalization mortality readmission", "max_citations": 40, "max_fulltext": 35, "year_from": 2020}
+  ]
+}

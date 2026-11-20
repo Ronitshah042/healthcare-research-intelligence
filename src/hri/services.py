@@ -7,10 +7,10 @@ in ``docs/SERVICE_API.md``.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
-import math
 from pathlib import Path
 
 from ingestion import (
@@ -38,14 +38,14 @@ from ingestion.saved_lists import (
 )
 
 from .config import resolve_database_path
-from .errors import InvalidRequestError, as_invalid_request as _as_invalid_request
+from .errors import InvalidRequestError
+from .errors import as_invalid_request as _as_invalid_request
 from .export import (
     EXPORT_FORMATS,
     papers_to_citations,
     papers_to_csv,
     papers_to_plain,
 )
-
 
 SEARCH_STRATEGIES = ("keyword", "fuzzy", "boolean")
 DEFAULT_PAGE_SIZE = 20
@@ -56,6 +56,37 @@ _INGEST_PAGE_SIZE = 20
 # Start of the range when only an end year is given; PubMed holds nothing older.
 _EARLIEST_YEAR = 1500
 
+from ingestion.storage import read_only_from_environment  # re-exported
+
+from .answer_services import (  # re-exported so callers need one import
+    DEFAULT_EVIDENCE,
+    DISCLAIMER,
+    MAX_EVIDENCE,
+    MAX_QUESTION_LENGTH,
+    Answer,
+    Citation,
+    ask_question,
+)
+from .bundle_services import (  # re-exported
+    BUNDLE_LICENCES,
+    BUNDLE_NAME,
+    MANIFEST_NAME,
+    BundleResult,
+    DeploymentCheck,
+    build_bundle,
+    bundle_directory,
+    check_deployment,
+    fetch_bundle,
+    load_topics,
+)
+from .eval_services import (  # re-exported
+    DEFAULT_PACE_SECONDS,
+    DEFAULT_REPORT,
+    MAX_NO_CACHE_QUESTIONS,
+    EvalResult,
+    export_verdicts,
+    run_eval,
+)
 from .fulltext_services import (  # re-exported so callers need one import
     DEFAULT_FULLTEXT_ARTICLES,
     MAX_FULLTEXT_ARTICLES,
@@ -68,23 +99,6 @@ from .fulltext_services import (  # re-exported so callers need one import
     fetch_fulltext,
     get_fulltext_stats,
     recheck_fulltext,
-)
-from .answer_services import (  # re-exported so callers need one import
-    DEFAULT_EVIDENCE,
-    DISCLAIMER,
-    MAX_EVIDENCE,
-    MAX_QUESTION_LENGTH,
-    Answer,
-    Citation,
-    ask_question,
-)
-from .eval_services import (  # re-exported
-    DEFAULT_PACE_SECONDS,
-    DEFAULT_REPORT,
-    MAX_NO_CACHE_QUESTIONS,
-    EvalResult,
-    export_verdicts,
-    run_eval,
 )
 from .retrieval_services import (  # re-exported so callers need one import
     DEFAULT_PASSAGE_RESULTS,
@@ -99,6 +113,11 @@ from .retrieval_services import (  # re-exported so callers need one import
     embed_passages,
     prepare_embedder,
     search_passages,
+)
+from .session_state import (  # re-exported
+    DEFAULT_VISITOR_QUESTIONS,
+    SessionSavedLists,
+    VisitorQuota,
 )
 
 __all__ = [
@@ -137,6 +156,8 @@ __all__ = [
     "FullTextDocument",
     "FullTextRejection",
     "FullTextStats",
+    "DEFAULT_FULLTEXT_ARTICLES",
+    "MAX_FULLTEXT_ARTICLES",
     "FullTextFetchResult",
     "FullTextRecheckResult",
     "fetch_fulltext",
@@ -167,6 +188,20 @@ __all__ = [
     "DEFAULT_REPORT",
     "MAX_NO_CACHE_QUESTIONS",
     "export_verdicts",
+    "DEFAULT_VISITOR_QUESTIONS",
+    "SessionSavedLists",
+    "VisitorQuota",
+    "read_only_from_environment",
+    "BUNDLE_LICENCES",
+    "BUNDLE_NAME",
+    "MANIFEST_NAME",
+    "BundleResult",
+    "DeploymentCheck",
+    "build_bundle",
+    "bundle_directory",
+    "check_deployment",
+    "fetch_bundle",
+    "load_topics",
 ]
 
 

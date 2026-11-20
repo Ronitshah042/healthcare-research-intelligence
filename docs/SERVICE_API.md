@@ -157,6 +157,7 @@ Use these to build menus and validate input instead of repeating the values.
 | `DEFAULT_EVIDENCE`, `MAX_EVIDENCE` | `6`, `10` (passages given to the AI model) |
 | `MAX_QUESTION_LENGTH` | `1000` characters |
 | `DEFAULT_PACE_SECONDS`, `DEFAULT_REPORT` | `5.0`, `docs/EVAL_RESULTS.md` (for `run_eval`) |
+| `DEFAULT_VISITOR_QUESTIONS` | `5`: AI questions per visitor for `VisitorQuota` |
 | `MAX_NO_CACHE_QUESTIONS` | `10`: the most questions `run_eval(no_cache=True)` accepts |
 | `DISCLAIMER` | The fixed research-aid disclaimer carried by every `Answer` |
 | `SECTION_NAMES` | `("title", "abstract", "introduction", "methods", "results", "discussion", "conclusion", "other")` |
@@ -724,6 +725,122 @@ columns is never overwritten; the new sheet gets a numbered name
 Errors: `InvalidRequestError` (missing or invalid question set or baseline,
 bad `max_questions` or `pace_seconds`), `PaperStorageError`, `OSError`
 (report cannot be written).
+
+## Read-only deployment helpers
+
+Set `HRI_DB_READ_ONLY=1` to open the database without ever writing to it, as
+the deployed app does with its data bundle. Stores then open the file
+read-only and immutable (no locks, no side files), refuse a file with a
+different layout version or with unmerged `-wal` changes, and raise
+`PaperStorageError` on any write. The answer cache and daily cap move to
+process memory shared by all visitors; they reset when the app restarts.
+Database-backed saved lists cannot be used; use `SessionSavedLists`.
+
+### `read_only_from_environment`
+
+```python
+read_only_from_environment() -> bool
+```
+
+`True` when `HRI_DB_READ_ONLY` is `1`, `true` or `yes`. Every store reads it
+when opened; a UI can use it to hide actions that need writing.
+
+### `SessionSavedLists`
+
+```python
+lists = SessionSavedLists(database_path=None)
+lists.create(name); lists.rename(name, new_name); lists.delete(name)
+lists.add(name, pmid_or_doi) -> StoredPaper; lists.remove(name, pmid_or_doi) -> bool
+lists.names() -> tuple[str, ...]; lists.papers(name) -> tuple[StoredPaper, ...]
+lists.export(name, export_format="csv") -> str   # "csv", "citations", "plain"
+```
+
+Saved lists held in memory, for one visitor's session (keep the object in,
+for example, `st.session_state`). Names ignore case. Papers are looked up with
+`get_paper`. Nothing is written to disk: **lists are lost when the session
+ends or the app restarts**, so offer the export. Errors: `InvalidRequestError`
+(bad or duplicate name, unknown list, unknown format), `PaperNotFoundError`.
+
+### `VisitorQuota`
+
+```python
+quota = VisitorQuota(limit=DEFAULT_VISITOR_QUESTIONS)
+quota.try_use() -> bool; quota.remaining -> int
+```
+
+A per-visitor limit on AI questions, kept in the visitor's session. Call
+`try_use()` before `ask_question`; when it returns `False`, do not ask. The
+app-wide `HRI_LLM_DAILY_REQUEST_CAP` still applies on top.
+
+## Data bundle for deployment
+
+`BUNDLE_NAME` is `hri-bundle.sqlite3`, `MANIFEST_NAME` is
+`hri-bundle.manifest.json`, and `BUNDLE_LICENCES` is `("CC0", "CC BY")`: a
+public bundle never contains text under other licences, whatever
+`HRI_ALLOWED_LICENCES` allows locally. Steps and hosting are in
+`docs/DEPLOYMENT.md`.
+
+### `load_topics`
+
+```python
+load_topics(path) -> list[dict]
+```
+
+Reads and checks `topics.json`: `{"format": 1, "topics": [{"name", "query",
+"max_citations" (1-200, default 40), "max_fulltext" (0-50, default 20),
+"year_from"}]}`, 1 to 20 topics. Errors: `InvalidRequestError`.
+
+### `build_bundle`
+
+```python
+build_bundle(topics_path, *, output_dir="dist", work_database=None)
+    -> BundleResult
+```
+
+For each topic: `ingest` the query's citations and `fetch_fulltext` its
+open-access articles (CC0 and CC BY only); then `recheck_fulltext` (required
+before every bundle, CONTENT_POLICY.md section 7) and `embed_passages`. The
+working database (`<output_dir>/build.sqlite3` by default) is copied into a
+compacted bundle without answer cache, usage counts, saved lists, rejection
+records or per-section text, in rollback-journal mode so it opens read-only.
+`BundleResult` has `bundle_path`, `manifest_path`, `size_bytes`, and
+`manifest`: `built_at`, `schema_version`, `embedding_model`, `counts`
+(papers, articles, passages, vectors), `licences`, `rejections`,
+`retraction_recheck`, `embedding`, `topics`, `attribution`, `sha256`,
+`size_bytes`. Errors: as `ingest`, `fetch_fulltext` and `embed_passages`.
+
+### `fetch_bundle`
+
+```python
+fetch_bundle(base_url, *, directory="data/bundle") -> Path
+```
+
+Downloads the manifest and then the bundle from a GitHub Release download
+folder (`https://github.com/<owner>/<repo>/releases/latest/download/`),
+verifies the bundle's SHA-256 against the manifest, and caches both in
+`directory`; a cached bundle with the right checksum is reused. Only HTTPS
+on `github.com` and `*.githubusercontent.com` (including redirects) is
+allowed. A failed checksum deletes the download. Errors:
+`InvalidRequestError`, `OSError` (network).
+
+### `check_deployment`
+
+```python
+check_deployment(bundle_path, *, embedder_id=MODEL_ID) -> DeploymentCheck
+```
+
+The start-up self-check. `DeploymentCheck` has `ok`, `bundle_path`,
+`manifest`, and `problems` (sentences to show): bundle or manifest missing,
+layout version or embedding model different from this code, checksum
+mismatch, or the file cannot be opened read-only. It never raises.
+
+### `bundle_directory`
+
+```python
+bundle_directory() -> Path
+```
+
+`HRI_BUNDLE_DIR`, else `data/bundle`.
 
 ## Not provided yet
 

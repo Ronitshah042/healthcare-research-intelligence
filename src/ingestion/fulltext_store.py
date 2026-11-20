@@ -7,13 +7,13 @@ rejection record.
 
 from __future__ import annotations
 
+import json
+import re
+import sqlite3
 from collections.abc import Iterable
 from contextlib import closing
 from dataclasses import dataclass
-import json
 from pathlib import Path
-import re
-import sqlite3
 
 from .chunking import Chunk
 from .fulltext import ArticleSection
@@ -90,9 +90,10 @@ class FullTextStats:
 class FullTextStore:
     """Save, read, and reject open-access articles in the paper database."""
 
-    def __init__(self, database_path: str | Path) -> None:
-        # PaperStore creates or upgrades the database, including these tables.
-        self._papers = PaperStore(database_path)
+    def __init__(self, database_path: str | Path, *, read_only: bool | None = None) -> None:
+        # PaperStore creates or upgrades the database, including these tables;
+        # ``read_only`` (default: HRI_DB_READ_ONLY) opens it without writing.
+        self._papers = PaperStore(database_path, read_only=read_only)
 
     def save(
         self,

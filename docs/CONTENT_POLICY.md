@@ -195,3 +195,22 @@ trace a verdict back to the stored passage without republishing the text.
   keyed by a hash of the question and passage IDs; it never stores prompts.
 - Answers are a research aid, not medical advice; every `Answer` carries the
   fixed disclaimer, and the model is told not to give medical advice.
+
+## 13. Public data bundle
+
+The deployed app reads a data bundle that is published as a GitHub Release
+asset (`hri build-bundle`, docs/DEPLOYMENT.md), so it redistributes stored
+text publicly.
+
+- **Only CC0 and CC BY text**, whatever `HRI_ALLOWED_LICENCES` allows for
+  local use: both licences allow redistribution, and CC BY's attribution
+  travels with every article in the bundle.
+- PubMed citation metadata keeps its source name and the NLM attribution; no
+  PubMed abstract text is included, as everywhere else.
+- Every build re-checks retractions first (section 7) and deletes retracted
+  articles before packaging.
+- The bundle leaves out the answer cache, usage counts, saved lists, rejection
+  records and per-section copies of the text; its manifest lists counts,
+  licences, the retraction re-check, and the attribution notice.
+- The app downloads it only from `github.com` and `*.githubusercontent.com`
+  over HTTPS and refuses it unless its SHA-256 matches the manifest.
