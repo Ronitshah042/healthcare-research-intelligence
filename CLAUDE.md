@@ -62,13 +62,20 @@ Dependency direction, lowest layer first:
 | `services.py` | UI-agnostic functions returning dataclasses; see `docs/SERVICE_API.md` |
 | `fulltext_services.py` | Full-text fetch, recheck, and stats; re-exported by `services` |
 | `answer_services.py` | `ask_question`; re-exported by `services` |
-| `eval_services.py` | `run_eval`; re-exported by `services` |
+| `eval_services.py` | `run_eval`, `export_verdicts`; re-exported by `services` |
+| `bundle_services.py` | `build_bundle`, `fetch_bundle`, `check_deployment` for the read-only data bundle |
+| `session_state.py` | `SessionSavedLists`, `VisitorQuota`: in-memory state for the deployed app |
+| `app_config.py` | Streamlit secrets or environment variables into the environment |
 | `retrieval_services.py` | Passage search (hybrid or keyword), embedding, model preparation; re-exported by `services` |
 | `cli.py` | `hri` argparse commands; imports only `services` |
 
 `src/generation` holds `llm.py` (Gemini, Groq, fallback; standard-library
 HTTP), `cache.py` (answer cache, daily cap), and `rag.py` (prompt, citation
 checks, `Answer`). It may import `ingestion` and `retrieval`, never `hri`.
+
+`src/api/app.py` is the FastAPI interface (optional `.[api]`, Python 3.11+,
+not deployed); it calls only `hri.services`. `streamlit_app.py` is a
+placeholder page; the owner designs the UI.
 
 `src/evaluation` holds `metrics.py` (pure metric functions), `judge.py`
 (AI judge of cited claims) and `runner.py` (question sets, report, spot-check
@@ -129,8 +136,16 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
 - `cli.py` calls only `hri.services`. A future UI or API must do the same.
 - Service functions return typed objects and never print. Changing a signature,
   result field, or error means updating `docs/SERVICE_API.md` in the same change.
-- No UI code or UI design in this repository.
-- `requirements.txt` and `pyproject.toml` must list the same dependencies.
+- No UI design in this repository: the owner designs the UI. Only the
+  placeholder `streamlit_app.py` (stats and citation search) exists.
+- The deployed app opens its bundle read-only (`HRI_DB_READ_ONLY=1`). Never
+  rely on writing at run time there; use process memory or the session.
+- Public bundles contain only CC0 and CC BY text (`BUNDLE_LICENCES`), and
+  every build re-checks retractions first.
+- `ruff check src tests streamlit_app.py` must pass (rules E4, E7, E9, F, I).
+- `requirements.txt` (Streamlit runtime) must equal the `embeddings` and
+  `app` extras, and `requirements-dev.txt` the `api` and `dev` extras; the
+  core `dependencies` list stays empty.
   `constraints-embeddings.txt` pins every package the embeddings extra installs
   and must carry the same fastembed version; regenerate it with `pip freeze`
   from a tested Python 3.13 environment.
@@ -147,10 +162,11 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
   substitute `ArticleDate` or history dates.
 
 ## Code conventions
-- Standard library only in the core. The one approved dependency is the
-  optional `fastembed==0.9.1` (`.[embeddings]`, Python 3.10+), imported only
-  inside `retrieval/embeddings.py`; everything must work without it, falling
-  back to keyword search. Adding any other dependency needs approval.
+- Standard library only in the core. Approved optional extras: `embeddings`
+  (fastembed, imported only in `retrieval/embeddings.py`), `app` (streamlit,
+  only in `streamlit_app.py` and tests), `api` (fastapi, pydantic, uvicorn,
+  only in `src/api/`), `dev` (ruff, httpx). The core must work without any
+  of them. Adding any other dependency needs approval.
 - Stay compatible with Python 3.9 until a minimum version is chosen: use
   `from __future__ import annotations`, and no `dataclass(slots=True)`.
 - Use frozen dataclasses for records and specific exception classes for errors.
@@ -164,6 +180,8 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
 - Inject `transport`, `clock`, and `sleeper` into `PubMedClient` and `PmcClient`;
   use a fake client for pipeline and service tests and a temporary directory for
   storage tests. PMC tests use the recorded fixtures in `tests/fixtures/pmc/`.
+- API and Streamlit tests skip when FastAPI or Streamlit is not installed,
+  so the suite still passes on Python 3.9; CI runs them on 3.12.
 - Evaluation tests (`tests/test_evaluation.py`) use fixed data, `FakeLLM`
   and `FakeEmbedder`. Spot-check sheets (`eval/spotcheck-*.csv`) hold
   article text and stay uncommitted; commit only `eval/verdicts-*.csv`

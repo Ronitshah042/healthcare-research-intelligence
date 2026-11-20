@@ -1116,6 +1116,65 @@ example, a change that passed on set 1), never to choose settings. Set 1
 remains the development set. Until the owner reviews it, its results are
 preliminary.
 
+## Phase 6: deployment (owner's decisions, 2026-11-20)
+
+- **Streamlit Community Cloud** runs the app (Python 3.12). The UI is the
+  owner's; the repository ships only a placeholder page that proves the
+  deployment works.
+- **Optional extras keep the core dependency-free:** `embeddings`
+  (fastembed), `app` (streamlit 1.67.0), `api` (fastapi 0.165.0, pydantic
+  2.14.4, uvicorn 0.54.0), `dev` (ruff 0.17.6, httpx 0.28.1). The app and API
+  need Python 3.11+, because current FastAPI and Streamlit do; the core and
+  its tests still run on Python 3.9. `requirements.txt` is the Streamlit
+  runtime (embeddings + app), `requirements-dev.txt` the rest. No PyTorch.
+- **The FastAPI app (`src/api/`) is the documented REST interface, not
+  deployed.** It lives in `src/` so `pip install -e .` installs it and tests
+  import it like every other package.
+- **Data bundle as a Release asset, always** (not committed even when small):
+  a database file committed on every scheduled rebuild would grow the
+  repository's history for ever. Published under the fixed release tag
+  `data-bundle`, so the app's download URL never changes. The app downloads
+  it once per process, checks its SHA-256 against the manifest, and caches it.
+- **Collection size about 100 articles:** five topics in `topics.json`, up to
+  20 open-access articles and 40 citations each.
+- **JSON for the topics file**, not YAML, which would need a dependency.
+- **Read-only database mode** (`HRI_DB_READ_ONLY=1`): immutable, no side
+  files, no schema upgrades, refusing unmerged `-wal` changes (a read-only
+  connection would silently read stale data). Bundles are written in
+  rollback-journal mode so they can be opened this way.
+- **Runtime writes in memory:** the answer cache and daily cap moved to
+  process-wide memory (they had been per instance, so the cap did not hold
+  across calls on a read-only database), guarded by a lock for concurrent
+  visitors; saved lists and the per-visitor question limit are session
+  objects (`SessionSavedLists`, `VisitorQuota`). All reset on restart.
+- **AI quota for a public app:** `HRI_LLM_DAILY_REQUEST_CAP` defaults to 50
+  in the app (100 locally) and `VisitorQuota` allows 5 questions per
+  visitor.
+- **Settings:** environment variables, or Streamlit secrets copied into the
+  environment at start-up (`hri.app_config`); an existing variable wins.
+- **CI:** ruff (rules E4, E7, E9, F, I; no line-length rule) and the tests on
+  Python 3.9 (core) and 3.12 (all extras). The bundle workflow runs weekly
+  and on demand with NCBI settings from repository secrets.
+
+### PubMed field queries fixed, and the first real bundle (2026-11-20)
+
+- **Bug found while building the bundle (present since Phase 1):** title and
+  title/abstract searches sent `(word1 word2 ...)[tiab]`. PubMed reads that as
+  the first word in all fields plus the remaining words as one exact phrase,
+  so "SGLT2 inhibitor heart failure" found 0 papers instead of 1,496 (since
+  2020). Fixed at the root in `pubmed.py`: every word is tagged
+  (`SGLT2[tiab] AND inhibitor[tiab] AND ...`); author names stay one quoted
+  phrase (`"Polack FP"[au]`). The owner's 19 stored papers were ingested by
+  PMID or with single-phrase queries and are unaffected; the evaluation
+  database's full text came from PMC searches, which never used field tags.
+- **Candidates per topic raised from 20 to 35:** `max_fulltext` counts
+  candidates, and about 40% are rejected under CC0/CC BY, so 20 per topic
+  gave 55 articles; 35 gives 96, near the approved ~100.
+- **Measured bundle:** 14.0 MB (174 citations, 96 CC BY articles, 2,392
+  passages and vectors), built in about 10 minutes locally. Small enough for
+  a release asset and for Streamlit's memory; 302 passages (12.6%) exceed the
+  embedding model's 512 tokens.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.

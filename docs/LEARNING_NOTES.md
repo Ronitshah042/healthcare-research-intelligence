@@ -761,3 +761,38 @@ articles' wording, and each topic appears in only one or two of 18 articles.
 Real questions use other words and touch several articles. The set is a
 regression check (did a change make things worse?) more than a measure of
 real-world quality.
+
+## Phase 6: deployment
+
+### Why a read-only database?
+
+Streamlit Community Cloud gives an app a disk that is wiped when it
+restarts, and many visitors share one running copy. So the app treats its
+data as a published, read-only file: the same for everyone, never changed,
+checked with a checksum. Anything a visitor creates (saved lists) lives in
+that visitor's session, and shared counters (the daily AI limit) live in the
+process's memory. All of it disappears on restart, which is why the UI should
+offer exports.
+
+### What is "immutable" in SQLite?
+
+Opening a database file with `mode=ro&immutable=1` promises SQLite that
+nobody will change the file. SQLite then skips locking and never creates the
+`-wal` and `-shm` side files. The catch: if the file still has changes
+waiting in a `-wal` file, an immutable reader cannot see them, so the bundle
+is written in the older "rollback journal" mode, and the app refuses a file
+that still has a `-wal`.
+
+### Why a release asset, not a committed file?
+
+Git keeps every version of every file for ever. A 14 MB database rebuilt
+every week would add hundreds of megabytes of history a year. A GitHub
+Release asset can be replaced without touching the repository's history.
+
+### How PubMed reads a field tag
+
+`heart failure[tiab]` does not mean "both words in the title or abstract".
+PubMed parses the query itself, so a tag on a group of words can turn into a
+phrase search. Tagging each word separately (`heart[tiab] AND
+failure[tiab]`) says exactly what is meant. Checking PubMed's own
+"query translation" is the quickest way to see how a query was understood.

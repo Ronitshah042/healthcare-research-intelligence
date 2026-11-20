@@ -1003,3 +1003,55 @@ system's last measurement (median 3.6 s, 2026-11-19).
 about library papers without stored text, 3 off-topic, all marked
 `needs_review`, each note naming the passage that holds the expected
 answer. Not yet run; held out for confirming decisions (see DECISIONS.md).
+
+## Phase 6: deployment preparation (2026-11-20)
+
+Approved: data bundle always as a Release asset, about 100 articles,
+daily AI cap 50 plus 5 questions per visitor, optional extras for API and
+app (Python 3.11+), read-only database mode, `topics.json`. The UI is the
+owner's; only a placeholder page exists.
+
+- **Read-only mode** (`HRI_DB_READ_ONLY=1`) for every store: immutable
+  connection, no side files, no upgrades, refuses other layout versions and
+  unmerged `-wal` changes (found while testing: a read-only connection would
+  silently read stale data). **Fixed:** the answer cache and daily cap fell
+  back to memory per instance, so on a read-only database they did not hold
+  between questions; they are now process-wide, with a lock.
+- **Session helpers** for the UI: `SessionSavedLists` (create, rename,
+  delete, add, remove, CSV/citation/plain export) and `VisitorQuota`.
+- **REST API** `src/api/app.py` (FastAPI): `/health`, `/search`,
+  `/papers/{id}`, `/stats`, `/ask`, admin `/ingest` and `/index`; one error
+  format; constant-time token check; `docs/API.md` with generated examples.
+- **Data bundle:** `hri build-bundle` (ingest, CC0/CC BY full text,
+  retraction re-check, embed, compact read-only copy, manifest with SHA-256);
+  `fetch_bundle` (GitHub over HTTPS only, checksum verified, cached);
+  `check_deployment` (start-up self-check).
+- **Bug fixed (since Phase 1):** PubMed title and title/abstract searches
+  sent `(words)[tiab]`, which PubMed reads as one word plus an exact phrase;
+  multi-word searches returned too few or no results (0 instead of 1,496 for
+  "SGLT2 inhibitor heart failure"). Now every word is tagged.
+- **First real bundle:** 14.0 MB; 174 citations, 96 CC BY articles, 2,392
+  passages and vectors; 64 candidates rejected by licence; none retracted.
+  The placeholder app started against it in 1.7 s with the model loaded,
+  searched it, and left the file byte-for-byte unchanged.
+- **Deployment files:** `streamlit_app.py` (placeholder), `hri.app_config`
+  (Streamlit secrets or environment), `.streamlit/secrets.toml.example`,
+  `requirements.txt` (runtime: fastembed, streamlit) and
+  `requirements-dev.txt` (fastapi, pydantic, uvicorn, ruff, httpx),
+  `docs/DEPLOYMENT.md`.
+- **GitHub Actions:** `ci.yml` (ruff; tests on Python 3.9 core and 3.12 with
+  all extras) and `build-bundle.yml` (weekly and manual, NCBI settings from
+  secrets, publishes to the `data-bundle` release). Not yet run on GitHub.
+- **Lint:** ruff rules E4, E7, E9, F, I; fixed 3 undefined names in type
+  hints, 5 unused imports, and sorted imports in 55 files.
+- **Docs:** README rewritten for portfolio use; SERVICE_API, CONTENT_POLICY
+  (section 13, public data bundle), DECISIONS, PUBMED_INTEGRATION, CLAUDE.md,
+  LEARNING_NOTES.
+
+**Verified test count:** 407 tests. Python 3.13.18 with every extra: 407 run,
+all OK. Python 3.15.2 and 3.9.6 (no FastAPI or Streamlit): 399 run OK, 8
+skipped (6 API, 2 Streamlit page). `ruff check` passes.
+
+Not done: running the workflows on GitHub, creating the `data-bundle`
+release, and deploying to Streamlit Community Cloud (need the owner's
+repository secrets and account); the UI.

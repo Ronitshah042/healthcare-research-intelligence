@@ -1,234 +1,247 @@
-# Healthcare Research Intelligence Platform
+# Healthcare Research Intelligence
 
-An AI-powered research assistant designed to retrieve, analyse, and
-summarise scientific literature with traceable evidence and citations.
+A research aid that searches biomedical literature and answers questions
+**only from openly licensed full text it has stored, citing every claim**,
+and saying "insufficient evidence" instead of guessing. Built in Python with
+a standard-library core, a tested service layer, and an evaluation harness
+that reports its own weaknesses.
 
-## Problem Statement
+> Research aid only, not medical advice. Not clinically validated.
 
-Scientific literature is growing rapidly, making it difficult to find
-relevant studies, compare findings, and identify gaps in existing evidence.
-This project aims to make literature exploration more efficient while
-keeping generated answers grounded in retrieved research.
+## The problem
 
-## Planned Features
+Biomedical literature grows faster than anyone can read it. General chatbots
+answer fluently but can invent studies, misquote findings, and use text they
+have no right to. This project explores the opposite trade-off: a narrow,
+checkable assistant that
 
-- Search scientific literature from public research sources
-- Retrieve relevant passages using hybrid search
-- Generate evidence-grounded answers with citations
-- Compare findings across research papers
-- Highlight conflicting evidence and research gaps
-- Abstain when the available evidence is insufficient
-- Evaluate retrieval quality and answer grounding
+- only uses sources it is allowed to store (PubMed citations; CC0 and CC BY
+  open-access full text from PubMed Central),
+- retrieves the exact passages behind an answer,
+- verifies every citation against what was retrieved,
+- declines when the evidence is missing, off-topic, or contradictory,
+- and measures all of this on a question set, including its failures.
 
-## Planned Technology Stack
+## Architecture
 
-- Python
-- PubMed and Europe PMC APIs
-- Natural language processing and embeddings
-- Keyword and vector-based retrieval
-- Large language models (LLMs)
-- FastAPI
-- Streamlit
-- unittest (Python standard library)
+```mermaid
+flowchart LR
+    subgraph Sources
+        PM[PubMed E-utilities]
+        PMC[PMC ID converter and<br/>Cloud Service, OA subset]
+        HF[Hugging Face<br/>pinned model files]
+    end
+    subgraph ingestion["src/ingestion"]
+        CL[PubMed and PMC clients<br/>rate limits, retries, redaction]
+        LP[Licence policy<br/>CC0, CC BY]
+        PA[JATS parser and chunker]
+        DB[(SQLite: citations, passages,<br/>FTS5 index, vectors)]
+    end
+    subgraph retrieval["src/retrieval"]
+        KW[BM25 keyword search]
+        EM[bge-small embeddings<br/>via fastembed]
+        HY[Reciprocal rank fusion]
+    end
+    subgraph generation["src/generation"]
+        RAG[Delimited prompt,<br/>citation checks, abstention]
+        LLM[Gemini, Groq fallback<br/>cache, daily cap]
+    end
+    EV[src/evaluation<br/>metrics, AI judge]
+    SVC[src/hri services<br/>typed, UI-agnostic]
+    CLI[hri command line]
+    API[FastAPI, documented,<br/>not deployed]
+    APP[Streamlit app<br/>UI in design]
 
-The final technology choices will be confirmed during implementation.
-
-## Project Structure
-
-```text
-src/
-├── ingestion/    PubMed and PMC clients, parsing, chunking, SQLite storage
-├── hri/          service layer, export, and the hri command line
-├── retrieval/
-├── generation/
-└── evaluation/
-tests/
-data/
-├── raw/
-└── processed/
-docs/
+    PM --> CL
+    PMC --> CL
+    CL --> LP --> PA --> DB
+    HF --> EM
+    DB --> KW --> HY
+    DB --> EM --> HY
+    HY --> RAG --> LLM
+    SVC --> DB
+    SVC --> HY
+    SVC --> RAG
+    SVC --> EV
+    CLI --> SVC
+    API --> SVC
+    APP --> SVC
 ```
+
+Every interface (command line, REST API, Streamlit app) calls only the
+service layer, `hri.services`; its contract is
+[docs/SERVICE_API.md](docs/SERVICE_API.md).
+
+## Features
+
+**Implemented and tested**
+
+- **PubMed citation search and storage:** title, title/abstract, author,
+  DOI and PMID modes; year filters; paging; shared rate limiting, bounded
+  retries, and error messages that never contain keys or URLs. Duplicates are
+  matched only by PMID or DOI. PubMed abstracts are never stored.
+- **Local citation search:** keyword, fuzzy-title and Boolean
+  (`AND`/`OR`/`NOT`, parentheses, phrases), with year and abstract filters.
+- **Saved lists** with CSV, Vancouver (NLM) and plain-text export.
+- **Licensed open-access full text** from PubMed Central: current version
+  only, licence checked before download, retracted articles rejected (PMC
+  status and PubMed `RetractionIn` links), corrections and expressions of
+  concern flagged, attribution stored with every article.
+- **Passage search:** SQLite FTS5 with BM25, and meaning-based search with a
+  pinned, checksum-verified embedding model; fused by reciprocal rank fusion.
+- **Answers with checked citations:** passages wrapped as untrusted data,
+  invented citations removed, abstention before and after the model call,
+  Gemini with Groq fallback, answer cache, daily request cap, and a "busy"
+  answer instead of an error when providers refuse.
+- **Evaluation harness:** recall@k, precision@k and MRR for three retrieval
+  methods; evidence recall, citation validity, AI-judged claim support,
+  correct abstention and response time; before/after comparisons; a
+  human spot-check workflow.
+- **Deployment preparation:** read-only data bundle with manifest and
+  checksum, GitHub Actions for CI and weekly bundle builds, Streamlit
+  Community Cloud settings and start-up self-check, FastAPI interface.
+
+**Planned or not built**
+
+- The user interface (being designed; see below).
+- Comparing findings across papers beyond what one cited answer does.
+- A vector index for large collections (search is brute force today).
+- Sources other than PubMed and PMC.
+
+## UI — in design
+
+The interface is being designed separately. Until then `streamlit_app.py`
+is a **placeholder page** that only proves the deployment works. Everything
+the UI needs is in `hri.services`, including `SessionSavedLists` and
+`VisitorQuota` for a read-only deployment ([docs/SERVICE_API.md](docs/SERVICE_API.md)).
 
 ## Setup
 
-Requirements: Python 3.9 or newer. The project has no third-party runtime
-dependencies in its core. Meaning-based passage search is optional and needs
-`fastembed` (pinned, Python 3.10 to 3.13 on Intel Macs):
-`pip install -e '.[embeddings]' -c constraints-embeddings.txt` (the constraints
-file pins fastembed's own dependencies; tested on Python 3.13). Without it,
-passage search is keyword-only.
+The core needs Python 3.9 or newer and **no third-party packages**.
+Optional extras: `embeddings` (fastembed, Python 3.10+), `app` (Streamlit)
+and `api` (FastAPI) (both Python 3.11+), `dev` (ruff, httpx).
 
 ```bash
 git clone https://github.com/Ronitshah042/healthcare-research-intelligence.git
 cd healthcare-research-intelligence
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .                                        # core: the hri command
+pip install -e '.[embeddings]' -c constraints-embeddings.txt   # meaning-based search
+pip install -r requirements.txt -r requirements-dev.txt        # app, API, lint, tests
 
-# Optional but recommended: install the `hri` command into a virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
-
-# Run the full test suite (no network access or configuration needed)
-PYTHONPATH=src python3 -m unittest discover -s tests -v
+PYTHONPATH=src python3 -m unittest discover -s tests    # no network needed
+ruff check src tests streamlit_app.py
 ```
 
-Without the install step, replace `hri` with `PYTHONPATH=src python3 -m hri`
-in the commands below. Use `python3`; a plain `python` command may not exist
-on your system.
+Live requests need settings: copy `.env.example` to `.env` (ignored by Git),
+fill in your NCBI tool name and developer email (and optional AI keys), and
+load it with `set -a; source .env; set +a`.
 
-Live PubMed requests (`hri ingest`) need environment variables. Copy
-`.env.example` to `.env`, fill in your values, and load it with
-`set -a; source .env; set +a`. Everything else works offline, and the tests
-never call live services.
-
-## Command-line usage
+## Command line
 
 ```bash
-# Fetch up to 200 PubMed citations and save them locally
 hri ingest --query "type 2 diabetes" --mode title_abstract --max 200 --year-from 2018
-
-# Search what is stored: keyword (default), fuzzy, or boolean
-hri search "metformin AND cardiovascular" --type boolean --year-from 2020 --page 1
-hri search "diabetis" --type fuzzy
-
-# One paper's stored metadata, by PMID or DOI
+hri search "metformin AND cardiovascular" --type boolean --year-from 2020
 hri show 33301246
-
-# Totals, papers per year, DOI and abstract counts
 hri stats
+hri lists create "To read"; hri lists add "To read" 33301246
+hri lists export "To read" --format citations
 
-# Saved lists
-hri lists create "To read"
-hri lists add "To read" 33301246
-hri lists show "To read"
-hri lists list
-hri lists remove "To read" 33301246
-hri lists rename "To read" "Reading list"
-hri lists export "Reading list" --format csv --output reading.csv
-hri lists export "Reading list" --format citations   # Vancouver (NLM) style
-hri lists export "Reading list" --format plain       # simple layout with links
-hri lists delete "Reading list"                      # the papers stay stored
+hri fetch-fulltext --from-db --max 20        # CC0/CC BY open-access full text
+hri recheck-fulltext                         # remove articles retracted since
+hri embed-passages                           # download the model once, embed passages
+hri search-passages "metformin dementia" --section results
 
-# Open-access full text (PMC, CC0 and CC BY only by default)
-hri fetch-fulltext --from-db --max 20       # for papers already stored
-hri fetch-fulltext --query "metformin dementia" --max 20
-hri recheck-fulltext                        # remove articles retracted since
-
-# Optional: download the embedding model once and embed stored passages
-hri embed-passages
-
-# Search the stored passages (hybrid when embedded, else keyword), with attribution
-hri search-passages "metformin dementia" --section results --limit 5
-
-# Answer a question from stored passages, citing every claim (needs an AI key)
 hri ask "What does the evidence say about metformin and dementia?"
 
-# Measure retrieval and answer quality; writes docs/EVAL_RESULTS.md
-hri eval --set eval/questions.json --db data/eval.sqlite3 --max-questions 10
+hri eval --set eval/questions.json --db data/eval.sqlite3
+hri eval-verdicts eval/spotcheck-<date>.csv  # verdicts without article text
+hri build-bundle --topics topics.json --output dist
 ```
 
-`hri ingest` reports how many records PubMed matched and how many were
-fetched, saved, duplicated, skipped as invalid, or skipped for conflicting
-identifiers. Modes are `title`, `title_abstract`, `author`, `doi`, and `pmid`;
-`--max` goes up to 1000. Run `hri --help` or `hri <command> --help` for every
-option.
+`hri <command> --help` lists every option. The database is
+`data/hri.sqlite3` unless `HRI_DB_PATH` or `--db` says otherwise.
 
-`hri fetch-fulltext` stores the full text of PubMed Central Open Access
-articles whose licence is allowed (CC0 and CC BY unless `HRI_ALLOWED_LICENCES`
-says otherwise), split into passages for later search. It reports how many
-articles were stored, already stored, rejected by licence or retraction, or
-not in the open-access subset. Rejected articles leave no text behind. PubMed
-abstracts are still never stored. The rules are in
-[docs/CONTENT_POLICY.md](docs/CONTENT_POLICY.md).
+## REST API
 
-`hri search-passages` prints the best-matching stored passages, each with its
-article's licence and attribution. `--section` (repeatable) limits results to
-sections such as `methods` or `results`. It combines two rankings: passages
-containing every query word (BM25, ignoring case, accents and word endings),
-and passages closest in meaning (embeddings from the pinned
-BAAI/bge-small-en-v1.5 model). Without the optional embeddings install, or
-before `hri embed-passages` has run, it is keyword-only and says so.
-`hri embed-passages` downloads the model (about 67 MB) from Hugging Face once,
-checks its SHA-256, caches it in `data/models` (or `HRI_MODEL_CACHE`), and
-reports how many passages were longer than the model's 512-token limit.
+A FastAPI app in `src/api/` exposes `/health`, `/search`, `/papers/{id}`,
+`/stats`, `/ask`, and token-protected `/ingest` and `/index`, with one error
+format. It is the documented interface, not part of the deployment:
+[docs/API.md](docs/API.md).
 
-`hri ask` answers from the stored passages only, through Google Gemini (or
-Groq if Gemini is busy). Set `GEMINI_API_KEY` and/or `GROQ_API_KEY` in `.env`.
-Every claim must cite a numbered passage; citations to passages that were
-not supplied are removed, and the command says "insufficient evidence"
-rather than guess. It prints the sources with their links and attribution,
-which AI provider received the question, and a disclaimer: it is a research
-aid, not medical advice. On Gemini's free tier, Google may use questions to
-improve its products, so never include personal data. Answers are cached and
-limited to `HRI_LLM_DAILY_REQUEST_CAP` requests a day (default 100).
+## Content and licence policy
 
-`hri eval` scores keyword, semantic and hybrid retrieval (recall@k,
-precision@k, MRR) and, unless `--no-answers` is given, the answers: citation
-validity, an AI judge's rating of each cited claim (prompt in
-`eval/judge_prompt.txt`), correct abstention, latency, and AI requests used.
-It reuses cached answers, waits `--pace` seconds after each question that
-used the AI, and writes a spot-check sheet (`eval/spotcheck-<date>.csv`, not
-committed: it holds article text) for checking the judge by hand. After
-filling in your verdicts, `hri eval-verdicts eval/spotcheck-<date>.csv`
-writes `eval/verdicts-<date>.csv` with only claims, verdicts and passage
-IDs; commit that, and `hri eval` reports the judge's agreement with you.
-`hri eval --no-cache --max-questions 5` measures real response time (at
-most 10 questions, to save free-tier requests). Latest results:
-[docs/EVAL_RESULTS.md](docs/EVAL_RESULTS.md).
+Only the PubMed Central Open Access subset is stored, and only CC0 and CC BY
+by default; other licences are rejected before any text is downloaded.
+PubMed abstracts are never stored. Every stored article keeps its licence
+and attribution, every answer and passage shows it, and PubMed results carry
+NLM's attribution and disclaimer. Questions sent to Gemini's free tier may be
+used by Google to improve its products, so the app says so with every answer.
+Details: [docs/CONTENT_POLICY.md](docs/CONTENT_POLICY.md).
 
-The database is `data/hri.sqlite3` in the current folder (ignored by Git).
-Set `HRI_DB_PATH` or pass `--db PATH` to use another file; `--db` wins.
+## Evaluation
 
-The command line is a thin layer over `hri.services`, a set of plain Python
-functions that return typed results. A UI or web API should call those same
-functions; [docs/SERVICE_API.md](docs/SERVICE_API.md) is their contract.
+Measured with `hri eval` on a reviewed set of 32 questions over 18 articles
+(set 1). Full report and method: [docs/EVAL_RESULTS.md](docs/EVAL_RESULTS.md).
 
-## Responsible Use
+| Measure | Result |
+| --- | --- |
+| Hybrid retrieval recall@5 / MRR (article level) | 98% / 0.98 |
+| Relevant articles reaching the model (evidence recall) | 93% |
+| Citations naming a supplied passage | 100% (211) |
+| Claims rated supported by an AI judge (Groq, a different model family) | 98%; 2% partial, 0% unsupported |
+| Correct abstention / answered when expected | 100% (9) / 91% (21 of 23) |
+| Response time, uncached | median 3.6 s |
 
-This project is intended for scientific literature research and educational
-purposes. It is not a medical diagnostic or treatment tool and is not
-clinically validated. Answers must be traceable to their supporting sources,
-and limitations must be communicated clearly.
+Read these as a regression baseline, not real-world accuracy: the questions
+were written by the developer from the stored text, the judge is an AI whose
+agreement with a human is still pending, and two attempts to improve evidence
+selection were rejected because they lowered claim support. A second,
+held-out question set written from article body text is awaiting review.
 
-Only publicly accessible research materials permitted by their applicable
-licences and terms will be used.
+## Deployment
 
-## Development Status
+Streamlit Community Cloud runs the app from a **read-only data bundle**
+(14 MB: 174 citations, 96 CC BY articles, 2,392 passages) that a weekly GitHub Actions workflow builds and
+publishes as a release asset; the app downloads it once, verifies its
+SHA-256, and keeps all run-time state in memory. Step-by-step setup, secrets,
+rebuilding, and free-tier limits: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-**Status:** Phase 5 complete — an evaluation harness (`hri eval`) with
-measured results, on top of Phase 4's evidence-grounded answers with checked
-citations (`hri ask`) and Phase 3 — PubMed ingestion, local search, saved lists,
-and export, plus licensed open-access full text from PubMed Central parsed
-into sections and passages, and hybrid search over those passages (BM25
-keyword ranking fused with optional embedding similarity), all usable from
-the `hri` command line through a UI-agnostic service layer. Any user
-interface or web API is not built yet.
+## Limitations
 
-The project now provides validated PubMed citation search through NCBI
-E-utilities, including title, title/abstract, author, DOI, and PMID search,
-year filters, pagination, and links to original PubMed records. Milestone 2B
-adds process-shared rate scheduling, bounded transient-failure retries, and
-safe NCBI error handling. The PubMed client itself
-does not retrieve full text (that is the separate PMC client), display or persist abstracts, provide clinical
-advice, generate answers, or provide a user interface.
+- **Small collection:** a bundle of about 100 open-access articles on
+  cardiometabolic topics; most journals' text is not openly licensed.
+- **Evaluation is small and developer-written;** treat numbers as a baseline.
+- **Keyword search needs shared words;** meaning-based search helps but is a
+  small model, and about 14% of passages exceed its 512-token input.
+- **Answers depend on free AI tiers:** rate limits, quotas, and Gemini's
+  free-tier data use. When providers refuse, the app says it is busy.
+- **Correction and retraction flags are only as complete as PMC and PubMed's
+  links;** a missing flag does not prove an article is uncorrected.
+- **Deployed state is not persistent:** saved lists, cached answers and the
+  daily count reset when the app restarts.
 
-A small ingestion search pipeline now accepts one typed search request, routes
-it to the matching PubMed client method, and returns a consistent
-metadata-only result. It standardises citation fields and removes identifier
-duplicates without guessing that unrelated partial records are the same paper.
-It reports whether PubMed returned an abstract without retaining its text. Its
-source total remains separate from the current page's valid, deduplicated
-record count. It is a local library component rather than a web API or user
-interface.
+## Roadmap
 
-`PaperStore` saves standardised citations in a local SQLite file whose path the
-caller chooses. It matches papers only by PMID or DOI, refuses to merge
-contradictory identifiers, and supports local keyword, fuzzy-title, and
-Boolean (`AND`/`OR`/`NOT`, parentheses, quoted phrases) search over titles,
-authors, and journals, with year and abstract-availability filters. It stores
-citation metadata only, never abstract text.
+1. The UI (in design), on top of the existing services.
+2. Review and run the held-out question set; collect the human spot-check.
+3. Evidence selection that adds a second article only when it is nearly as
+   relevant, judged on the held-out set.
+4. A vector index if the collection grows beyond tens of thousands of
+   passages.
 
-PubMed-derived results must visibly attribute NLM/NIH and link to the NCBI
-disclaimer. Live search results and papers read back from `PaperStore` both
-carry this attribution in an `attribution` field. This independent project is not affiliated with or endorsed by
-NCBI, NLM, NIH, or HHS. See [the PubMed integration guide](docs/PUBMED_INTEGRATION.md)
-for configuration, source-use boundaries, and operational requirements.
+## Project documents
+
+[SERVICE_API](docs/SERVICE_API.md) ·
+[API](docs/API.md) ·
+[CONTENT_POLICY](docs/CONTENT_POLICY.md) ·
+[DEPLOYMENT](docs/DEPLOYMENT.md) ·
+[EVAL_RESULTS](docs/EVAL_RESULTS.md) ·
+[DECISIONS](docs/DECISIONS.md) ·
+[PUBMED_INTEGRATION](docs/PUBMED_INTEGRATION.md) ·
+[PROJECT_LOG](docs/PROJECT_LOG.md) ·
+[LEARNING_NOTES](docs/LEARNING_NOTES.md)
+
+PubMed data courtesy of the U.S. National Library of Medicine (NLM). This
+independent project is not affiliated with, endorsed by, or sponsored by
+NCBI, NLM, NIH, or HHS ([NCBI policies](https://www.ncbi.nlm.nih.gov/home/about/policies/)).
