@@ -318,6 +318,22 @@ class AnswerTests(PipelineTestCase):
         self.assertNotIn("title", {m.chunk.section_name for m in answer.evidence})
         self.assertNotIn('title">', llm.prompts[0][1])
 
+    def test_evidence_seeds_the_top_articles_then_fills_by_rank(self) -> None:
+        def match(pmcid: str, position: int):
+            base = self.store.search("metformin", limit=1)[0]
+            return replace(base, chunk=replace(base.chunk, pmcid=pmcid, position=position,
+                                               section_name="results", licence="CC BY"))
+
+        ranked = (match("A", 0), match("A", 1), match("A", 2), match("A", 3),
+                  match("B", 0), match("A", 4), match("C", 0), match("D", 0), match("E", 0))
+
+        chosen = rag.select_evidence(ranked, 6)
+
+        self.assertEqual([(m.chunk.pmcid, m.chunk.position) for m in chosen],
+                         [("A", 0), ("A", 1), ("A", 2), ("B", 0), ("C", 0), ("D", 0)])
+        self.assertEqual(len(rag.select_evidence(ranked[:3], 6)), 3)
+        self.assertEqual([m.chunk.pmcid for m in rag.select_evidence(ranked, 2)], ["A", "B"])
+
     def test_only_cc0_and_cc_by_passages_are_sent(self) -> None:
         self.save(replace(DOCUMENT, pmcid="PMC888", pmcid_version="PMC888.1",
                           pmid="888", doi=None, licence="CC BY-NC"),
