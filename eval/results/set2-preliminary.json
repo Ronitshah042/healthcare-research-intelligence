@@ -1,0 +1,63 @@
+{
+  "label": "set2-preliminary",
+  "date": "2026-11-20 09:24 UTC",
+  "question_set": "eval/questions-set2.json",
+  "questions": 32,
+  "answer_models": {
+    "Gemini gemini-3.5-flash-lite": 29
+  },
+  "judge_model": "Groq openai/gpt-oss-120b",
+  "retrieval": {
+    "keyword": {
+      "questions": 25,
+      "recall@1": 0.81,
+      "precision@1": 0.84,
+      "recall@3": 0.8833333333333333,
+      "precision@3": 0.32,
+      "recall@5": 0.9533333333333333,
+      "precision@5": 0.21600000000000003,
+      "MRR": 0.9033333333333333
+    },
+    "semantic": {
+      "questions": 25,
+      "recall@1": 0.9233333333333333,
+      "precision@1": 1.0,
+      "recall@3": 0.98,
+      "precision@3": 0.38666666666666666,
+      "recall@5": 0.99,
+      "precision@5": 0.24,
+      "MRR": 1.0
+    },
+    "hybrid": {
+      "questions": 25,
+      "recall@1": 0.9133333333333333,
+      "precision@1": 0.96,
+      "recall@3": 0.98,
+      "precision@3": 0.38666666666666666,
+      "recall@5": 0.99,
+      "precision@5": 0.24,
+      "MRR": 0.98
+    }
+  },
+  "answers": {
+    "questions": 32,
+    "busy": 0,
+    "evidence_recall": 0.9666666666666667,
+    "citations_valid": 130,
+    "citations_invalid": 0,
+    "citation_validity": 1.0,
+    "claims_judged": 82,
+    "claims_unjudged": 0,
+    "supported": 1.0,
+    "partial": 0.0,
+    "unsupported": 0.0,
+    "should_abstain": 7,
+    "correct_abstention": 1.0,
+    "should_answer": 25,
+    "answered_when_expected": 0.92,
+    "latency_measured": 29,
+    "latency_median": 1.6780468239958282,
+    "latency_p90": 4.878896959002304,
+    "llm_calls": 52
+  }
+}

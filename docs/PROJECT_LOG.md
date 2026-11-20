@@ -1055,3 +1055,34 @@ skipped (6 API, 2 Streamlit page). `ruff check` passes.
 Not done: running the workflows on GitHub, creating the `data-bundle`
 release, and deploying to Streamlit Community Cloud (need the owner's
 repository secrets and account); the UI.
+
+## Follow-up work without the owner (2026-11-20)
+
+The owner asked for everything that needs no interaction; items that need
+the owner are listed at the end of the session report.
+
+- **Audit P6:** `tests/test_validation_paths.py` pins the input checks the
+  audit listed as untested (year filters, blank identifiers, config types,
+  store paging and lookup arguments). `.env.example` now lists
+  `HRI_BUNDLE_URL`, `HRI_BUNDLE_DIR`, `HRI_DB_READ_ONLY`, `HRI_ADMIN_TOKEN`.
+- **Groq fallback tested** on three real questions with Gemini off: accurate
+  answers with valid citations. **Bug fixed:** Qwen puts
+  `INSUFFICIENT_EVIDENCE` on the last line, so its refusals were labelled
+  answered; the marker now counts on any line. No cached evaluation answer
+  changed.
+- **Off-topic threshold rechecked** on the 96-article bundle: on-topic 0.81
+  to 0.92, off-topic medical 0.64 to 0.735. Kept at 0.7, because 0.75 would
+  refuse set 1's q08 (0.73) and the groups overlap (DECISIONS.md).
+- **Deployment set pinned** for Linux, Python 3.12 (`constraints-deploy.txt`,
+  48 packages, resolved without installing; onnxruntime 1.32 there versus
+  1.23.2 on the Intel Mac). CI's 3.12 job and the bundle workflow use it.
+- **Held-out set 2 run once (preliminary, 52 AI requests):** hybrid recall@5
+  99%, MRR 0.98 (keyword-only MRR 0.90 versus 0.98 on set 1: the everyday
+  wording hurts keyword search, as intended); evidence recall 97%; citation
+  validity 100% (130); judge 100% supported of 82 claims; correct abstention
+  100% (7); answered when expected 92% (s12 and s24 declined); median
+  response 1.7 s. Report `docs/EVAL_RESULTS_SET2.md`, summary
+  `eval/results/set2-preliminary.json`. No settings were changed from it.
+
+**Verified:** 413 tests; Python 3.13.18 with every extra 413 OK; Python 3.15.2
+and 3.9.6 405 OK, 8 skipped (API and Streamlit). Ruff clean.

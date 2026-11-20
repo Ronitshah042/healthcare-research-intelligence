@@ -1,10 +1,9 @@
 {
-  "median_seconds": 3.6,
-  "p90_seconds": 18.9,
-  "answers_measured": 28,
-  "date": "2026-11-19",
+  "median_seconds": 1.68,
+  "p90_seconds": 4.88,
+  "answers_measured": 29,
+  "date": "2026-11-20",
   "answer_models": {
-    "Gemini gemini-3.5-flash-lite": 28
-  },
-  "source": "first full evaluation run, 2026-11-19 09:02 UTC"
+    "Gemini gemini-3.5-flash-lite": 29
+  }
 }
