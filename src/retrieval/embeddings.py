@@ -1,7 +1,7 @@
 """Text embeddings for meaning-based passage search.
 
 ``fastembed`` is an optional dependency (``pip install -e .[embeddings]``,
-Python 3.10 to 3.13). Without it, or without the downloaded model, callers
+Python 3.11 to 3.13 on an Intel Mac). Without it, or without the downloaded model, callers
 fall back to keyword search. The model, its revision, and its file hash are
 pinned here and in docs/DECISIONS.md and docs/CONTENT_POLICY.md.
 
@@ -181,7 +181,7 @@ def _require_fastembed() -> None:
     except ImportError:
         raise EmbedderUnavailableError(
             "Meaning-based search needs the optional embeddings install: "
-            "pip install -e '.[embeddings]' on Python 3.10 to 3.13."
+            "pip install -e '.[embeddings]'."
         ) from None
 
 

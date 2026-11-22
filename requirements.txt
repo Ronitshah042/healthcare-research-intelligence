@@ -2,9 +2,9 @@
 # Cloud installs this file). Keep it identical to the `embeddings` and `app`
 # extras in pyproject.toml; tests/test_packaging.py checks it. No PyTorch.
 #
-# The core project uses only the Python standard library (Python 3.9 or
+# The core project uses only the Python standard library (Python 3.11 or
 # newer). Exact versions of everything fastembed installs are in
 # constraints-embeddings.txt. Any new dependency needs approval first.
 
-fastembed==0.9.1; python_version >= '3.10'
-streamlit==1.67.0; python_version >= '3.11'
+fastembed==0.9.1
+streamlit==1.67.0

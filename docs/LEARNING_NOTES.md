@@ -796,3 +796,12 @@ PubMed parses the query itself, so a tag on a group of words can turn into a
 phrase search. Tagging each word separately (`heart[tiab] AND
 failure[tiab]`) says exactly what is meant. Checking PubMed's own
 "query translation" is the quickest way to see how a query was understood.
+
+### One pinned set cannot serve every Python version
+
+A constraints file pins exact versions, and a version can drop support for
+an older Python: numpy 2.5 needs Python 3.12, so the deployment's pins cannot
+install on 3.11. The 3.12 job tests the exact deployed set; the 3.11 job lets
+pip pick the newest versions that still support 3.11. `pip install
+--dry-run --python-version 3.11 --platform ...` shows this without a 3.11
+interpreter.

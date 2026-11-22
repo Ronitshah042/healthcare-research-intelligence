@@ -19,15 +19,22 @@ jobs:
       - run: pip install ruff==0.17.6
       - run: ruff check src tests streamlit_app.py
 
-  core-python-3-9:
-    # The core must keep working with the standard library alone.
+  python-3-11:
+    # The minimum version. constraints-deploy.txt is not used: its numpy pin
+    # needs Python 3.12, so pip picks the newest 3.11 versions instead.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
-      - name: Tests (optional extras absent, their tests skip)
+          python-version: "3.11"
+          cache: pip
+      - name: Tests, core only (optional extras absent, their tests skip)
+        run: PYTHONPATH=src python -m unittest discover -s tests
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Tests (embeddings, API and app extras installed)
+        env:
+          HRI_MODEL_CACHE: ${{ runner.temp }}/models
         run: PYTHONPATH=src python -m unittest discover -s tests
 
   full-python-3-12:

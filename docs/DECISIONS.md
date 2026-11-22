@@ -1204,6 +1204,27 @@ should-abstain questions in set 1, remains the main guard. Set 2's scores show
 the same overlap (answerable from 0.717, should-abstain up to 0.825) but were
 only reported, not used for the decision, to keep it held out.
 
+### Minimum Python 3.11 and the MIT licence (2026-11-21)
+
+- **Python 3.11 is the minimum** (`requires-python = ">=3.11"`), replacing
+  the 3.9 compatibility target. Streamlit and FastAPI already needed 3.11, so
+  every part of the project now runs on one range. Removed as 3.9-only
+  workarounds: the `python_version` markers on the extras and requirement
+  files, and the pattern-based reading of `pyproject.toml` in
+  `tests/test_packaging.py` (now `tomllib`). Ruff targets `py311`.
+  `from __future__ import annotations` stays: it is harmless on 3.11 and
+  removing it from 52 files would be churn with no behaviour change.
+- **CI tests 3.11 and 3.12.** The 3.12 job installs with
+  `constraints-deploy.txt`, as the deployment does. The 3.11 job first runs
+  the suite with the standard library only (the core must stay
+  dependency-free), then installs the extras and runs it again, without the
+  deploy constraints, because their numpy 2.5.5 needs Python 3.12 (pip
+  resolves numpy 2.4.6 for 3.11, checked on 2026-11-21).
+- **MIT licence** for the code (copyright 2026 Ronit Shah), declared in
+  `pyproject.toml` as an SPDX expression (setuptools 77 or newer). It does
+  not cover stored article text, which keeps its CC BY or CC0 licence and
+  attribution (CONTENT_POLICY.md); the README says so.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.
@@ -1215,8 +1236,6 @@ These items are not approved or implemented changes.
 - Whether source URLs need stricter syntax validation, allowed domains, or a
   later reachability check subject to source terms and rate limits.
 - Whether arbitrary author iterables should be accepted.
-- Whether an explicit project Python-version requirement and packaging
-  configuration should be added.
 - Which additional metadata fields (journal, publication date, licence,
   language, source provider, full-text availability) belong in a later scope.
 - Which integration-hardening capability should follow Milestone 2B.

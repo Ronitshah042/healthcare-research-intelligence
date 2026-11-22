@@ -1086,3 +1086,21 @@ the owner are listed at the end of the session report.
 
 **Verified:** 413 tests; Python 3.13.18 with every extra 413 OK; Python 3.15.2
 and 3.9.6 405 OK, 8 skipped (API and Streamlit). Ruff clean.
+
+## Python 3.11 minimum and MIT licence (2026-11-21)
+
+- **History checked before pushing:** no Gemini or Groq key, NCBI email,
+  `.env` line, key-shaped string, `.env`, secrets file, spot-check sheet or
+  database in any commit. The five local commits were pushed.
+- **MIT licence** added for the code; the README says it does not cover
+  stored article text, which keeps its CC BY or CC0 licence and attribution.
+- **Minimum Python raised to 3.11.** Removed the extras' `python_version`
+  markers and the pattern-based `pyproject.toml` reading (now `tomllib`).
+  CI's 3.9 job became a 3.11 job: core-only tests, then all extras
+  (without the 3.12-only deploy pins). The 3.12 job is unchanged.
+
+**Verified:** 413 tests; Python 3.13.18 with every extra 413 OK; Python
+3.15.2 core only 405 OK, 8 skipped. Ruff clean (`py311`). The built wheel
+declares `Requires-Python: >=3.11`, `License-Expression: MIT` and includes
+`LICENSE`. The extras resolve for Linux Python 3.11 (`pip --dry-run`); the
+3.11 CI job itself runs for the first time on push.

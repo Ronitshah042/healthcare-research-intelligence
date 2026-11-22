@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,24 +7,22 @@ name = "healthcare-research-intelligence"
 version = "0.1.0"
 description = "Research aid: PubMed citations, licensed open-access full text, hybrid search, and cited answers."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
 # The core needs only the standard library. requirements.txt must list exactly
 # the embeddings and app extras (the Streamlit Cloud runtime), and
 # requirements-dev.txt the api and dev extras; tests/test_packaging.py checks.
 dependencies = []
 
 [project.optional-dependencies]
-# Meaning-based passage search (docs/DECISIONS.md, Phase 3). fastembed needs
-# Python 3.10+; on this project's Intel Mac also <=3.13 (onnxruntime wheels).
-embeddings = ["fastembed==0.9.1; python_version >= '3.10'"]
+# Meaning-based passage search (docs/DECISIONS.md, Phase 3). On this project's
+# Intel Mac fastembed needs Python <=3.13 (onnxruntime wheels).
+embeddings = ["fastembed==0.9.1"]
 # The deployed Streamlit app (Phase 6). No PyTorch anywhere.
-app = ["streamlit==1.67.0; python_version >= '3.11'"]
+app = ["streamlit==1.67.0"]
 # The documented REST interface, not deployed (docs/API.md).
-api = [
-    "fastapi==0.165.0; python_version >= '3.11'",
-    "pydantic==2.14.4; python_version >= '3.11'",
-    "uvicorn==0.54.0; python_version >= '3.11'",
-]
+api = ["fastapi==0.165.0", "pydantic==2.14.4", "uvicorn==0.54.0"]
 # Lint and the API tests' HTTP client.
 dev = ["ruff==0.17.6", "httpx==0.28.1"]
 
@@ -35,7 +33,7 @@ hri = "hri.cli:main"
 where = ["src"]
 
 [tool.ruff]
-target-version = "py39"
+target-version = "py311"
 extend-exclude = [".venv-embed"]
 
 [tool.ruff.lint]

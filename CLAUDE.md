@@ -167,8 +167,8 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
   only in `streamlit_app.py` and tests), `api` (fastapi, pydantic, uvicorn,
   only in `src/api/`), `dev` (ruff, httpx). The core must work without any
   of them. Adding any other dependency needs approval.
-- Stay compatible with Python 3.9 until a minimum version is chosen: use
-  `from __future__ import annotations`, and no `dataclass(slots=True)`.
+- The minimum Python version is 3.11 (`requires-python`); CI tests 3.11 and
+  3.12, the version Streamlit Community Cloud runs.
 - Use frozen dataclasses for records and specific exception classes for errors.
 - Use British spelling in new names (`normalise`); `storage.py` is an older exception.
 - Library code takes local data paths from the caller. The one approved default
@@ -181,7 +181,7 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
   use a fake client for pipeline and service tests and a temporary directory for
   storage tests. PMC tests use the recorded fixtures in `tests/fixtures/pmc/`.
 - API and Streamlit tests skip when FastAPI or Streamlit is not installed,
-  so the suite still passes on Python 3.9; CI runs them on 3.12.
+  so the core-only CI step still passes; CI runs them on 3.11 and 3.12.
 - Evaluation tests (`tests/test_evaluation.py`) use fixed data, `FakeLLM`
   and `FakeEmbedder`. Spot-check sheets (`eval/spotcheck-*.csv`) hold
   article text and stay uncommitted; commit only `eval/verdicts-*.csv`

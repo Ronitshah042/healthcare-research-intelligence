@@ -117,9 +117,10 @@ the UI needs is in `hri.services`, including `SessionSavedLists` and
 
 ## Setup
 
-The core needs Python 3.9 or newer and **no third-party packages**.
-Optional extras: `embeddings` (fastembed, Python 3.10+), `app` (Streamlit)
-and `api` (FastAPI) (both Python 3.11+), `dev` (ruff, httpx).
+The core needs Python 3.11 or newer and **no third-party packages**.
+Optional extras: `embeddings` (fastembed), `app` (Streamlit), `api`
+(FastAPI) and `dev` (ruff, httpx). CI tests Python 3.11 and 3.12 (the
+version Streamlit Community Cloud runs).
 
 ```bash
 git clone https://github.com/Ronitshah042/healthcare-research-intelligence.git
@@ -178,6 +179,14 @@ and attribution, every answer and passage shows it, and PubMed results carry
 NLM's attribution and disclaimer. Questions sent to Gemini's free tier may be
 used by Google to improve its products, so the app says so with every answer.
 Details: [docs/CONTENT_POLICY.md](docs/CONTENT_POLICY.md).
+
+## Licence
+
+The **code** in this repository is under the [MIT licence](LICENSE).
+It does not cover the article text the tool stores or shows: each article
+keeps its own CC BY or CC0 licence and attribution, as described in
+[docs/CONTENT_POLICY.md](docs/CONTENT_POLICY.md). PubMed citation data is
+provided by NLM under its own terms.
 
 ## Evaluation
 
