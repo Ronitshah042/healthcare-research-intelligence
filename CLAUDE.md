@@ -30,8 +30,13 @@ The suite fails with `No module named 'ingestion'` if `PYTHONPATH=src` is missin
 "Retrying a transient PubMed request failure." in test output is expected logging.
 
 ## Current state
-`src/ingestion` holds the data layers and `src/hri` the application layer.
-`src/retrieval`, `src/generation`, and `src/evaluation` are empty placeholders. See `docs/PROJECT_LOG.md` for history.
+Phases 1 to 6 are built: PubMed citations, licensed PMC full text, hybrid
+passage search, cited answers, the evaluation harness, and deployment
+preparation (read-only data bundle, Streamlit placeholder, FastAPI). The UI
+is not built; the owner designs it. `src/ingestion` holds the data layers,
+`src/retrieval`, `src/generation` and `src/evaluation` the layers described
+below, and `src/hri` the application layer. See `docs/PROJECT_LOG.md` for
+history.
 
 Dependency direction, lowest layer first:
 

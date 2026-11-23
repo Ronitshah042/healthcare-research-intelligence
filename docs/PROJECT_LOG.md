@@ -1104,3 +1104,17 @@ and 3.9.6 405 OK, 8 skipped (API and Streamlit). Ruff clean.
 declares `Requires-Python: >=3.11`, `License-Expression: MIT` and includes
 `LICENSE`. The extras resolve for Linux Python 3.11 (`pip --dry-run`); the
 3.11 CI job itself runs for the first time on push.
+
+## Housekeeping: CLAUDE.md state and Actions versions (2026-11-23)
+
+- CLAUDE.md's "Current state" now describes what is built (Phases 1 to 6;
+  UI not built) instead of calling retrieval, generation and evaluation
+  empty placeholders.
+- Workflows use `actions/checkout@v7` and `actions/setup-python@v7`
+  (Node 24; Node 20 actions are deprecated). `actions/cache@v4` in the
+  bundle workflow still runs on Node 20 and was left unchanged.
+- The scheduled bundle build on 2026-11-23 failed because the repository
+  secrets `PUBMED_NCBI_TOOL` and `PUBMED_NCBI_EMAIL` are not set yet.
+- Evaluation improvements stay on hold until set 2 is reviewed.
+
+**Verified:** Python 3.13.18 with every extra, 413 tests OK; Ruff clean.
