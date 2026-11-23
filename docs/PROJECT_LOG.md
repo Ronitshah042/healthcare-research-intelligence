@@ -1118,3 +1118,13 @@ declares `Requires-Python: >=3.11`, `License-Expression: MIT` and includes
 - Evaluation improvements stay on hold until set 2 is reviewed.
 
 **Verified:** Python 3.13.18 with every extra, 413 tests OK; Ruff clean.
+
+## Keys rotated; actions/cache to v6 (2026-11-23)
+
+- The owner replaced the Gemini and Groq keys in `.env`; both were accepted
+  by a model-list request (no answer quota used, no key printed).
+- The bundle workflow now uses `actions/cache@v6` (Node 24). v5 and v6
+  change only the runtime and packaging, not the `path` and `key` inputs.
+  It runs for the first time on the next bundle build.
+
+**Verified:** Python 3.13.18 with every extra, 413 tests OK; Ruff clean.
