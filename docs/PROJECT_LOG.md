@@ -1149,3 +1149,22 @@ declares `Requires-Python: >=3.11`, `License-Expression: MIT` and includes
 
 **Verified:** Python 3.13.18 with every extra 414 OK; Python 3.15.2 core
 only 406 OK, 8 skipped. Ruff clean.
+
+## Set 2 reviewed by the owner (2026-11-24)
+
+- All 32 questions in `eval/questions-set2.json` are now `needs_review:
+  false`; 28 approved as written.
+- **s03:** note corrected. The stored article gives myocardial infarction as
+  4.0% vs 8.2% (HR 0.701, RR 0.474) in its results and 4.1% vs 8.7%
+  (RR 0.474) in its discussion; both are recorded. Neither pair gives
+  exactly RR 0.474, so the article itself is inconsistent.
+- **s23:** only PMC13280743 counts (PMC13606989 has no kidney outcomes;
+  PMC13773725 is about SGLT2 inhibitors, finerenone and RAS inhibitors).
+- **s24:** "these studies" became "the stored studies".
+- **s29:** reworded to ask about real-world patients, so the genetic results
+  in PMC13280743 clearly do not answer it; still `should_abstain`.
+- `docs/EVAL_RESULTS_SET2.md` still reports the 2026-11-20 run of the
+  unreviewed set and stays preliminary until the set is run again.
+
+**Verified:** 414 tests OK (Python 3.13.18, every extra); the evaluation
+loader reads 32 questions, none marked `needs_review`.
