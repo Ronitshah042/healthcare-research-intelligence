@@ -4,8 +4,9 @@
 #   pip install --dry-run --report ... --only-binary=:all: \
 #     --platform manylinux_2_28_x86_64 --python-version 3.12 -r requirements.txt
 # CI's Python 3.12 job and the bundle workflow install with -c this file, so
-# the bundle is built with the same versions. Not used by requirements.txt:
-# these versions (onnxruntime 1.32) do not exist for Intel Macs. The fastembed
+# the bundle is built with the same versions. requirements.txt includes it
+# (-c), so Streamlit Cloud installs exactly this set. It needs Python 3.12+
+# (numpy 2.5) and does not exist for Intel Macs (onnxruntime 1.32). The fastembed
 # pin must match pyproject.toml; tests/test_packaging.py checks.
 
 altair==6.3.0

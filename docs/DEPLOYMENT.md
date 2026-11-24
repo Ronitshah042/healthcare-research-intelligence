@@ -105,16 +105,17 @@ installed (`streamlit_app.py` puts `src/` on the import path), and
 add a `uv.lock`, `Pipfile` or `environment.yml`: it would silently replace
 `requirements.txt` as the deployed set.
 
-`requirements.txt` pins only fastembed and Streamlit. Everything they install
-is pinned for the cloud platform (Linux, Python 3.12) in
-`constraints-deploy.txt`, which CI and the bundle workflow install with, so
-the tested set and the bundle's build environment match. Streamlit Cloud
-itself installs from `requirements.txt` alone, so a new release of a
-sub-package could reach the app first. If a deployment breaks after such a
-release, add the line `-c constraints-deploy.txt` to the top of
-`requirements.txt` (this breaks local installs on Intel Macs, where
-onnxruntime 1.32 does not exist). Regenerate the file with the command in its
-header whenever `requirements.txt` changes.
+`requirements.txt` names fastembed and Streamlit, and its first line,
+`-c constraints-deploy.txt`, pins everything they install to the set
+resolved for the cloud platform (Linux, Python 3.12). Streamlit Cloud, CI's
+3.12 job and the bundle workflow therefore all install exactly the same
+versions, and a new release of a sub-package cannot reach the app untested.
+The price: `pip install -r requirements.txt` works only on Linux with Python
+3.12 or newer (numpy 2.5 needs 3.12; onnxruntime 1.32 has no Intel-Mac
+build), so local installs and CI's 3.11 job use the `pyproject.toml` extras
+instead, and the app's Python must stay 3.12. Regenerate
+`constraints-deploy.txt` with the command in its header whenever
+`requirements.txt` changes.
 
 ## Security notes
 

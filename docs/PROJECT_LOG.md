@@ -1128,3 +1128,24 @@ declares `Requires-Python: >=3.11`, `License-Expression: MIT` and includes
   It runs for the first time on the next bundle build.
 
 **Verified:** Python 3.13.18 with every extra, 413 tests OK; Ruff clean.
+
+## Streamlit Cloud installs the tested pins (2026-11-24)
+
+- Streamlit Cloud uses `requirements.txt` (its first match before
+  `pyproject.toml`); DEPLOYMENT.md now says so and explains the "More than
+  one requirements file" warning.
+- `requirements.txt` now starts with `-c constraints-deploy.txt`, so the
+  app installs exactly the set CI's 3.12 job and the bundle build test.
+  Consequences handled: CI's 3.11 job and the README's local install use the
+  `pyproject.toml` extras (the pins need Python 3.12 and Linux), the
+  explicit `-c` in CI and the bundle workflow was dropped as redundant, and
+  a test checks the line stays first.
+- **Checked:** a fresh Python 3.13 venv on the owner's Intel Mac cannot
+  install `requirements.txt` (no onnxruntime 1.32 build), as expected and
+  documented; resolved for Linux, Python 3.12 (`pip --dry-run`), it gives
+  48 packages, all equal to `constraints-deploy.txt`. The real
+  `streamlit_app.py`, run headless (Streamlit AppTest) against the public
+  bundle, started with no errors and showed the bundle counts.
+
+**Verified:** Python 3.13.18 with every extra 414 OK; Python 3.15.2 core
+only 406 OK, 8 skipped. Ruff clean.

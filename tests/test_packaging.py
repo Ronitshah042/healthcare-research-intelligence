@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parent.parent
 def _requirements(name: str = "requirements.txt") -> list[str]:
     lines = (ROOT / name).read_text().splitlines()
     return sorted(
-        line.strip() for line in lines if line.strip() and not line.startswith("#")
+        line.strip() for line in lines if line.strip() and not line.startswith(("#", "-c "))
     )
 
 
@@ -25,6 +25,10 @@ class PackagingTests(unittest.TestCase):
     def test_requirement_files_match_the_pyproject_extras(self) -> None:
         self.assertEqual(_requirements(), _extras("embeddings", "app"))
         self.assertEqual(_requirements("requirements-dev.txt"), _extras("api", "dev"))
+
+    def test_the_deployed_requirements_use_the_tested_pins(self) -> None:
+        first = (ROOT / "requirements.txt").read_text().splitlines()[0]
+        self.assertEqual(first, "-c constraints-deploy.txt")
 
     def test_the_runtime_has_no_pytorch(self) -> None:
         for name in ("requirements.txt", "requirements-dev.txt"):

@@ -128,7 +128,7 @@ cd healthcare-research-intelligence
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e .                                        # core: the hri command
 pip install -e '.[embeddings]' -c constraints-embeddings.txt   # meaning-based search
-pip install -r requirements.txt -r requirements-dev.txt        # app, API, lint, tests
+pip install -e '.[app,api,dev]'                         # app, API, lint, tests
 
 PYTHONPATH=src python3 -m unittest discover -s tests    # no network needed
 ruff check src tests streamlit_app.py

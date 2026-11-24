@@ -1,6 +1,10 @@
+-c constraints-deploy.txt
 # Runtime dependencies of the deployed Streamlit app (Streamlit Community
 # Cloud installs this file). Keep it identical to the `embeddings` and `app`
 # extras in pyproject.toml; tests/test_packaging.py checks it. No PyTorch.
+# The -c line pins everything they install to the set CI and the bundle
+# build test (Linux, Python 3.12), so this file installs only there; for
+# local installs use the pyproject extras (README, Setup).
 #
 # The core project uses only the Python standard library (Python 3.11 or
 # newer). Exact versions of everything fastembed installs are in
