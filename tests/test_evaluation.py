@@ -297,6 +297,22 @@ class RunEvalTests(PipelineTestCase):
         self.assertIn("(uncached run, 2026-11-19, 2 answers; this run was fully cached)", report)
         self.assertNotIn("n/a / n/a", report)
 
+    def test_a_small_sample_keeps_the_latency_record_and_is_logged(self) -> None:
+        results = self.set_path.parent / "results"
+        results.mkdir(parents=True, exist_ok=True)
+        record = {"median_seconds": 1.68, "p90_seconds": 4.88, "answers_measured": 29,
+                  "date": "2026-11-01", "answer_models": {"Gemini m": 29}}
+        (results / "latency.json").write_text(json.dumps(record, indent=2) + "\n")
+
+        self.run_eval()  # uncached, but only 2 answers measured
+
+        self.assertEqual(json.loads((results / "latency.json").read_text()), record)
+        samples = (results / "latency-samples.jsonl").read_text().splitlines()
+        self.assertEqual(len(samples), 1)
+        self.assertEqual(json.loads(samples[0])["answers_measured"], 2)
+        self.assertIn("(uncached run, 2026-11-01, 29 answers; this run's 2 uncached answers are logged",
+                      self.report.read_text())
+
     def test_no_cache_ignores_cached_answers_within_a_limit(self) -> None:
         self.run_eval()
         answer_llm = FakeLLM("Fresh answer [1].")

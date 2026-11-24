@@ -707,11 +707,14 @@ columns is never overwritten; the new sheet gets a numbered name
   set (see `export_verdicts`): the share of claims the owner rated where the
   judge's verdict is the same. "pending manual spot-check" until one exists.
 - **Response time:** a run that waited for the model records its median and
-  p90 in `results/latency.json` beside the set; a fully cached run reports
-  that last measurement with its date. `no_cache=True` ignores cached answers
-  (replies are still stored) to measure response time for real; it uses the
-  first 5 questions unless `max_questions` is given, at most
-  `MAX_NO_CACHE_QUESTIONS`.
+  p90 in `results/latency.json` beside the set. A run with fewer than 10
+  uncached answers does not replace an existing record: its sample is
+  appended to `results/latency-samples.jsonl`, and the report shows the
+  record and says so. A fully cached run reports the last record with its
+  date. `no_cache=True` ignores cached answers (replies are still stored) to
+  measure response time for real; it uses the first 5 questions unless
+  `max_questions` is given, at most `MAX_NO_CACHE_QUESTIONS`, so only
+  `max_questions=10` replaces an existing record.
 - **Free tier:** answers and judgements are cached and reused, so a rerun
   costs nothing for unchanged questions; it waits `pace_seconds` after each
   question that used an AI request; `max_questions` takes the first N; the

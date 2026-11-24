@@ -46,6 +46,9 @@ DEFAULT_JUDGE_PROMPT = Path("eval") / "judge_prompt.txt"
 # --no-cache spends real requests: a small default and a hard limit.
 DEFAULT_NO_CACHE_QUESTIONS = 5
 MAX_NO_CACHE_QUESTIONS = 10
+# Fewer uncached answers than this do not replace eval/results/latency.json;
+# they are appended to latency-samples.jsonl instead.
+MIN_LATENCY_ANSWERS = 10
 KNOWN_WEAKNESSES = (
     "The starter questions were written by the developer from the stored "
     "abstracts, so their wording favours retrieval; real users' questions will "
@@ -174,13 +177,18 @@ def run_eval(
     latency_path = results_dir / "latency.json"
     if summary["answers"].get("latency_median") is not None:
         results_dir.mkdir(parents=True, exist_ok=True)
-        latency_path.write_text(json.dumps({
+        sample = {
             "median_seconds": round(summary["answers"]["latency_median"], 2),
             "p90_seconds": round(summary["answers"]["latency_p90"], 2),
             "answers_measured": summary["answers"]["latency_measured"],
             "date": f"{run.started:%Y-%m-%d}",
             "answer_models": summary["answer_models"],
-        }, indent=2) + "\n")
+        }
+        if latency_path.exists() and sample["answers_measured"] < MIN_LATENCY_ANSWERS:
+            with (results_dir / "latency-samples.jsonl").open("a") as handle:
+                handle.write(json.dumps(sample) + "\n")
+        else:
+            latency_path.write_text(json.dumps(sample, indent=2) + "\n")
     latency_record = _read_json(latency_path)
     agreement = judge_agreement(
         p.read_text() for p in sorted(path.parent.glob("verdicts-*.csv")))

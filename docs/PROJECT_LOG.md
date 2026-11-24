@@ -1168,3 +1168,41 @@ only 406 OK, 8 skipped. Ruff clean.
 
 **Verified:** 414 tests OK (Python 3.13.18, every extra); the evaluation
 loader reads 32 questions, none marked `needs_review`.
+
+## Set 2 re-run after review (2026-11-24)
+
+- Re-ran `eval/questions-set2.json` reusing the answer and judge caches. A
+  dry run first (copy of the database, stand-in AI clients that record
+  requests) showed only s24 and s29 would miss the cache, since answers are
+  keyed by question wording, passages and prompt version, and judge verdicts
+  by the answer and passages. The real run used **3 AI requests** (two
+  answers, one judge), not 52.
+- Changes from the 2026-11-20 run: s24 is now answered (6 claims, all judged
+  supported) where it declined before; s29 still declines correctly.
+  Answered when expected 92% -> 96%; citations valid 130 -> 139; claims
+  judged 82 -> 88; retrieval unchanged (hybrid recall@5 99%, MRR 0.98).
+- `docs/EVAL_RESULTS_SET2.md` regenerated and kept **preliminary** until the
+  owner's spot-check verdicts are in; summary `eval/results/set2-reviewed.json`
+  (`set2-preliminary.json` kept as the baseline).
+- `hri eval` rewrote `eval/results/latency.json` from the 2 uncached answers;
+  it was restored to the 29-answer measurement of 2026-11-20, and the report's
+  response-time line matches it. Worth fixing: a run with few uncached
+  answers should not replace a larger latency measurement.
+- `eval/spotcheck-2026-11-20.csv` (the owner's sheet) was not touched. The
+  run's own sheet, `eval/spotcheck-2026-11-24.csv`, is byte-for-byte the same
+  15 sampled claims (s01 to s16; no s24 rows), because the sheet takes the
+  first 15 judged claims and those did not change. The owner rates only the
+  2026-11-19 and 2026-11-20 sheets.
+
+**Verified:** 414 tests OK (Python 3.13.18, every extra), run before the
+evaluation; no code changed.
+
+## Latency record kept for small samples (2026-11-24)
+
+- `hri eval` no longer replaces `eval/results/latency.json` from fewer than
+  10 uncached answers when a record exists; the sample goes to
+  `eval/results/latency-samples.jsonl`, and the report shows the kept record
+  with a pointer to the log (DECISIONS.md). New test:
+  `test_a_small_sample_keeps_the_latency_record_and_is_logged`.
+- The 2026-11-24 set 2 sample (2 answers, median 1.88 s) is logged there,
+  and `docs/EVAL_RESULTS_SET2.md`'s response-time line uses the new wording.

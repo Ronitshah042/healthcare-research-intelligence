@@ -207,8 +207,8 @@ were written by the developer from the stored text, the judge is an AI whose
 agreement with a human is still pending, and two attempts to improve evidence
 selection were rejected because they lowered claim support. A second,
 held-out question set written from article body text in everyday wording has
-been run once ([docs/EVAL_RESULTS_SET2.md](docs/EVAL_RESULTS_SET2.md));
-its results stay preliminary until its questions are reviewed.
+been reviewed and run ([docs/EVAL_RESULTS_SET2.md](docs/EVAL_RESULTS_SET2.md));
+its results stay preliminary until the owner's spot-check of the judge is in.
 
 ## Deployment
 

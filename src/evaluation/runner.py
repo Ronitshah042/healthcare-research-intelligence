@@ -484,13 +484,19 @@ def _agreement(agreement: dict | None) -> str:
 
 
 def _latency(answers: dict, record: dict | None, run: EvalRun) -> str:
+    measured = answers.get("latency_measured") or 0
+    if record:
+        # The record is this run's own sample unless the sample was too small to replace it.
+        own = measured and (record["date"], record["answers_measured"], record["median_seconds"]) == (
+            f"{run.started:%Y-%m-%d}", measured, round(answers["latency_median"], 2))
+        suffix = ("" if own else
+                  f"; this run's {measured} uncached answers are logged in latency-samples.jsonl"
+                  if measured else "; this run was fully cached")
+        return (f"median {record['median_seconds']:.1f} s, p90 {record['p90_seconds']:.1f} s "
+                f"(uncached run, {record['date']}, {record['answers_measured']} answers{suffix})")
     if answers.get("latency_median") is not None:
         return (f"median {_secs(answers['latency_median'])}, p90 {_secs(answers['latency_p90'])} "
                 f"(uncached run, {run.started:%Y-%m-%d}, {answers['latency_measured']} answers)")
-    if record:
-        return (f"median {record['median_seconds']:.1f} s, p90 {record['p90_seconds']:.1f} s "
-                f"(uncached run, {record['date']}, {record['answers_measured']} answers; "
-                "this run was fully cached)")
     return "not measured yet (run with --no-cache)"
 
 

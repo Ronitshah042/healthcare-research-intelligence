@@ -1225,6 +1225,21 @@ only reported, not used for the decision, to keep it held out.
   not cover stored article text, which keeps its CC BY or CC0 licence and
   attribution (CONTENT_POLICY.md); the README says so.
 
+### Small latency samples do not replace the record (2026-11-24)
+
+- **Problem:** `hri eval` rewrote `eval/results/latency.json` from whatever
+  answers a run did not find in the cache. The set 2 re-run after review had
+  only 2 such answers and replaced a 29-answer measurement with them.
+- **Decision:** a run with fewer than 10 uncached answers
+  (`MIN_LATENCY_ANSWERS`) keeps an existing `latency.json` and appends its
+  sample to `eval/results/latency-samples.jsonl`; the report shows the kept
+  record and points to the log. With no record yet, the sample is written as
+  before. 10 is the most `--no-cache` allows, so `--no-cache --max-questions
+  10` is the way to replace the record on purpose; the default `--no-cache`
+  run (5 questions) is now logged only.
+- **Not done:** combining samples into one figure; samples from different
+  question sets and days are not comparable enough.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.
