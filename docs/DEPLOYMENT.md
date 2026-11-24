@@ -91,6 +91,20 @@ Streamlit Community Cloud (streamlit_app.py)
 
 ## Pinned versions
 
+**Which file Streamlit Cloud installs from.** Community Cloud uses only the
+first dependency file it finds, looking first in the entrypoint's folder and
+then in the repository root, in this order: `uv.lock`, `Pipfile`,
+`environment.yml`, `requirements.txt`, `pyproject.toml`
+([Streamlit docs, "App dependencies"](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/app-dependencies)).
+`streamlit_app.py` is in the root, which holds both `requirements.txt` and
+`pyproject.toml`, so the app is installed from **`requirements.txt`** and the
+log warns "More than one requirements file". The warning is expected and
+harmless: `pyproject.toml` is ignored there, the project itself is not
+installed (`streamlit_app.py` puts `src/` on the import path), and
+`requirements-dev.txt` and the `constraints-*.txt` files are not read. Do not
+add a `uv.lock`, `Pipfile` or `environment.yml`: it would silently replace
+`requirements.txt` as the deployed set.
+
 `requirements.txt` pins only fastembed and Streamlit. Everything they install
 is pinned for the cloud platform (Linux, Python 3.12) in
 `constraints-deploy.txt`, which CI and the bundle workflow install with, so
