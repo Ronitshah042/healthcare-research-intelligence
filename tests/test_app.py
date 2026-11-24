@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -97,6 +98,13 @@ class AppPageTests(unittest.TestCase):
     def text(self, page: AppTest) -> str:
         return " ".join(e.value for e in (*page.markdown, *page.caption, *page.subheader,
                                            *page.header, *page.title, *page.warning))
+
+    def test_year_label_shows_a_single_year_once(self) -> None:
+        sys.path.insert(0, str(Path(APP).parent))
+        from app_pages.common import year_range
+
+        self.assertEqual(year_range([2026, 2026]), "2026")
+        self.assertEqual(year_range([2026, 2020, 2024]), "2020–2026")
 
     def test_reports_a_missing_bundle_instead_of_crashing(self) -> None:
         with mock.patch.dict(os.environ, {"HRI_BUNDLE_DIR": str(Path(self.temp_dir.name) / "none")}):

@@ -34,6 +34,20 @@ button[role="radio"][aria-checked="true"], button[aria-pressed="true"] { color: 
 .stApp [class*="st-key-tile-peach"] [data-testid="stCaptionContainer"] * { color: #5C2A12; }
 .stApp [class*="st-key-tile-hero"] [data-testid="stCaptionContainer"] * { color: #C9E6E3; }
 
+/* Medium widths: stat tiles move under the hero instead of truncating
+   (Streamlit itself stacks columns only below 640px). */
+@media (max-width: 1200px) {
+  .stApp [class*="st-key-split-"] [data-testid="stHorizontalBlock"]:not([data-testid="stColumn"] *)
+    > [data-testid="stColumn"] { flex: 1 1 100%; width: 100%; min-width: 100%; }
+}
+/* Never truncate a number or its label. */
+.stApp :is([data-testid="stMetricValue"], [data-testid="stMetricLabel"]) * {
+  overflow: visible; text-overflow: clip; white-space: normal;
+}
+
+/* A result reads as one item: a bold title with tighter lines. */
+.stApp [class*="st-key-result-"] [data-testid="stPageLink"] p { font-weight: 700; line-height: 1.4; }
+
 /* Long titles wrap instead of being cut off; no "Press Enter" hint in forms. */
 [data-testid="stPageLink"] :is(a, span, p) { white-space: normal; overflow: visible; text-overflow: clip; height: auto; }
 [data-testid="InputInstructions"] { display: none; }

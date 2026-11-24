@@ -46,7 +46,7 @@ def _vancouver(paper: services.StoredPaper) -> str:
 passages = _open_access_passages(paper)
 document = passages[0].document if passages else None
 
-hero, side = st.columns([8, 4], gap="medium")
+hero, side = common.split_row("paper", [8, 4])
 with hero, common.tile("hero", "paper"):
     badges = [":green-badge[Open-access full text]" if document else ":gray-badge[Citation only]"]
     if document and document.article_type:

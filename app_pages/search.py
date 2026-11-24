@@ -15,18 +15,19 @@ STRATEGY_LABELS = {"keyword": "Keyword", "fuzzy": "Fuzzy title", "boolean": "Boo
 stats = services.get_stats()
 fulltext = services.get_fulltext_stats()
 
-hero, side = st.columns([8, 4], gap="medium")
+hero, side = common.split_row("search", [8, 4])
 with hero, common.tile("hero", "search"):
     st.markdown(":green-badge[PubMed + open-access evidence]")
     st.title("Ask medicine’s research a question.")
     with st.form("search", border=False):
-        box, go = st.columns([5, 1], vertical_alignment="bottom")
-        query = box.text_input(
-            "Search stored citations", value=st.session_state.get("query", ""),
-            placeholder="For example: SGLT2 inhibitors heart failure")
-        if go.form_submit_button("Search", type="primary", width="stretch"):
-            st.session_state.query = query.strip()
-            st.session_state.result_page = 1
+        # A flexible row: the button keeps its full label and wraps under the box.
+        with st.container(horizontal=True, vertical_alignment="bottom"):
+            query = st.text_input(
+                "Search stored citations", value=st.session_state.get("query", ""),
+                placeholder="For example: SGLT2 inhibitors heart failure")
+            if st.form_submit_button("Search", type="primary"):
+                st.session_state.query = query.strip()
+                st.session_state.result_page = 1
     strategy = st.segmented_control(
         "Match", list(STRATEGY_LABELS), format_func=STRATEGY_LABELS.get,
         default="keyword", required=True, key="strategy")
@@ -66,7 +67,7 @@ with results_column, common.tile("white", "results"):
             st.subheader(f"{results.total_count} citation{'s' if results.total_count != 1 else ''}")
             years = [p.publication_year for p in results.papers if p.publication_year]
             st.caption(f"“{query}” · {STRATEGY_LABELS[strategy].lower()} match"
-                       + (f" · {min(years)}–{max(years)}" if years else ""))
+                       + (f" · {common.year_range(years)}" if years else ""))
             if not results.papers:
                 st.write("No stored citation matches. Try fewer or different words, "
                          "or Fuzzy title for spelling differences.")

@@ -41,8 +41,19 @@ def tile(kind: str, name: str):
         yield
 
 
+def split_row(name: str, spec: list[int]):
+    """Columns for a hero and its stat tiles; below 1200px they stack (style.css)."""
+    return st.container(key=f"split-{name}").columns(spec, gap="medium")
+
+
 def chip(number: int) -> str:
     return f":{_CHIP_COLOURS[(number - 1) % len(_CHIP_COLOURS)]}-badge[{number}]"
+
+
+def year_range(years: list[int]) -> str:
+    """One year as "2026", several as "2020–2026"."""
+    low, high = min(years), max(years)
+    return str(low) if low == high else f"{low}–{high}"
 
 
 def identifier(paper: services.StoredPaper) -> str:
@@ -57,7 +68,8 @@ def paper_meta(paper: services.StoredPaper) -> str:
 
 def paper_row(number: int, paper: services.StoredPaper) -> None:
     """A numbered result that links to the paper's details page."""
-    with st.container(horizontal=True, vertical_alignment="top", gap="small"):
+    with st.container(key=f"result-{number}", horizontal=True, vertical_alignment="top",
+                      gap="small"):
         st.markdown(chip(number), width="content")
         with st.container(gap=None):
             st.page_link(PAPER_PAGE, label=paper.title, query_params={"id": identifier(paper)})

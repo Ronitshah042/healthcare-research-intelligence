@@ -1260,3 +1260,18 @@ only 409 OK, 8 skipped. Ruff clean.
 
 **Verified:** Python 3.13.18 with every extra 419 OK; Python 3.15.2 core
 only 409 OK, 10 skipped (API and Streamlit). Ruff clean.
+
+## UI fixes after the owner's review of the live app (2026-11-24)
+
+- Tablet widths: below 1200px the hero and its stat tiles stack (Streamlit
+  stacks columns only below 640px), metric values and labels never truncate,
+  and the Search button sits in a flexible row, so it keeps its label and
+  wraps under the box when needed.
+- The year label shows "2026" when a range starts and ends in the same year
+  (new test). Result titles are bold with line height 1.4.
+- Checked in headless Chrome at 390, 768, 1024 and 1366px (Search and an
+  open-access paper page): no clipped text, no sideways scrolling; count
+  tiles 314 to 380px wide when stacked, 141px side by side at 1366px.
+
+**Verified:** Python 3.13.18 with every extra 420 OK; Python 3.15.2 core
+only 409 OK, 11 skipped. Ruff clean.
