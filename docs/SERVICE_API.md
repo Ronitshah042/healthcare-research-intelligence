@@ -704,12 +704,15 @@ columns is never overwritten; the new sheet gets a numbered name
   `label`; `baseline_path` adds a before/after table against such a file,
   and `note` is printed under it as the decision.
 - **Judge agreement:** read from every `verdicts-*.csv` beside the question
-  set (see `export_verdicts`): the share of claims the owner rated where the
-  judge's verdict is the same. "pending manual spot-check" until one exists.
+  set (see `export_verdicts`), counting only rows whose `question_id` is in
+  this set (sets share a folder): the share of claims the owner rated where
+  the judge's verdict is the same. "pending manual spot-check" until one
+  exists.
 - **Response time:** a run that waited for the model records its median and
-  p90 in `results/latency.json` beside the set. A run with fewer than 10
-  uncached answers does not replace an existing record: its sample is
-  appended to `results/latency-samples.jsonl`, and the report shows the
+  p90 in `results/latency-<set>.json` beside the set (`<set>` is the
+  question file's name without `.json`). A run with fewer than 10 uncached
+  answers does not replace an existing record: its sample is appended to
+  `results/latency-samples-<set>.jsonl`, and the report shows the
   record and says so. A fully cached run reports the last record with its
   date. `no_cache=True` ignores cached answers (replies are still stored) to
   measure response time for real; it uses the first 5 questions unless

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import csv
 import io
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 
 from .judge import VERDICTS
 
@@ -42,15 +42,21 @@ def export_verdicts(sheet_csv: str) -> str:
     return out.getvalue()
 
 
-def judge_agreement(verdict_files: Iterable[str]) -> dict:
+def judge_agreement(
+    verdict_files: Iterable[str], question_ids: Collection[str] | None = None
+) -> dict:
     """Share of claims where the judge's verdict equals the owner's.
 
-    Only rows where both are one of supported, partial, unsupported count.
+    Only rows where both are one of supported, partial, unsupported count,
+    and, if ``question_ids`` is given, only rows for those questions (so a
+    report counts only its own question set's verdicts).
     ``rate`` is ``None`` until the owner has rated at least one claim.
     """
     rated = agreed = 0
     for text in verdict_files:
         for row in csv.DictReader(io.StringIO(text)):
+            if question_ids is not None and row.get("question_id") not in question_ids:
+                continue
             mine = (row.get("your_verdict") or "").strip().lower()
             judge = (row.get("judge_verdict") or "").strip().lower()
             if mine in VERDICTS and judge in VERDICTS:

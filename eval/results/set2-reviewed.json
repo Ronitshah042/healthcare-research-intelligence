@@ -1,6 +1,6 @@
 {
   "label": "set2-reviewed",
-  "date": "2026-11-24 12:26 UTC",
+  "date": "2026-11-24 14:12 UTC",
   "question_set": "eval/questions-set2.json",
   "questions": 32,
   "answer_models": {
@@ -55,9 +55,9 @@
     "correct_abstention": 1.0,
     "should_answer": 25,
     "answered_when_expected": 0.96,
-    "latency_measured": 2,
-    "latency_median": 1.8845860090004862,
-    "latency_p90": 5.575713700000051,
-    "llm_calls": 3
+    "latency_measured": 0,
+    "latency_median": null,
+    "latency_p90": null,
+    "llm_calls": 0
   }
 }

@@ -283,12 +283,32 @@ class RunEvalTests(PipelineTestCase):
         self.assertEqual(exported.name, "verdicts-2026-11-19.csv")
         self.assertNotIn(rows[0]["cited_passages"][:40], exported.read_text())
         self.assertIn("| Judge agreement | 100% (1 of 1 claims;", self.report.read_text())
+        self.assertIn("reviewed by the owner with AI-assisted notes", self.report.read_text())
         with self.assertRaises(services.InvalidRequestError):
             services.export_verdicts(sheet, sheet)
 
+    def test_judge_agreement_counts_only_this_sets_verdicts(self) -> None:
+        own = self.run_eval().spotcheck_path
+        rows = list(csv.DictReader(io.StringIO(own.read_text())))
+        rows[0]["your_verdict"] = rows[0]["judge_verdict"]
+        with own.open("w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+            writer.writeheader()
+            writer.writerows(rows)
+        services.export_verdicts(own)
+        # Another question set's verdicts in the same folder, all disagreeing.
+        other = self.set_path.parent / "verdicts-2026-11-01.csv"
+        other.write_text("question_id,claim,cited_pmcids,cited_passage_ids,judge_verdict,"
+                         "your_verdict,your_notes\ns01,c,PMC1,PMC1.1:p0,supported,unsupported,\n"
+                         "s02,c,PMC1,PMC1.1:p0,supported,partial,\n")
+
+        self.run_eval()
+
+        self.assertIn("| Judge agreement | 100% (1 of 1 claims;", self.report.read_text())
+
     def test_cached_runs_report_the_last_measured_response_time(self) -> None:
         self.run_eval()  # uncached: measures and records response time
-        record = json.loads((self.set_path.parent / "results" / "latency.json").read_text())
+        record = json.loads((self.set_path.parent / "results" / "latency-questions.json").read_text())
         self.assertEqual((record["date"], record["answers_measured"]), ("2026-11-19", 2))
 
         self.run_eval()  # fully cached
@@ -302,16 +322,29 @@ class RunEvalTests(PipelineTestCase):
         results.mkdir(parents=True, exist_ok=True)
         record = {"median_seconds": 1.68, "p90_seconds": 4.88, "answers_measured": 29,
                   "date": "2026-11-01", "answer_models": {"Gemini m": 29}}
-        (results / "latency.json").write_text(json.dumps(record, indent=2) + "\n")
+        (results / "latency-questions.json").write_text(json.dumps(record, indent=2) + "\n")
 
         self.run_eval()  # uncached, but only 2 answers measured
 
-        self.assertEqual(json.loads((results / "latency.json").read_text()), record)
-        samples = (results / "latency-samples.jsonl").read_text().splitlines()
+        self.assertEqual(json.loads((results / "latency-questions.json").read_text()), record)
+        samples = (results / "latency-samples-questions.jsonl").read_text().splitlines()
         self.assertEqual(len(samples), 1)
         self.assertEqual(json.loads(samples[0])["answers_measured"], 2)
         self.assertIn("(uncached run, 2026-11-01, 29 answers; this run's 2 uncached answers are logged",
                       self.report.read_text())
+
+    def test_another_sets_latency_record_is_not_used(self) -> None:
+        results = self.set_path.parent / "results"
+        results.mkdir(parents=True, exist_ok=True)
+        (results / "latency-questions-set2.json").write_text(json.dumps(
+            {"median_seconds": 9.9, "p90_seconds": 9.9, "answers_measured": 50,
+             "date": "2026-01-01", "answer_models": {}}))
+
+        self.run_eval()
+
+        self.assertNotIn("2026-01-01", self.report.read_text())
+        own = json.loads((results / "latency-questions.json").read_text())
+        self.assertEqual(own["answers_measured"], 2)
 
     def test_no_cache_ignores_cached_answers_within_a_limit(self) -> None:
         self.run_eval()

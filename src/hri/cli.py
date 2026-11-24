@@ -212,7 +212,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-cache", action="store_true",
         help="ignore cached answers to measure real response time "
         f"(at most {services.MAX_NO_CACHE_QUESTIONS} questions; default 5; fewer than 10 "
-        "answers are logged in latency-samples.jsonl instead of replacing latency.json)",
+        "answers are logged, not recorded, as the set's response time)",
     )
     evaluate.set_defaults(handler=_eval)
 

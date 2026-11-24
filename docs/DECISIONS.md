@@ -1240,6 +1240,23 @@ only reported, not used for the decision, to keep it held out.
 - **Not done:** combining samples into one figure; samples from different
   question sets and days are not comparable enough.
 
+### Per-set judge agreement and response time; spot-check disclosed (2026-11-24)
+
+- Both question sets keep their files in `eval/`, so a report counted every
+  `verdicts-*.csv` there and read one shared `results/latency.json`. Set 2's
+  first run had replaced set 1's response-time record (3.6 s, 28 answers)
+  with its own (1.7 s, 29 answers).
+- **Decision:** judge agreement counts only verdict rows whose `question_id`
+  belongs to the report's question set (set 1: 13 of 15; set 2: 15 of 15).
+  The combined figure (28 of 30, 93%) appears only in the README. Response
+  time is recorded per set in `results/latency-<set>.json`, with small samples
+  in `results/latency-samples-<set>.jsonl`; set 1's 2026-11-19 record was
+  restored from Git history.
+- **Disclosure:** the reports and the README say the spot-check verdicts were
+  "reviewed by the owner with AI-assisted notes".
+- **Not done:** matching verdict rows to the current claim text. If an answer
+  changes, its old verdicts still count until the sheet is redone.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.

@@ -190,25 +190,31 @@ provided by NLM under its own terms.
 
 ## Evaluation
 
-Measured with `hri eval` on a reviewed set of 32 questions over 18 articles
-(set 1). Full report and method: [docs/EVAL_RESULTS.md](docs/EVAL_RESULTS.md).
+Measured with `hri eval` on two reviewed sets of 32 questions over the same
+18 articles: set 1, written from the stored text, and set 2, held out and
+written from article body text in everyday wording. Full reports and method:
+[docs/EVAL_RESULTS.md](docs/EVAL_RESULTS.md) (set 1) and
+[docs/EVAL_RESULTS_SET2.md](docs/EVAL_RESULTS_SET2.md) (set 2).
 
-| Measure | Result |
-| --- | --- |
-| Hybrid retrieval recall@5 / MRR (article level) | 98% / 0.98 |
-| Relevant articles reaching the model (evidence recall) | 93% |
-| Citations naming a supplied passage | 100% (211) |
-| Claims rated supported by an AI judge (Groq, a different model family) | 98%; 2% partial, 0% unsupported |
-| Correct abstention / answered when expected | 100% (9) / 91% (21 of 23) |
-| Response time, uncached | median 3.6 s |
+| Measure | Set 1 | Set 2 (held out) |
+| --- | --- | --- |
+| Hybrid retrieval recall@5 / MRR (article level) | 98% / 0.98 | 99% / 0.98 |
+| Relevant articles reaching the model (evidence recall) | 93% | 97% |
+| Citations naming a supplied passage | 100% (211) | 100% (139) |
+| Claims rated supported by an AI judge (Groq, a different model family) | 98%; 2% partial, 0% unsupported | 100% of 88 |
+| Judge agreement with the owner's spot-check | 87% (13 of 15 claims) | 100% (15 of 15) |
+| Correct abstention / answered when expected | 100% (9) / 91% (21 of 23) | 100% (7) / 96% (24 of 25) |
+| Response time, uncached | median 3.6 s | median 1.7 s |
+
+Across both sets the AI judge's verdict matched the owner's on **28 of 30
+spot-checked claims (93%)**; in both disagreements the judge was more lenient
+(it said "supported" where the owner said "partial"). The spot-check verdicts
+were reviewed by the owner with AI-assisted notes.
 
 Read these as a regression baseline, not real-world accuracy: the questions
-were written by the developer from the stored text, the judge is an AI whose
-agreement with a human is still pending, and two attempts to improve evidence
-selection were rejected because they lowered claim support. A second,
-held-out question set written from article body text in everyday wording has
-been reviewed and run ([docs/EVAL_RESULTS_SET2.md](docs/EVAL_RESULTS_SET2.md));
-its results stay preliminary until the owner's spot-check of the judge is in.
+were written by the developer, the spot-check covers 30 of 209 judged claims,
+and two attempts to improve evidence selection were rejected because they
+lowered claim support.
 
 ## Deployment
 
@@ -235,10 +241,10 @@ rebuilding, and free-tier limits: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 ## Roadmap
 
 1. The UI (in design), on top of the existing services.
-2. Review and run the held-out question set; collect the human spot-check.
-3. Evidence selection that adds a second article only when it is nearly as
-   relevant, judged on the held-out set.
-4. A vector index if the collection grows beyond tens of thousands of
+2. Evidence selection that adds a second article only when it is nearly as
+   relevant, judged on the held-out set, together with cleaner splitting of
+   answers into claims for the judge (one re-judging for both).
+3. A vector index if the collection grows beyond tens of thousands of
    passages.
 
 ## Project documents

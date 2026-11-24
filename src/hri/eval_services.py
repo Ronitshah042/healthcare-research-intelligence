@@ -46,8 +46,8 @@ DEFAULT_JUDGE_PROMPT = Path("eval") / "judge_prompt.txt"
 # --no-cache spends real requests: a small default and a hard limit.
 DEFAULT_NO_CACHE_QUESTIONS = 5
 MAX_NO_CACHE_QUESTIONS = 10
-# Fewer uncached answers than this do not replace eval/results/latency.json;
-# they are appended to latency-samples.jsonl instead.
+# Fewer uncached answers than this do not replace a set's recorded response
+# time (results/latency-<set>.json); they go to latency-samples-<set>.jsonl.
 MIN_LATENCY_ANSWERS = 10
 KNOWN_WEAKNESSES = (
     "The starter questions were written by the developer from the stored "
@@ -174,7 +174,8 @@ def run_eval(
     report = Path(report_path)
     report.parent.mkdir(parents=True, exist_ok=True)
     results_dir = path.parent / "results"
-    latency_path = results_dir / "latency.json"
+    # One record per question set: sets share the results folder.
+    latency_path = results_dir / f"latency-{path.stem}.json"
     if summary["answers"].get("latency_median") is not None:
         results_dir.mkdir(parents=True, exist_ok=True)
         sample = {
@@ -185,13 +186,14 @@ def run_eval(
             "answer_models": summary["answer_models"],
         }
         if latency_path.exists() and sample["answers_measured"] < MIN_LATENCY_ANSWERS:
-            with (results_dir / "latency-samples.jsonl").open("a") as handle:
+            with (results_dir / f"latency-samples-{path.stem}.jsonl").open("a") as handle:
                 handle.write(json.dumps(sample) + "\n")
         else:
             latency_path.write_text(json.dumps(sample, indent=2) + "\n")
     latency_record = _read_json(latency_path)
     agreement = judge_agreement(
-        p.read_text() for p in sorted(path.parent.glob("verdicts-*.csv")))
+        (p.read_text() for p in sorted(path.parent.glob("verdicts-*.csv"))),
+        {question.id for question in load_question_set(path)})
     report.write_text(render_report(
         run, KNOWN_WEAKNESSES, current=summary, baseline=baseline, note=note,
         agreement=agreement, latency_record=latency_record))

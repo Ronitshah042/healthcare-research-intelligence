@@ -480,7 +480,8 @@ def _agreement(agreement: dict | None) -> str:
     if not agreement or not agreement.get("rated"):
         return "pending manual spot-check"
     return (f"{_pct(agreement['rate'])} ({agreement['agreed']} of {agreement['rated']} "
-            "claims; owner's spot-check, exact verdict match)")
+            "claims; exact verdict match; spot-check reviewed by the owner with "
+            "AI-assisted notes)")
 
 
 def _latency(answers: dict, record: dict | None, run: EvalRun) -> str:
@@ -490,7 +491,7 @@ def _latency(answers: dict, record: dict | None, run: EvalRun) -> str:
         own = measured and (record["date"], record["answers_measured"], record["median_seconds"]) == (
             f"{run.started:%Y-%m-%d}", measured, round(answers["latency_median"], 2))
         suffix = ("" if own else
-                  f"; this run's {measured} uncached answers are logged in latency-samples.jsonl"
+                  f"; this run's {measured} uncached answers are logged in latency-samples"
                   if measured else "; this run was fully cached")
         return (f"median {record['median_seconds']:.1f} s, p90 {record['p90_seconds']:.1f} s "
                 f"(uncached run, {record['date']}, {record['answers_measured']} answers{suffix})")

@@ -1206,3 +1206,33 @@ evaluation; no code changed.
   `test_a_small_sample_keeps_the_latency_record_and_is_logged`.
 - The 2026-11-24 set 2 sample (2 answers, median 1.88 s) is logged there,
   and `docs/EVAL_RESULTS_SET2.md`'s response-time line uses the new wording.
+
+## Spot-check complete; per-set judge agreement (2026-11-24)
+
+- The owner rated both spot-check sheets (15 claims each); the verdict-only
+  files `eval/verdicts-2026-11-19.csv` and `eval/verdicts-2026-11-20.csv` are
+  committed. Judge agreement: set 1 13 of 15 (87%; q11 and q15 judged
+  supported, owner partial), set 2 15 of 15 (100%); combined 28 of 30 (93%).
+  Disclosed as "reviewed by the owner with AI-assisted notes".
+- Judge agreement and the response-time record are now per question set
+  (DECISIONS.md). This fixed set 1's report, which had shown set 2's response
+  time since 2026-11-20; set 1's record (3.6 s, 28 answers) was restored.
+- Both reports regenerated from the cache after a dry run: **0 AI requests**.
+  Set 2 is no longer preliminary. The README shows both sets side by side.
+
+**TODO (fix with the next evaluation change, not before):** claim splitting
+in `evaluation/judge.py` (`_SENTENCE_END`, `extract_claims`) produced three
+broken claims in the set 2 spot-check:
+1. abbreviations: "15.8% vs. 27.2%" split at "vs.", leaving the claim
+   "27.2%) [1]." (s14);
+2. markdown: bullets and bold markers stay in the claim ("Accumulation of
+   Damaged Mitochondria:** ...", s06);
+3. lead-in sentences ending in ":" that carry citations become claims of
+   their own, though the facts are in the bullets after them (s09).
+Fixing it changes the claim text, so every judge verdict is requested again
+(about 50 to 60 requests for both sets) and the rated sheets stop matching.
+Do it together with the next evaluation change, so the re-judging and a new
+spot-check happen once.
+
+**Verified:** Python 3.13.18 with every extra 417 OK; Python 3.15.2 core
+only 409 OK, 8 skipped. Ruff clean.
