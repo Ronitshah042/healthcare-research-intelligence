@@ -50,7 +50,7 @@ flowchart LR
     SVC[src/hri services<br/>typed, UI-agnostic]
     CLI[hri command line]
     API[FastAPI, documented,<br/>not deployed]
-    APP[Streamlit app<br/>UI in design]
+    APP[Streamlit app<br/>Search, Ask, Saved]
 
     PM --> CL
     PMC --> CL
@@ -103,17 +103,26 @@ service layer, `hri.services`; its contract is
 
 **Planned or not built**
 
-- The user interface (being designed; see below).
 - Comparing findings across papers beyond what one cited answer does.
 - A vector index for large collections (search is brute force today).
 - Sources other than PubMed and PMC.
 
-## UI — in design
+## User interface
 
-The interface is being designed separately. Until then `streamlit_app.py`
-is a **placeholder page** that only proves the deployment works. Everything
-the UI needs is in `hri.services`, including `SessionSavedLists` and
-`VisitorQuota` for a read-only deployment ([docs/SERVICE_API.md](docs/SERVICE_API.md)).
+A Streamlit app built to the owner's "Bento Vitals" design, live at
+[healthcare-research-intelligence.streamlit.app](https://healthcare-research-intelligence.streamlit.app):
+
+- **Search** the stored PubMed citations (keyword, fuzzy title or Boolean),
+  with the bundle's real citation and open-access counts.
+- **Paper details:** citation, PubMed and full-text links, licence, passages
+  from the article's own open-access text, Vancouver citation, save to a list.
+- **Ask** a question and get a cited answer from open-access passages, or
+  "not enough evidence"; five questions per visit.
+- **Saved** lists for the visit, with CSV and Vancouver export.
+
+Every question box carries the privacy notice, and every page says "Research
+aid — not medical advice" and shows PubMed and open-access attribution. The
+pages call only `hri.services` ([docs/SERVICE_API.md](docs/SERVICE_API.md)).
 
 ## Setup
 
@@ -131,7 +140,7 @@ pip install -e '.[embeddings]' -c constraints-embeddings.txt   # meaning-based s
 pip install -e '.[app,api,dev]'                         # app, API, lint, tests
 
 PYTHONPATH=src python3 -m unittest discover -s tests    # no network needed
-ruff check src tests streamlit_app.py
+ruff check src tests streamlit_app.py app_pages
 ```
 
 Live requests need settings: copy `.env.example` to `.env` (ignored by Git),
@@ -240,7 +249,8 @@ rebuilding, and free-tier limits: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Roadmap
 
-1. The UI (in design), on top of the existing services.
+1. A service that finds a paper's stored open-access text by PMID or DOI
+   (the paper page finds it by searching the title today).
 2. Evidence selection that adds a second article only when it is nearly as
    relevant, judged on the held-out set, together with cleaner splitting of
    answers into claims for the judge (one re-judging for both).

@@ -1257,6 +1257,58 @@ only reported, not used for the decision, to keep it held out.
 - **Not done:** matching verdict rows to the current claim text. If an answer
   changes, its old verdicts still count until the sheet is redone.
 
+### The Streamlit UI, built to the owner's "Bento Vitals" design (2026-11-24)
+
+- **Structure:** `streamlit_app.py` checks the deployment, then
+  `st.navigation(position="top")` runs four pages in `app_pages/`: Search
+  (default), Ask, Saved, and Paper details (hidden from the menu, opened from
+  a result with `?id=<PMID or DOI>`). Links between pages are `st.page_link`,
+  so the visitor's session (saved lists, question quota) survives. Pages call
+  only `hri.services`.
+- **Theme:** `.streamlit/config.toml` (background `#E6EEE9`, primary
+  `#F26B4F`, text `#102A2B`, DM Sans body and Sora headings from Google
+  Fonts, 12px radii); badge colours set to the tile colours so numbered
+  result chips match. Tiles are `st.container(key="tile-<kind>-<name>")`,
+  styled by one small file, `app_pages/style.css`, loaded by each page (a
+  style sent before `st.navigation` did not reach the page; a style-only
+  `st.html` did not render either, so it is a `<style>` block via
+  `st.markdown`).
+- **Accessibility checks made in a headless browser:** coral buttons use dark
+  text (6.0:1; white was about 3:1); the selected search mode and captions
+  were below 4.5:1 and are fixed (7.0:1 and 6.3:1); keyboard focus shows a
+  3px outline on every link and button tabbed through; at 390px wide every
+  tile stacks and the page does not scroll sideways.
+- **Real data only:** citation and open-access counts, topics for "Try
+  asking", year and licence tiles come from the bundle and services.
+- **Differences from the design** (chosen to avoid invented numbers, spent
+  AI quota, or fragile CSS):
+  1. Paper details: the design's "Patients 228", "Odds ratio 0.50" and
+     readmission bars are figures from one article that no service provides;
+     the tiles show year, licence and abstract availability, and "Key
+     findings" became the article's own stored passages (expanders), since
+     nothing extracts findings.
+  2. Search: the design's evidence answer beside the results would spend an
+     AI request on every search; the peach tile links to Ask with the query
+     filled in instead.
+  3. Search modes: the design's Title and abstract / Title / Author / DOI /
+     PMID chips are live-PubMed modes; the deployed app searches stored
+     citations, so the options are Keyword, Fuzzy title and Boolean.
+  4. Navigation: Streamlit's own top bar (logo icon plus page links,
+     collapsing to a menu on phones) replaces the custom pill bar and
+     wordmark; there is no "Data" page.
+  5. Labels are visible ("Search stored citations", "Your question") instead
+     of visually hidden; numbered chips are Streamlit badges; the big numbers
+     are `st.metric`, in DM Sans rather than Sora.
+  6. "Copy citation" opens a popover with a code block whose copy icon copies
+     it; "Ask about this paper" sends the question to the Ask page, which
+     answers from all stored articles (the page says so).
+  7. The "When evidence is missing" tile explains the behaviour instead of
+     the design's vitamin D example, which was not checked against the
+     bundle.
+- **Shortcut:** the paper page finds a paper's stored text by searching
+  passages for its title and matching the PMID or DOI; a service lookup by
+  identifier would be exact (README roadmap).
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.

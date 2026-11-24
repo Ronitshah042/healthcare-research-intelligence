@@ -1,8 +1,8 @@
-"""PLACEHOLDER page for Streamlit Community Cloud: the real UI is being designed.
+"""Research Intelligence: the Streamlit app (the owner's "Bento Vitals" design).
 
-It only proves the deployment works: settings, data bundle, start-up
-self-check, embedding model, and two service calls (get_stats, search_papers).
-All application logic lives in hri.services; see docs/DEPLOYMENT.md.
+Checks the deployment once (settings, data bundle, start-up self-check,
+embedding model), then runs one of four pages in app_pages/. Pages call only
+hri.services; see docs/SERVICE_API.md and docs/DEPLOYMENT.md.
 """
 
 from __future__ import annotations
@@ -11,10 +11,12 @@ import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT / "src"))
 
 import streamlit as st  # noqa: E402
 
+from app_pages import common  # noqa: E402
 from hri import app_config, services  # noqa: E402
 from retrieval import embeddings  # noqa: E402
 
@@ -45,10 +47,8 @@ def prepare_embedder():
     return services.prepare_embedder()
 
 
-st.set_page_config(page_title="Healthcare Research Intelligence (placeholder)")
-st.title("Healthcare Research Intelligence")
-st.warning("Placeholder page, real UI coming. This page only checks that the "
-           "deployment works. Research aid only, not medical advice.")
+st.set_page_config(page_title="Research Intelligence", layout="wide")
+st.logo(str(ROOT / "app_pages" / "logo.svg"), size="large")
 
 try:
     bundle = prepare_bundle()
@@ -61,25 +61,16 @@ if not check.ok:
     for problem in check.problems:
         st.error(problem)
     st.stop()
+common.MANIFEST = check.manifest or {}
 
 model = prepare_embedder()
-stats = services.get_stats()
-manifest = check.manifest or {}
-st.write(f"Data bundle built {manifest.get('built_at', 'unknown')}: "
-         f"{stats.total_papers} citations, "
-         f"{manifest.get('counts', {}).get('articles', 0)} open-access articles.")
-st.write("Meaning-based search: " + ("ready" if model.available else model.message))
+if not model.available:
+    st.caption("Meaning-based search is unavailable, so search uses keywords only: "
+               + model.message)
 
-query = st.text_input("Search stored citations (placeholder)")
-if query.strip():
-    try:
-        results = services.search_papers(query)
-    except services.InvalidRequestError as error:
-        st.error(str(error))
-    else:
-        st.write(f"{results.total_count} matching citations")
-        for paper in results.papers:
-            st.write(f"- {paper.title} ({paper.publication_year}) {paper.pubmed_url or ''}")
-        if results.attribution:
-            st.caption(f"{results.attribution.source_name} "
-                       f"{results.attribution.independent_service_notice}")
+st.navigation([
+    st.Page("app_pages/search.py", title="Search", default=True),
+    st.Page("app_pages/ask.py", title="Ask"),
+    st.Page("app_pages/saved.py", title="Saved"),
+    st.Page("app_pages/paper.py", title="Paper details", visibility="hidden"),
+], position="top").run()

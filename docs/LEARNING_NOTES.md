@@ -805,3 +805,20 @@ install on 3.11. The 3.12 job tests the exact deployed set; the 3.11 job lets
 pip pick the newest versions that still support 3.11. `pip install
 --dry-run --python-version 3.11 --platform ...` shows this without a 3.11
 interpreter.
+
+### Styling Streamlit without fighting it
+
+Streamlit draws its own widgets, so the safest styling is its theme file,
+`.streamlit/config.toml`: colours, fonts (Google Fonts URLs work there),
+corner radii. For the rest, give a container a `key`; Streamlit adds the
+class `st-key-<key>` to it, which a small stylesheet can target. Rules aimed
+at Streamlit's internal `data-testid` names are more fragile, because a new
+release can rename them, so keep them few and check the page after every
+upgrade.
+
+### Checking contrast with numbers
+
+WCAG asks for a contrast ratio of at least 4.5:1 for normal text. The ratio
+comes from the two colours' relative luminance, so it can be computed instead
+of judged by eye: white on this app's coral (#F26B4F) is only about 3:1, so
+its buttons use dark text (6:1).

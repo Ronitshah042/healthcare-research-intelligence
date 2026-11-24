@@ -46,10 +46,33 @@ class AppConfigTests(unittest.TestCase):
 
 
 @unittest.skipIf(AppTest is None, "Streamlit is not installed (pip install -e '.[app]')")
-class PlaceholderPageTests(unittest.TestCase):
+class AppPageTests(unittest.TestCase):
+    """The four Bento Vitals pages against a small fake bundle; no network, no AI."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        from test_bundle import NOW
+        from test_fulltext_services import FakePmcClient
+        from test_retrieval import FakeEmbedder
+        from test_services import FakePubMedClient, _record
+
+        cls.temp_dir = tempfile.TemporaryDirectory()
+        root = Path(cls.temp_dir.name)
+        topics = root / "topics.json"
+        topics.write_text('{"format": 1, "topics": [{"name": "Attention topics", "query": "adhd", '
+                          '"max_citations": 5, "max_fulltext": 2}]}')
+        cls.embedder = FakeEmbedder()
+        cls.bundle = services.build_bundle(
+            topics, output_dir=root / "bundle",
+            pubmed_client=FakePubMedClient([_record("35275515")]),
+            pmc_client=FakePmcClient(), embedder=cls.embedder, now=lambda: NOW,
+        )
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.temp_dir.cleanup()
+
     def setUp(self) -> None:
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp_dir.cleanup)
         env = mock.patch.dict(os.environ, {
             "HRI_BUNDLE_DIR": str(Path(self.temp_dir.name) / "bundle"),
             "HRI_BUNDLE_URL": "", "HRI_MODEL_CACHE": str(Path(self.temp_dir.name) / "m"),
@@ -60,41 +83,73 @@ class PlaceholderPageTests(unittest.TestCase):
         import streamlit as st
 
         st.cache_resource.clear()  # the cached bundle path is per process
+        not_ready = services.EmbedderStatus(False, self.embedder.model_id, "test: no model")
+        for patch in (mock.patch("retrieval.embeddings.MODEL_ID", self.embedder.model_id),
+                      mock.patch.object(services, "prepare_embedder", return_value=not_ready)):
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def app(self) -> AppTest:
+        page = AppTest.from_file(APP, default_timeout=30).run()
+        self.assertFalse(page.exception, page.exception)
+        return page
+
+    def text(self, page: AppTest) -> str:
+        return " ".join(e.value for e in (*page.markdown, *page.caption, *page.subheader,
+                                           *page.header, *page.title, *page.warning))
 
     def test_reports_a_missing_bundle_instead_of_crashing(self) -> None:
-        page = AppTest.from_file(APP, default_timeout=30).run()
+        with mock.patch.dict(os.environ, {"HRI_BUNDLE_DIR": str(Path(self.temp_dir.name) / "none")}):
+            page = AppTest.from_file(APP, default_timeout=30).run()
 
         self.assertFalse(page.exception)
-        self.assertIn("Placeholder page, real UI coming", page.warning[0].value)
         self.assertTrue(any("Bundle missing" in e.value for e in page.error))
 
-    def test_shows_stats_and_search_with_a_good_bundle(self) -> None:
-        from test_bundle import NOW
-        from test_fulltext_services import FakePmcClient
-        from test_retrieval import FakeEmbedder
-        from test_services import FakePubMedClient, _record
+    def test_search_shows_real_counts_results_and_attribution(self) -> None:
+        page = self.app()
+        counts = {m.label: m.value for m in page.metric}
+        database = str(self.bundle.bundle_path)
+        self.assertEqual(counts["Citations"], str(services.get_stats(database_path=database).total_papers))
+        self.assertEqual(counts["Open access"],
+                         str(services.get_fulltext_stats(database_path=database).documents))
 
-        topics = Path(self.temp_dir.name) / "topics.json"
-        topics.write_text('{"format": 1, "topics": [{"name": "t", "query": "adhd", '
-                          '"max_citations": 5, "max_fulltext": 2}]}')
-        embedder = FakeEmbedder()
-        services.build_bundle(
-            topics, output_dir=Path(self.temp_dir.name) / "bundle",
-            pubmed_client=FakePubMedClient([_record("35275515")]),
-            pmc_client=FakePmcClient(), embedder=embedder, now=lambda: NOW,
-        )
-        not_ready = services.EmbedderStatus(False, embedder.model_id, "test: no model")
-        with mock.patch("retrieval.embeddings.MODEL_ID", embedder.model_id), \
-             mock.patch.object(services, "prepare_embedder", return_value=not_ready):
-            page = AppTest.from_file(APP, default_timeout=30).run()
-            self.assertFalse(page.exception, page.exception)
-            self.assertFalse(page.error, [e.value for e in page.error])
-            page.text_input[0].input("Paper").run()
+        page.text_input[0].input("Paper")
+        page.form_submit_button[0].click().run()
 
-        text = " ".join(m.value for m in page.markdown)
-        self.assertIn("1 citations", text)
-        self.assertIn("Paper 35275515", text)
-        self.assertTrue(page.caption)  # PubMed attribution shown
+        self.assertIn("1 citation", self.text(page))
+        self.assertTrue(any("Paper 35275515" in link.label for link in page.page_link))
+        self.assertIn("not affiliated with", self.text(page))  # PubMed attribution
+        self.assertIn("not medical advice", self.text(page))
+
+    def test_paper_page_saves_to_a_list_shown_on_the_saved_page(self) -> None:
+        page = self.app()
+        page.query_params["id"] = "35275515"
+        page.switch_page("app_pages/paper.py").run()
+        self.assertFalse(page.exception, page.exception)
+        self.assertIn("Paper 35275515", self.text(page))
+        self.assertIn("Don’t enter personal or patient information", self.text(page))
+
+        save = next(b for b in page.form_submit_button if b.label == "Save")
+        save.click().run()
+        self.assertTrue(any("Reading list" in s.value for s in page.success))
+
+        page.switch_page("app_pages/saved.py").run()
+        self.assertIn("Reading list", self.text(page))
+        self.assertTrue(any("Paper 35275515" in link.label for link in page.page_link))
+        self.assertTrue(page.download_button)  # CSV export offered
+
+    def test_ask_says_not_enough_evidence_and_counts_the_question(self) -> None:
+        page = self.app()
+        page.switch_page("app_pages/ask.py").run()
+        self.assertIn("Don’t enter personal or patient information", self.text(page))
+
+        page.text_area[0].input("Zyxqv blorft?")  # matches no stored passage
+        page.form_submit_button[0].click().run()
+
+        self.assertFalse(page.exception, page.exception)
+        self.assertIn("Not enough evidence", self.text(page))
+        self.assertIn("4 of 5 questions left", self.text(page))
+        self.assertIn("not medical advice", self.text(page))
 
 
 if __name__ == "__main__":

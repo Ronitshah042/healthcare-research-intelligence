@@ -1,0 +1,45 @@
+/* Bento Vitals tiles. A tile is st.container(key="tile-<kind>-<name>"), which
+   Streamlit gives the class st-key-tile-<kind>-<name>. Everything else is theme. */
+[class*="st-key-tile-"] { border-radius: 24px; padding: 22px; }
+[class*="st-key-tile-hero"], [class*="st-key-tile-white"], [class*="st-key-tile-peach"] {
+  border-radius: 28px; padding: 28px;
+}
+[class*="st-key-tile-hero"] { background: #0F3D3E; }
+[class*="st-key-tile-mint"] { background: #C7F0DD; color: #0F3D2E; }
+[class*="st-key-tile-sand"] { background: #F5E6C4; color: #3D2C08; }
+[class*="st-key-tile-peach"] { background: #FFE1CF; color: #3B1708; }
+[class*="st-key-tile-white"] { background: #FFFFFF; }
+
+/* Text on the deep teal tile; inputs and buttons keep their own colours. */
+[class*="st-key-tile-hero"] :is([data-testid="stMarkdownContainer"], [data-testid="stHeading"],
+  [data-testid="stCaptionContainer"], [data-testid="stWidgetLabel"])
+  :not(button *, [data-testid^="stBaseLinkButton"] *, [data-testid="stCode"] *) {
+  color: #FFFFFF;
+}
+[class*="st-key-tile-hero"] a:not(button *, [data-testid^="stBaseLinkButton"], [data-testid^="stBaseLinkButton"] *) { color: #9FF0CF; }
+
+/* Coral buttons need dark text for contrast (white on #F26B4F is about 3:1). */
+[data-testid^="stBaseButton-primary"], [data-testid^="stBaseButton-primary"] *,
+[data-testid="stBaseLinkButton-primary"], [data-testid="stBaseLinkButton-primary"] * {
+  color: #2A0D05;
+}
+
+/* Contrast fixes (WCAG AA 4.5:1): the selected option was coral on pale coral
+   (2.7:1) and default captions 3.9:1 on the page background. */
+button[role="radio"][aria-checked="true"], button[aria-pressed="true"] { color: #8A3A12; }
+/* .stApp raises specificity above Streamlit's own caption style. */
+.stApp [data-testid="stCaptionContainer"] { opacity: 1; }
+.stApp [data-testid="stCaptionContainer"], .stApp [data-testid="stCaptionContainer"] * { color: #3F5A5A; }
+.stApp [class*="st-key-tile-white"] [data-testid="stCaptionContainer"] * { color: #4A6363; }
+.stApp [class*="st-key-tile-peach"] [data-testid="stCaptionContainer"] * { color: #5C2A12; }
+.stApp [class*="st-key-tile-hero"] [data-testid="stCaptionContainer"] * { color: #C9E6E3; }
+
+/* Long titles wrap instead of being cut off; no "Press Enter" hint in forms. */
+[data-testid="stPageLink"] :is(a, span, p) { white-space: normal; overflow: visible; text-overflow: clip; height: auto; }
+[data-testid="InputInstructions"] { display: none; }
+
+/* Keyboard focus always visible: dark ring on light tiles, mint on the teal one. */
+:is(button, a, input, textarea, [role="tab"], [role="option"]):focus-visible {
+  outline: 3px solid #102A2B; outline-offset: 2px;
+}
+[class*="st-key-tile-hero"] :is(button, a, input, textarea):focus-visible { outline-color: #9FF0CF; }

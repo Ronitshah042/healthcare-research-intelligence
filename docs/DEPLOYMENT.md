@@ -5,10 +5,10 @@ data bundle** (one SQLite file plus a manifest) published as assets of the
 GitHub Release tagged `data-bundle`, and keeps everything it writes at run
 time in memory.
 
-> `streamlit_app.py` is currently a **placeholder page** that only proves the
-> deployment works (settings, bundle, self-check, model, `get_stats`,
-> `search_papers`). The real UI is being designed separately and should call
-> only `hri.services` (`docs/SERVICE_API.md`).
+> `streamlit_app.py` checks the deployment (settings, bundle, self-check,
+> model), then runs the four pages in `app_pages/` (the owner's "Bento
+> Vitals" design), which call only `hri.services` (`docs/SERVICE_API.md`).
+> The theme is in `.streamlit/config.toml`.
 
 ## How it fits together
 

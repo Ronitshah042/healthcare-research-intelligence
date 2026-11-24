@@ -32,8 +32,8 @@ The suite fails with `No module named 'ingestion'` if `PYTHONPATH=src` is missin
 ## Current state
 Phases 1 to 6 are built: PubMed citations, licensed PMC full text, hybrid
 passage search, cited answers, the evaluation harness, and deployment
-preparation (read-only data bundle, Streamlit placeholder, FastAPI). The UI
-is not built; the owner designs it. `src/ingestion` holds the data layers,
+preparation (read-only data bundle, FastAPI), and the Streamlit UI built to
+the owner's "Bento Vitals" design. `src/ingestion` holds the data layers,
 `src/retrieval`, `src/generation` and `src/evaluation` the layers described
 below, and `src/hri` the application layer. See `docs/PROJECT_LOG.md` for
 history.
@@ -79,8 +79,10 @@ HTTP), `cache.py` (answer cache, daily cap), and `rag.py` (prompt, citation
 checks, `Answer`). It may import `ingestion` and `retrieval`, never `hri`.
 
 `src/api/app.py` is the FastAPI interface (optional `.[api]`, Python 3.11+,
-not deployed); it calls only `hri.services`. `streamlit_app.py` is a
-placeholder page; the owner designs the UI.
+not deployed); it calls only `hri.services`. `streamlit_app.py` checks the
+deployment and runs four `st.navigation` pages in `app_pages/` (Search, Ask,
+Saved, hidden Paper details); `app_pages/common.py` holds the shared notices,
+tiles and session state, `app_pages/style.css` the tile styles.
 
 `src/evaluation` holds `metrics.py` (pure metric functions), `judge.py`
 (AI judge of cited claims) and `runner.py` (question sets, report, spot-check
@@ -141,13 +143,16 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
 - `cli.py` calls only `hri.services`. A future UI or API must do the same.
 - Service functions return typed objects and never print. Changing a signature,
   result field, or error means updating `docs/SERVICE_API.md` in the same change.
-- No UI design in this repository: the owner designs the UI. Only the
-  placeholder `streamlit_app.py` (stats and citation search) exists.
+- The owner designs the UI ("Bento Vitals" canvas); implement it, don't
+  redesign it. Pages call only `hri.services`, show real counts, and keep the
+  privacy notice beside every question box, "Research aid — not medical
+  advice", PubMed and open-access attribution, and the "not enough evidence"
+  state. Prefer native Streamlit; tile CSS stays in `app_pages/style.css`.
 - The deployed app opens its bundle read-only (`HRI_DB_READ_ONLY=1`). Never
   rely on writing at run time there; use process memory or the session.
 - Public bundles contain only CC0 and CC BY text (`BUNDLE_LICENCES`), and
   every build re-checks retractions first.
-- `ruff check src tests streamlit_app.py` must pass (rules E4, E7, E9, F, I).
+- `ruff check src tests streamlit_app.py app_pages` must pass (rules E4, E7, E9, F, I).
 - `requirements.txt` (Streamlit runtime) must equal the `embeddings` and
   `app` extras, and `requirements-dev.txt` the `api` and `dev` extras; the
   core `dependencies` list stays empty.
@@ -169,7 +174,7 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
 ## Code conventions
 - Standard library only in the core. Approved optional extras: `embeddings`
   (fastembed, imported only in `retrieval/embeddings.py`), `app` (streamlit,
-  only in `streamlit_app.py` and tests), `api` (fastapi, pydantic, uvicorn,
+  only in `streamlit_app.py`, `app_pages/` and tests), `api` (fastapi, pydantic, uvicorn,
   only in `src/api/`), `dev` (ruff, httpx). The core must work without any
   of them. Adding any other dependency needs approval.
 - The minimum Python version is 3.11 (`requires-python`); CI tests 3.11 and

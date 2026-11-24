@@ -1236,3 +1236,27 @@ spot-check happen once.
 
 **Verified:** Python 3.13.18 with every extra 417 OK; Python 3.15.2 core
 only 409 OK, 8 skipped. Ruff clean.
+
+## Streamlit UI: the owner's "Bento Vitals" design (2026-11-24)
+
+- Replaced the placeholder page with four pages in `app_pages/` under
+  `st.navigation` (Search, Ask, Saved, and Paper details opened from a
+  result), the theme in `.streamlit/config.toml`, and one small stylesheet,
+  `app_pages/style.css`, for the tiles. Pages call only `hri.services`.
+- Kept everywhere: the privacy notice beside every question box, "Research
+  aid — not medical advice", PubMed and open-access attribution, the "not
+  enough evidence" state, real `<button>`/`<label>`/`<a>` elements.
+- Checked locally against the public bundle in headless Chrome: real counts
+  (175 citations, 79 open-access articles); search, paper details (citation
+  only and open access), save to list, Saved page, Ask (busy without AI keys;
+  "not enough evidence" for an off-topic question); every page 390px wide at
+  phone width with tiles stacked; keyboard focus visible; contrast fixes for
+  coral buttons, the selected search mode and captions.
+- Differences from the design and why: DECISIONS.md. Lint now covers
+  `app_pages/` (CI, CLAUDE.md, README).
+- Tests: `tests/test_app.py` now tests the real pages against a fake bundle
+  (real counts, search with attribution, paper page save and Saved page,
+  Ask's "not enough evidence" and question count, missing bundle).
+
+**Verified:** Python 3.13.18 with every extra 419 OK; Python 3.15.2 core
+only 409 OK, 10 skipped (API and Streamlit). Ruff clean.
