@@ -49,8 +49,6 @@ def prepare_embedder():
 
 st.set_page_config(page_title="Research Intelligence", layout="wide",
                    page_icon=str(ROOT / "app_pages" / "logo-icon.svg"))
-# Icon and "Research Intelligence" wordmark, beside the page links.
-st.logo(str(ROOT / "app_pages" / "logo.svg"), size="large")
 
 try:
     bundle = prepare_bundle()
@@ -75,4 +73,4 @@ st.navigation([
     st.Page("app_pages/ask.py", title="Ask"),
     st.Page("app_pages/saved.py", title="Saved"),
     st.Page("app_pages/paper.py", title="Paper details", visibility="hidden"),
-], position="top").run()
+], position="hidden").run()  # each page draws its own header (common.page_top)

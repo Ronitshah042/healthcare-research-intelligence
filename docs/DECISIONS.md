@@ -1346,6 +1346,26 @@ only reported, not used for the decision, to keep it held out.
   "Expand sidebar" for screen readers. `st.navigation` has no option to
   relabel it; the possibilities were reported to the owner.
 
+### Own header row instead of Streamlit's navigation (2026-11-26)
+
+- **Replaces** the header decision above. At phone width Streamlit folded
+  the page links into a toggle that cannot be relabelled (screen readers
+  heard "Expand sidebar"). The owner chose to hide Streamlit's navigation
+  (`st.navigation(position="hidden")`) and draw a header on every page with
+  `common.page_top(current)`.
+- **Header:** the outline heartbeat-document icon (`st.image`, alt text
+  "Research Intelligence"), the wordmark as real text in Sora, and Search,
+  Ask and Saved as `st.page_link` text links; the current page is a mint
+  pill. The row wraps, so the links stay visible at every width and drop to
+  their own line on phones. `st.page_link` switches pages without a reload,
+  so saved lists and the question quota survive (checked: save a paper, go
+  Search then Saved by the header, the list is still there). The paper page
+  marks no link as current. The wide `logo.svg` wordmark image is gone.
+- **Fixes found while checking:** Streamlit's markdown keeps a -16px bottom
+  margin that pushed the wordmark 8px below the icon's centre, and
+  `st.image` adds a fullscreen button on hover; both removed in
+  `style.css`. Streamlit's toolbar menu (top right) remains.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.

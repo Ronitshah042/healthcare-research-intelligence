@@ -81,8 +81,11 @@ checks, `Answer`). It may import `ingestion` and `retrieval`, never `hri`.
 `src/api/app.py` is the FastAPI interface (optional `.[api]`, Python 3.11+,
 not deployed); it calls only `hri.services`. `streamlit_app.py` checks the
 deployment and runs four `st.navigation` pages in `app_pages/` (Search, Ask,
-Saved, hidden Paper details); `app_pages/common.py` holds the shared notices,
-tiles and session state, `app_pages/style.css` the tile styles.
+Saved, Paper details) with Streamlit's own navigation hidden; every page
+starts with `common.page_top(current)`, which loads the styles and draws the
+header (icon, wordmark, `st.page_link` text links that wrap on phones).
+`app_pages/common.py` holds the header, notices, alerts, tiles and session
+state, `app_pages/style.css` the tile styles.
 
 `src/evaluation` holds `metrics.py` (pure metric functions), `judge.py`
 (AI judge of cited claims) and `runner.py` (question sets, report, spot-check

@@ -7,7 +7,7 @@ import streamlit as st
 from app_pages import common
 from hri import services
 
-common.page_style()
+common.page_top(None)
 
 st.page_link("app_pages/search.py", label="← Back to search")
 

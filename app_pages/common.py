@@ -25,11 +25,33 @@ PRIVACY_NOTICE = (
 
 MANIFEST: dict = {}
 _STYLE = Path(__file__).with_name("style.css")
+_ICON = Path(__file__).with_name("logo-icon.svg")
+# Header links, in order: (page file, label, name used to mark the current page).
+_NAV = (("app_pages/search.py", "Search", "search"), (ASK_PAGE, "Ask", "ask"),
+        (SAVED_PAGE, "Saved", "saved"))
 
 
-def page_style() -> None:
-    """Load the tile styles (our own file); each page calls it after navigation."""
+def page_top(current: str | None) -> None:
+    """Every page starts here: the styles (our own file) and the header row.
+
+    The header replaces Streamlit's navigation: icon, wordmark and text links
+    that wrap on phones instead of folding into a menu. ``st.page_link``
+    switches pages without reloading, so the session (lists, quota) is kept.
+    ``current`` is "search", "ask", "saved" or None (paper details).
+    """
     st.markdown(f"<style>{_STYLE.read_text()}</style>", unsafe_allow_html=True)
+    with st.container(key="site-header", horizontal=True, vertical_alignment="center",
+                      gap="medium"):
+        with st.container(key="brand", horizontal=True, vertical_alignment="center",
+                          gap="small", width="content"):
+            st.image(str(_ICON), width=36, alt="Research Intelligence")
+            st.markdown("Research Intelligence", width="content")
+        with st.container(key="site-nav", horizontal=True, vertical_alignment="center",
+                          gap="small", width="content"):
+            for page, label, name in _NAV:
+                with st.container(key=f"nav-{'current-' if name == current else ''}{name}",
+                                  width="content"):
+                    st.page_link(page, label=label)
 
 
 @contextmanager

@@ -1302,3 +1302,17 @@ only 410 OK, 11 skipped. Ruff clean.
 
 **Verified:** Python 3.13.18 with every extra 421 OK (palette test included);
 Python 3.15.2 core only 410 OK, 11 skipped. Ruff clean.
+
+## Own header row (2026-11-26)
+
+- Streamlit's navigation is hidden; every page draws a header with the
+  heartbeat-document icon (alt text "Research Intelligence"), the wordmark in
+  Sora, and Search, Ask and Saved as text links, the current page in mint.
+  Links wrap on phones and never collapse into a menu; the session survives
+  moving between pages. New test: every page has the three header links.
+- Checked locally at 390, 768 and 1366px: links visible at every width
+  (second line at 390px), wordmark in Sora, alt text present, no Streamlit
+  navigation elements, no sideways scrolling.
+
+**Verified:** Python 3.13.18 with every extra 422 OK (palette test
+included); Python 3.15.2 core only 410 OK, 12 skipped. Ruff clean.

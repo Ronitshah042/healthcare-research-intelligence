@@ -126,6 +126,16 @@ class AppPageTests(unittest.TestCase):
         self.assertEqual(year_range([2026, 2026]), "2026")
         self.assertEqual(year_range([2026, 2020, 2024]), "2020–2026")
 
+    def test_every_page_has_the_header_links(self) -> None:
+        page = self.app()
+        for path in ("app_pages/search.py", "app_pages/ask.py", "app_pages/saved.py"):
+            page.switch_page(path).run()
+            self.assertFalse(page.exception, page.exception)
+            labels = [link.label for link in page.page_link]
+            with self.subTest(page=path):
+                self.assertEqual(labels[:3], ["Search", "Ask", "Saved"])
+                self.assertIn("Research Intelligence", self.text(page))
+
     def test_reports_a_missing_bundle_instead_of_crashing(self) -> None:
         with mock.patch.dict(os.environ, {"HRI_BUNDLE_DIR": str(Path(self.temp_dir.name) / "none")}):
             page = AppTest.from_file(APP, default_timeout=30).run()

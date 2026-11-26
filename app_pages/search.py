@@ -7,7 +7,7 @@ import streamlit as st
 from app_pages import common
 from hri import services
 
-common.page_style()
+common.page_top("search")
 
 PAGE_SIZE = 10
 STRATEGY_LABELS = {"keyword": "Keyword", "fuzzy": "Fuzzy title", "boolean": "Boolean"}

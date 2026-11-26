@@ -35,6 +35,17 @@ a { color: #0F3D3E; }
 }
 .stApp [class*="st-key-tile-hero"] button[role="radio"][aria-checked="true"] * { color: #0F3D3E; }
 
+/* Header row (common.page_top): wordmark in Sora, links wrap on phones and the
+   current page is a mint pill. */
+[class*="st-key-site-header"] { margin-bottom: 8px; }
+[class*="st-key-brand"] p { font-family: "Sora", "DM Sans", sans-serif; font-weight: 700;
+  font-size: 1.2rem; line-height: 36px; color: #0F3D3E; margin: 0; }
+[class*="st-key-brand"] [data-testid="stMarkdownContainer"] { margin-bottom: 0; }
+[class*="st-key-brand"] [data-testid="stElementToolbar"] { display: none; }  /* no fullscreen button on the logo */
+[class*="st-key-site-nav"] a { border-radius: 999px; padding: 6px 16px; }
+[class*="st-key-site-nav"] a p { font-weight: 700; color: #0F3D3E; }
+[class*="st-key-nav-current"] a { background: #C7F0DD; }
+
 /* Alerts (errors, correction or concern flags, "not enough evidence"): a white
    box with a 2px deep teal border, an outline warning icon, bold dark text. */
 [class*="st-key-alert-"] {

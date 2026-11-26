@@ -7,7 +7,7 @@ import streamlit as st
 from app_pages import common
 from hri import services
 
-common.page_style()
+common.page_top("saved")
 
 lists = common.saved_lists()
 names = list(lists.names())
