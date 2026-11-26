@@ -117,6 +117,16 @@ instead, and the app's Python must stay 3.12. Regenerate
 `constraints-deploy.txt` with the command in its header whenever
 `requirements.txt` changes.
 
+### Upgrading Streamlit
+
+1. Change the Streamlit pin in `requirements.txt` and the `app` extra in
+   `pyproject.toml` together (`tests/test_packaging.py` checks they match).
+2. Regenerate `constraints-deploy.txt` with the command in its header.
+3. Run the tests, including `tests/test_app.py`.
+4. After upgrading Streamlit, check that the header links (Search, Ask,
+   Saved) are clickable at 390 and 1366px, because the header relies on the
+   internal names `stHeader` and `stToolbar`.
+
 ## Security notes
 
 - Secrets live only in Streamlit's Secrets box and GitHub's repository
