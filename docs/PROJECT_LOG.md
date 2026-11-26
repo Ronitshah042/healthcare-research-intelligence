@@ -1316,3 +1316,13 @@ Python 3.15.2 core only 410 OK, 11 skipped. Ruff clean.
 
 **Verified:** Python 3.13.18 with every extra 422 OK (palette test
 included); Python 3.15.2 core only 410 OK, 12 skipped. Ruff clean.
+
+## Header moved to the top (2026-11-26)
+
+- Top padding reduced so the header sits level with Streamlit's "⋮" menu
+  (32px from the top instead of 112px); the top bar is transparent and lets
+  clicks through to the header. Links and the menu checked clickable at 390,
+  768 and 1366px.
+
+**Verified:** Python 3.13.18 with every extra 422 OK; Python 3.15.2 core only
+410 OK, 12 skipped. Ruff clean.

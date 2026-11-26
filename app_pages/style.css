@@ -35,6 +35,15 @@ a { color: #0F3D3E; }
 }
 .stApp [class*="st-key-tile-hero"] button[role="radio"][aria-checked="true"] * { color: #0F3D3E; }
 
+/* Our header sits at the top, level with Streamlit's menu (theme paddingTop
+   cannot go below the 60px top bar, so set the padding here). The bar now
+   overlaps the page: transparent, and clicks pass through except on its menu. */
+.stApp [data-testid="stMainBlockContainer"] { padding-top: 16px; }
+[data-testid="stHeader"] { background: transparent; pointer-events: none; }
+/* The toolbar spans the full width; only its own controls take clicks. */
+[data-testid="stHeader"] [data-testid="stToolbar"] { pointer-events: none; }
+[data-testid="stHeader"] [data-testid="stToolbar"] :is(button, a, [role="button"]) { pointer-events: auto; }
+
 /* Header row (common.page_top): wordmark in Sora, links wrap on phones and the
    current page is a mint pill. */
 [class*="st-key-site-header"] { margin-bottom: 8px; }

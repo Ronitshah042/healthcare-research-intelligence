@@ -1366,6 +1366,18 @@ only reported, not used for the decision, to keep it held out.
   `st.image` adds a fullscreen button on hover; both removed in
   `style.css`. Streamlit's toolbar menu (top right) remains.
 
+### Header at the top of the page (2026-11-26)
+
+- Streamlit's theme `paddingTop` is added to its 60px top bar, so it cannot
+  bring the page closer than 76px. `style.css` sets the main container's top
+  padding to 16px instead; the header now starts 32px from the top, level
+  with Streamlit's "⋮" menu (it was 112px).
+- The top bar then overlaps the page, so it is transparent and ignores
+  clicks except on its own buttons. Checked at 390, 768 and 1366px: the
+  header links are the elements under their own centres, a real click opens
+  the page, the "⋮" menu opens (Rerun, Clear cache, Print, ...) and overlaps
+  nothing.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.
