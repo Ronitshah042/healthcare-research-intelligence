@@ -37,21 +37,21 @@ with common.tile("hero", "ask"):
 
 if asked:
     if not question.strip():
-        st.warning("Type a question first.")
+        common.alert("empty", "Type a question first.")
     elif not quota.try_use():
-        st.warning("You have used this visit’s questions. Searching citations still works.")
+        common.alert("quota", "You have used this visit’s questions. Searching citations still works.")
     else:
         try:
             with st.spinner("Finding passages and writing a cited answer…"):
                 st.session_state.answer = services.ask_question(question)
         except services.InvalidRequestError as error:
-            st.error(str(error))
+            common.alert("question", str(error))
 
 quota_note.caption(f"{quota.remaining} of {services.DEFAULT_VISITOR_QUESTIONS} questions "
                    "left for this visit.")
 answer = st.session_state.get("answer")
 answer_column, side = st.columns([8, 4], gap="medium")
-with answer_column, common.tile("peach", "answer"):
+with answer_column, common.tile("white", "answer"):
     st.subheader("Answer")
     if answer is None:
         st.write("Ask a question above. The answer uses only passages from the stored "
@@ -59,11 +59,10 @@ with answer_column, common.tile("peach", "answer"):
     else:
         st.markdown(f"**Question:** {answer.question}")
         if answer.abstained and answer.abstain_reason == "busy":
-            st.warning("The AI service is busy right now, so no answer was written. "
-                       "Please try again later.")
+            common.alert("busy", "The AI service is busy right now, so no answer was "
+                                 "written. Please try again later.")
         elif answer.abstained:
-            st.markdown("#### Not enough evidence")
-            st.write(answer.text)
+            common.alert("not-enough", f"Not enough evidence. {answer.text}")
             st.write("The stored articles don’t support an answer to this. Try rewording it, "
                      "or search the PubMed citations instead.")
             st.page_link("app_pages/search.py", label="Search citations →")
@@ -102,7 +101,7 @@ with side:
 
 topics = [topic["topic"] for topic in common.MANIFEST.get("topics", []) if topic.get("topic")]
 if topics:
-    with common.tile("sand", "suggestions"):
+    with common.tile("mint", "suggestions"):
         st.pills("Try asking about", topics, key="suggestion", on_change=_suggest)
 
 common.footer()

@@ -148,6 +148,9 @@ Public names are exported from `src/ingestion/__init__.py`; add new ones there.
   privacy notice beside every question box, "Research aid — not medical
   advice", PubMed and open-access attribution, and the "not enough evidence"
   state. Prefer native Streamlit; tile CSS stays in `app_pages/style.css`.
+- Colours: deep teal `#0F3D3E` and mint `#C7F0DD` plus neutrals only, no red
+  (`tests/test_app.py` checks every colour). Show errors, notices and "not
+  enough evidence" with `common.alert`, never `st.error` or `st.warning`.
 - The deployed app opens its bundle read-only (`HRI_DB_READ_ONLY=1`). Never
   rely on writing at run time there; use process memory or the session.
 - Public bundles contain only CC0 and CC BY text (`BUNDLE_LICENCES`), and

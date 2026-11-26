@@ -32,7 +32,7 @@ with menu, common.tile("hero", "lists"):
                 st.session_state.selected_list = new_name.strip()
                 st.rerun()
             except services.InvalidRequestError as error:
-                st.error(str(error))
+                common.alert("new-list", str(error))
     st.caption("Lists are kept for this visit only. Export before you leave to keep them.")
 
 with content, common.tile("white", "list"):
@@ -53,7 +53,7 @@ with content, common.tile("white", "list"):
                             st.session_state.selected_list = renamed.strip()
                             st.rerun()
                         except services.InvalidRequestError as error:
-                            st.error(str(error))
+                            common.alert("rename", str(error))
             with st.popover("Copy citations (Vancouver)", disabled=not papers):
                 st.code(lists.export(selected, "citations"), language=None, wrap_lines=True)
             st.download_button("Export CSV", lists.export(selected, "csv"),

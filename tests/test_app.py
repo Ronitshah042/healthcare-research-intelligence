@@ -46,6 +46,26 @@ class AppConfigTests(unittest.TestCase):
         self.assertEqual(app_config.get_setting("X", {}, "d", environment={}), "d")
 
 
+class PaletteTests(unittest.TestCase):
+    """The owner's rule: deep teal #0F3D3E and mint #C7F0DD plus neutrals, no red."""
+
+    def test_every_ui_colour_is_teal_mint_or_neutral(self) -> None:
+        import colorsys
+        import re
+
+        root = Path(APP).parent
+        files = [root / ".streamlit" / "config.toml", root / "streamlit_app.py",
+                 *sorted((root / "app_pages").glob("*.*"))]
+        for path in files:
+            for colour in re.findall(r"#[0-9A-Fa-f]{6}\b", path.read_text()):
+                red, green, blue = (int(colour[i:i + 2], 16) / 255 for i in (1, 3, 5))
+                hue, lightness, saturation = colorsys.rgb_to_hls(red, green, blue)
+                with self.subTest(file=path.name, colour=colour):
+                    # Neutral (greys, white, the pale page) or the teal-to-mint hues.
+                    self.assertTrue(saturation < 0.25 or 150 <= hue * 360 <= 190,
+                                    f"{colour} in {path.name} is not teal, mint or neutral")
+
+
 @unittest.skipIf(AppTest is None, "Streamlit is not installed (pip install -e '.[app]')")
 class AppPageTests(unittest.TestCase):
     """The four Bento Vitals pages against a small fake bundle; no network, no AI."""
@@ -111,7 +131,8 @@ class AppPageTests(unittest.TestCase):
             page = AppTest.from_file(APP, default_timeout=30).run()
 
         self.assertFalse(page.exception)
-        self.assertTrue(any("Bundle missing" in e.value for e in page.error))
+        self.assertFalse(page.error)  # no red error box: problems use the teal alert
+        self.assertIn("Bundle missing", self.text(page))
 
     def test_search_shows_real_counts_results_and_attribution(self) -> None:
         page = self.app()

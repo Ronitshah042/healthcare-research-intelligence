@@ -22,8 +22,6 @@ PRIVACY_NOTICE = (
     "Questions go to Google’s Gemini API (free tier), which may use them to improve "
     "its products. Don’t enter personal or patient information."
 )
-# Badge colours are set in .streamlit/config.toml to the mint, sand and peach tiles.
-_CHIP_COLOURS = ("green", "yellow", "orange", "blue")
 
 MANIFEST: dict = {}
 _STYLE = Path(__file__).with_name("style.css")
@@ -36,7 +34,7 @@ def page_style() -> None:
 
 @contextmanager
 def tile(kind: str, name: str):
-    """A rounded tile; ``kind`` is hero, mint, sand, peach or white (style.css)."""
+    """A rounded tile; ``kind`` is hero (teal), mint or white (style.css)."""
     with st.container(key=f"tile-{kind}-{name}"):
         yield
 
@@ -47,7 +45,15 @@ def split_row(name: str, spec: list[int]):
 
 
 def chip(number: int) -> str:
-    return f":{_CHIP_COLOURS[(number - 1) % len(_CHIP_COLOURS)]}-badge[{number}]"
+    return f":green-badge[{number}]"  # "green" is mint in .streamlit/config.toml
+
+
+def alert(name: str, text: str) -> None:
+    """An error, notice or "not enough evidence": white box, teal border, outline icon."""
+    with st.container(key=f"alert-{name}", horizontal=True, wrap=False,
+                      vertical_alignment="top", gap="small"):
+        st.markdown(":material/warning:", width="content")
+        st.markdown(text)
 
 
 def year_range(years: list[int]) -> str:

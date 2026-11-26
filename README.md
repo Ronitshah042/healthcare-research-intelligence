@@ -11,7 +11,7 @@ that reports its own weaknesses.
 **Live app: [healthcare-research-intelligence.streamlit.app](https://healthcare-research-intelligence.streamlit.app)**
 (may take a moment to wake up).
 
-![The Search page: a deep teal search tile, the collection's real counts (175 citations, 79 open-access articles), nine numbered results for "SGLT2 heart failure", and a peach tile linking to cited answers.](docs/images/search-desktop.png)
+![The Search page: a deep teal search tile, the collection's real counts (175 citations, 79 open-access articles), nine numbered results for "SGLT2 heart failure", and a white tile linking to cited answers.](docs/images/search-desktop.png)
 
 ## The problem
 

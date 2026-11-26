@@ -1309,6 +1309,43 @@ only reported, not used for the decision, to keep it held out.
   passages for its title and matching the PMID or DOI; a service lookup by
   identifier would be exact (README roadmap).
 
+### Teal and mint only; one alert style (2026-11-26)
+
+- **Owner's rule:** no red anywhere, and the whole UI uses only deep teal
+  `#0F3D3E` and mint `#C7F0DD` plus neutrals. This replaces the design's
+  coral buttons and sand and peach tiles: buttons are teal with white text
+  (mint with teal text on the teal tile, where teal would vanish), count and
+  suggestion tiles are mint, answer and evidence tiles white, chips mint,
+  other badges grey.
+- **Alerts** (errors, correction or expression-of-concern notices, "not
+  enough evidence", busy, quota) all use `common.alert`: a white box with a
+  2px deep teal border, Streamlit's outline warning icon
+  (`:material/warning:`) and bold `#102A2B` text. No page calls `st.error`
+  or `st.warning`, and the theme maps Streamlit's red, orange and yellow to
+  teal on white, so anything Streamlit draws itself (an uncaught exception, a
+  widget error) cannot show red either.
+- **Checks:** a test reads every hex colour in the theme, pages, stylesheet
+  and logo and fails on any that is not neutral or in the teal-to-mint hue
+  range (it rejects all eleven colours of the previous palette). In a
+  headless browser, every element's text, background, border and SVG colour
+  on Search, Ask (busy and not-enough-evidence), Paper (not found and open
+  access) and Saved was in range, after fixing the browser's default blue
+  link colour. Contrast: white on teal 11.9:1, teal on mint 9.6:1, alert text
+  15.1:1, alert border 11.9:1 (3:1 needed).
+
+### Header: document-with-heartbeat logo and wordmark (2026-11-26)
+
+- `st.logo` shows `app_pages/logo.svg`: an outline teal document with a
+  heartbeat line and the words "Research Intelligence". The browser tab uses
+  the icon alone (`logo-icon.svg`). `icon_image` is not set, because with top
+  navigation Streamlit then shows only the icon at every width.
+- The wordmark is SVG text in an image, so it uses the system sans-serif, not
+  the page's web fonts; Streamlit gives the logo the alt text "Logo".
+- Page links stay visible as text at 768px and wider (checked at 768, 1024
+  and 1366px). Below that Streamlit folds them into its own toggle, labelled
+  "Expand sidebar" for screen readers. `st.navigation` has no option to
+  relabel it; the possibilities were reported to the owner.
+
 ## Unresolved future decisions
 
 These items are not approved or implemented changes.

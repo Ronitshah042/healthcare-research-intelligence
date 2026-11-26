@@ -38,7 +38,7 @@ with side:
     left, right = st.columns(2)
     with left, common.tile("mint", "citations"):
         st.metric("Citations", stats.total_papers)
-    with right, common.tile("sand", "open-access"):
+    with right, common.tile("mint", "open-access"):
         st.metric("Open access", fulltext.documents)
     with common.tile("white", "safety"):
         st.markdown("**Safety first**")
@@ -61,7 +61,7 @@ with results_column, common.tile("white", "results"):
             results = services.search_papers(
                 query, strategy=strategy, page=page, page_size=PAGE_SIZE)
         except services.InvalidRequestError as error:
-            st.error(str(error))
+            common.alert("search", str(error))
             results = None
         if results is not None:
             st.subheader(f"{results.total_count} citation{'s' if results.total_count != 1 else ''}")
@@ -84,7 +84,7 @@ with results_column, common.tile("white", "results"):
                         st.rerun()
             common.pubmed_attribution(results.attribution)
 
-with answer_column, common.tile("peach", "evidence"):
+with answer_column, common.tile("white", "evidence"):
     st.subheader("Evidence answer")
     st.write("Get a short answer written only from the stored open-access full text, "
              "with every claim cited and checked, or a clear “not enough evidence”.")

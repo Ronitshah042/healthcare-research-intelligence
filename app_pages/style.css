@@ -1,14 +1,14 @@
-/* Bento Vitals tiles. A tile is st.container(key="tile-<kind>-<name>"), which
-   Streamlit gives the class st-key-tile-<kind>-<name>. Everything else is theme. */
+/* Bento Vitals tiles: deep teal #0F3D3E and mint #C7F0DD plus neutrals only.
+   A tile is st.container(key="tile-<kind>-<name>"), which Streamlit gives the
+   class st-key-tile-<kind>-<name>. Everything else is theme. */
 [class*="st-key-tile-"] { border-radius: 24px; padding: 22px; }
-[class*="st-key-tile-hero"], [class*="st-key-tile-white"], [class*="st-key-tile-peach"] {
-  border-radius: 28px; padding: 28px;
-}
+[class*="st-key-tile-hero"], [class*="st-key-tile-white"] { border-radius: 28px; padding: 28px; }
 [class*="st-key-tile-hero"] { background: #0F3D3E; }
-[class*="st-key-tile-mint"] { background: #C7F0DD; color: #0F3D2E; }
-[class*="st-key-tile-sand"] { background: #F5E6C4; color: #3D2C08; }
-[class*="st-key-tile-peach"] { background: #FFE1CF; color: #3B1708; }
+[class*="st-key-tile-mint"] { background: #C7F0DD; color: #102A2B; }
 [class*="st-key-tile-white"] { background: #FFFFFF; }
+
+/* Base link colour (the browser's default is blue), e.g. the skip-to-content link. */
+a { color: #0F3D3E; }
 
 /* Text on the deep teal tile; inputs and buttons keep their own colours. */
 [class*="st-key-tile-hero"] :is([data-testid="stMarkdownContainer"], [data-testid="stHeading"],
@@ -16,22 +16,36 @@
   :not(button *, [data-testid^="stBaseLinkButton"] *, [data-testid="stCode"] *) {
   color: #FFFFFF;
 }
-[class*="st-key-tile-hero"] a:not(button *, [data-testid^="stBaseLinkButton"], [data-testid^="stBaseLinkButton"] *) { color: #9FF0CF; }
+[class*="st-key-tile-hero"] a:not(button *, [data-testid^="stBaseLinkButton"], [data-testid^="stBaseLinkButton"] *) { color: #C7F0DD; }
 
-/* Coral buttons need dark text for contrast (white on #F26B4F is about 3:1). */
+/* Primary buttons are teal with white text; on the teal tile they turn mint. */
 [data-testid^="stBaseButton-primary"], [data-testid^="stBaseButton-primary"] *,
-[data-testid="stBaseLinkButton-primary"], [data-testid="stBaseLinkButton-primary"] * {
-  color: #2A0D05;
+[data-testid="stBaseLinkButton-primary"], [data-testid="stBaseLinkButton-primary"] * { color: #FFFFFF; }
+.stApp [class*="st-key-tile-hero"] :is([data-testid^="stBaseButton-primary"], [data-testid="stBaseLinkButton-primary"]) {
+  background: #C7F0DD; border-color: #C7F0DD;
 }
+.stApp [class*="st-key-tile-hero"] :is([data-testid^="stBaseButton-primary"], [data-testid="stBaseLinkButton-primary"]):hover {
+  background: #FFFFFF; border-color: #FFFFFF;
+}
+.stApp [class*="st-key-tile-hero"] :is([data-testid^="stBaseButton-primary"], [data-testid="stBaseLinkButton-primary"]) * { color: #0F3D3E; }
 
-/* Contrast fixes (WCAG AA 4.5:1): the selected option was coral on pale coral
-   (2.7:1) and default captions 3.9:1 on the page background. */
-button[role="radio"][aria-checked="true"], button[aria-pressed="true"] { color: #8A3A12; }
-/* .stApp raises specificity above Streamlit's own caption style. */
+/* The selected option (search mode) would be teal on teal inside the hero. */
+.stApp [class*="st-key-tile-hero"] button[role="radio"][aria-checked="true"] {
+  background: #C7F0DD; border-color: #C7F0DD; color: #0F3D3E;
+}
+.stApp [class*="st-key-tile-hero"] button[role="radio"][aria-checked="true"] * { color: #0F3D3E; }
+
+/* Alerts (errors, correction or concern flags, "not enough evidence"): a white
+   box with a 2px deep teal border, an outline warning icon, bold dark text. */
+[class*="st-key-alert-"] {
+  background: #FFFFFF; border: 2px solid #0F3D3E; border-radius: 16px; padding: 14px 18px;
+}
+[class*="st-key-alert-"] :is(p, span) { color: #102A2B; font-weight: 700; }
+
+/* Captions: Streamlit fades them to 60%, below 4.5:1 here; .stApp outranks its style. */
 .stApp [data-testid="stCaptionContainer"] { opacity: 1; }
 .stApp [data-testid="stCaptionContainer"], .stApp [data-testid="stCaptionContainer"] * { color: #3F5A5A; }
 .stApp [class*="st-key-tile-white"] [data-testid="stCaptionContainer"] * { color: #4A6363; }
-.stApp [class*="st-key-tile-peach"] [data-testid="stCaptionContainer"] * { color: #5C2A12; }
 .stApp [class*="st-key-tile-hero"] [data-testid="stCaptionContainer"] * { color: #C9E6E3; }
 
 /* Medium widths: stat tiles move under the hero instead of truncating
@@ -56,4 +70,4 @@ button[role="radio"][aria-checked="true"], button[aria-pressed="true"] { color: 
 :is(button, a, input, textarea, [role="tab"], [role="option"]):focus-visible {
   outline: 3px solid #102A2B; outline-offset: 2px;
 }
-[class*="st-key-tile-hero"] :is(button, a, input, textarea):focus-visible { outline-color: #9FF0CF; }
+[class*="st-key-tile-hero"] :is(button, a, input, textarea):focus-visible { outline-color: #C7F0DD; }

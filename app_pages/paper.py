@@ -15,7 +15,7 @@ identifier = st.query_params.get("id", "")
 try:
     paper = services.get_paper(identifier)
 except (services.InvalidRequestError, services.PaperNotFoundError):
-    st.error("This paper isn’t in the stored collection. Open a paper from Search.")
+    common.alert("not-found", "This paper isn’t in the stored collection. Open a paper from Search.")
     common.footer()
     st.stop()
 
@@ -50,9 +50,9 @@ hero, side = common.split_row("paper", [8, 4])
 with hero, common.tile("hero", "paper"):
     badges = [":green-badge[Open-access full text]" if document else ":gray-badge[Citation only]"]
     if document and document.article_type:
-        badges.append(f":blue-badge[{document.article_type.replace('-', ' ').capitalize()}]")
+        badges.append(f":gray-badge[{document.article_type.replace('-', ' ').capitalize()}]")
     if paper.publication_year:
-        badges.append(f":blue-badge[{paper.publication_year}]")
+        badges.append(f":gray-badge[{paper.publication_year}]")
     st.markdown(" ".join(badges))
     st.header(paper.title)
     authors = ", ".join(paper.authors[:6]) + (", et al." if len(paper.authors) > 6 else "")
@@ -79,7 +79,7 @@ with hero, common.tile("hero", "paper"):
                         lists.add(name, common.identifier(paper))
                         st.success(f"Saved to “{name}”.")
                     except services.InvalidRequestError as error:
-                        st.error(str(error))
+                        common.alert("save", str(error))
         with st.popover("Copy citation (Vancouver)"):
             st.code(_vancouver(paper), language=None, wrap_lines=True)
             st.caption("Use the copy icon. " + paper.attribution.source_name
@@ -89,7 +89,7 @@ with side:
     left, right = st.columns(2)
     with left, common.tile("mint", "year"):
         st.metric("Year", paper.publication_year or "Unknown")
-    with right, common.tile("sand", "licence"):
+    with right, common.tile("mint", "licence"):
         st.metric("Licence", document.licence if document else "n/a",
                   help=None if document else "No open-access text is stored, only the citation.")
     with common.tile("white", "abstract"):
@@ -99,7 +99,8 @@ with side:
         else:
             st.write("PubMed lists no abstract for this paper.")
         if document and document.notice_flags:
-            st.warning("Notice on this article: " + ", ".join(document.notice_flags) + ".")
+            common.alert("notice", "Notice on this article: "
+                         + ", ".join(document.notice_flags) + ".")
 
 text_column, ask_column = st.columns([7, 5], gap="medium")
 with text_column, common.tile("white", "passages"):
@@ -116,7 +117,7 @@ with text_column, common.tile("white", "passages"):
                 st.write(text)
         st.caption(f"Open-access text reused under its licence. {document.attribution}")
 
-with ask_column, common.tile("peach", "ask"):
+with ask_column, common.tile("white", "ask"):
     st.subheader("Ask about this paper")
     with st.form("ask-paper", border=False):
         question = st.text_input("Your question")

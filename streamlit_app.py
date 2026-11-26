@@ -47,19 +47,21 @@ def prepare_embedder():
     return services.prepare_embedder()
 
 
-st.set_page_config(page_title="Research Intelligence", layout="wide")
+st.set_page_config(page_title="Research Intelligence", layout="wide",
+                   page_icon=str(ROOT / "app_pages" / "logo-icon.svg"))
+# Icon and "Research Intelligence" wordmark, beside the page links.
 st.logo(str(ROOT / "app_pages" / "logo.svg"), size="large")
 
 try:
     bundle = prepare_bundle()
 except Exception as error:  # show the problem instead of a stack trace
-    st.error(f"Could not get the data bundle: {error}")
+    common.alert("bundle", f"Could not get the data bundle: {error}")
     st.stop()
 os.environ["HRI_DB_PATH"] = bundle
 check = services.check_deployment(bundle, embedder_id=embeddings.MODEL_ID)
 if not check.ok:
-    for problem in check.problems:
-        st.error(problem)
+    for number, problem in enumerate(check.problems):
+        common.alert(f"check-{number}", problem)
     st.stop()
 common.MANIFEST = check.manifest or {}
 

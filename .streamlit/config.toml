@@ -1,7 +1,8 @@
-# Bento Vitals theme (the owner's design). Tile colours are in app_pages/style.css.
+# Bento Vitals theme, owner's palette: deep teal #0F3D3E and mint #C7F0DD plus
+# neutrals only. Tile and alert styles are in app_pages/style.css.
 [theme]
 base = "light"
-primaryColor = "#F26B4F"
+primaryColor = "#0F3D3E"
 backgroundColor = "#E6EEE9"
 secondaryBackgroundColor = "#FFFFFF"
 textColor = "#102A2B"
@@ -13,12 +14,20 @@ baseRadius = "12px"
 buttonRadius = "12px"
 metricValueFontSize = "2.4rem"
 metricValueFontWeight = 700
-# Numbered result chips and badges use the tile colours.
+# Badges and chips: mint ("green") and grey only.
+greenColor = "#0F3D3E"
 greenBackgroundColor = "#C7F0DD"
-greenTextColor = "#1D4D3A"
-yellowBackgroundColor = "#F5E6C4"
-yellowTextColor = "#5A4210"
-orangeBackgroundColor = "#FFE1CF"
-orangeTextColor = "#8A3A12"
-blueBackgroundColor = "#D6E6F5"
-blueTextColor = "#1B3A57"
+greenTextColor = "#0F3D3E"
+grayBackgroundColor = "#EEF2F0"
+grayTextColor = "#102A2B"
+# No red, orange or yellow anywhere: anything Streamlit draws in those colours
+# (its own error or warning boxes, exceptions, widget errors) uses teal on white.
+redColor = "#0F3D3E"
+redBackgroundColor = "#FFFFFF"
+redTextColor = "#102A2B"
+orangeColor = "#0F3D3E"
+orangeBackgroundColor = "#FFFFFF"
+orangeTextColor = "#102A2B"
+yellowColor = "#0F3D3E"
+yellowBackgroundColor = "#FFFFFF"
+yellowTextColor = "#102A2B"

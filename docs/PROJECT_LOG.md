@@ -1275,3 +1275,30 @@ only 409 OK, 10 skipped (API and Streamlit). Ruff clean.
 
 **Verified:** Python 3.13.18 with every extra 420 OK; Python 3.15.2 core
 only 409 OK, 11 skipped. Ruff clean.
+
+## Teal and mint palette; one alert style (2026-11-26)
+
+- The UI now uses only deep teal `#0F3D3E`, mint `#C7F0DD` and neutrals; no
+  red. Coral buttons, sand and peach tiles, and coloured chips are gone.
+- Every error, correction or concern notice, "not enough evidence", busy and
+  quota message is `common.alert`: white box, 2px teal border, outline
+  warning icon, bold dark text. The theme also maps Streamlit's own red,
+  orange and yellow to teal on white.
+- New test: every colour in the UI files is teal, mint or neutral. Browser
+  scan of all pages and alert states: no colour outside the palette, no
+  Streamlit alert boxes; the selected search mode on the teal tile and the
+  browser's default link blue were fixed along the way. README screenshot
+  retaken.
+
+**Verified:** Python 3.13.18 with every extra 421 OK; Python 3.15.2 core
+only 410 OK, 11 skipped. Ruff clean.
+
+## Header logo (2026-11-26)
+
+- New header logo: an outline teal document with a heartbeat line, with the
+  "Research Intelligence" wordmark; icon-only version for the browser tab.
+  Page links show as text from 768px up; at phone width Streamlit's toggle
+  holds them (it cannot be relabelled through Streamlit's API).
+
+**Verified:** Python 3.13.18 with every extra 421 OK (palette test included);
+Python 3.15.2 core only 410 OK, 11 skipped. Ruff clean.
